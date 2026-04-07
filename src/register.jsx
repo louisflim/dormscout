@@ -3,40 +3,31 @@ import React, { useState } from 'react';
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
 
-export default function AuthScreen({ setScreen }) {
+export default function Register({ setScreen }) {
   const [userType, setUserType] = useState('tenant');
-  const [authMode, setAuthMode] = useState('login');
   const [school, setSchool] = useState('');
 
-  const isLogin = authMode === 'login';
   const schools = ['USC - Talamban', 'CIT', 'UC - Main', 'CNU'];
-  const loginFields = [
-    { name: 'email', placeholder: 'Email', type: 'email' },
-    { name: 'password', placeholder: 'Password', type: 'password' },
-  ];
   const registerFields = [
     { name: 'name', placeholder: 'Full Name', type: 'text' },
     { name: 'email', placeholder: 'Email', type: 'email' },
     { name: 'phone', placeholder: 'Phone Number', type: 'tel' },
     { name: 'password', placeholder: 'Password', type: 'password' },
   ];
-  const fields = isLogin ? loginFields : registerFields;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     // Navigate to dashboard based on user type
-    if (isLogin) {
-      if (userType === 'landlord') {
-        setScreen('dashboard-landlord');
-      } else if (userType === 'tenant') {
-        setScreen('dashboard-tenant');
-      }
+    if (userType === 'landlord') {
+      setScreen('dashboard-landlord');
+    } else if (userType === 'tenant') {
+      setScreen('dashboard-tenant');
     }
   };
 
   return (
     <main className="screen auth-screen">
-      
+
       <div className="auth-card">
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '20px' }}>
           <button
@@ -72,21 +63,21 @@ export default function AuthScreen({ setScreen }) {
         </div>
 
         <h1 style={{ textAlign: 'center', marginBottom: '20px', fontSize: '26px', fontWeight: '700' }}>
-          <span style={{ color: PRIMARY }}>{isLogin ? 'Log-In' : 'Create'}</span>
+          <span style={{ color: PRIMARY }}>Create</span>
           {' '}
           <span style={{ color: SECONDARY }}>
-            {isLogin ? 'To Your Account' : 'Your Account'}
+            Your Account
           </span>
           <br />
           <strong style={{ textTransform: 'capitalize' }}>{userType}</strong>
         </h1>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          {fields.map(({ name, placeholder, type }) => (
+          {registerFields.map(({ name, placeholder, type }) => (
             <input key={name} name={name} type={type} placeholder={placeholder} />
           ))}
 
-          {!isLogin && userType === 'tenant' && (
+          {userType === 'tenant' && (
             <select
               value={school}
               onChange={(e) => setSchool(e.target.value)}
@@ -106,34 +97,14 @@ export default function AuthScreen({ setScreen }) {
             </select>
           )}
 
-          {isLogin && (
-            <div style={{ textAlign: 'right', marginTop: '-8px', marginBottom: '12px' }}>
-              <button
-                type="button"
-                onClick={() => {/* Forgot password handler */}}
-                style={{
-                  fontSize: '12px',
-                  color: PRIMARY,
-                  textDecoration: 'none',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Forgot Password?
-              </button>
-            </div>
-          )}
-
           <button type="submit" className="primary-btn" style={{ marginTop: '14px' }}>
-            {isLogin ? 'Login' : 'Sign Up'}
+            Sign Up
           </button>
         </form>
 
         <div style={{ textAlign: 'center', marginTop: '16px' }}>
           <button
-            onClick={() => setAuthMode(isLogin ? 'register' : 'login')}
+            onClick={() => setScreen('auth')}
             style={{
               background: 'none',
               border: 'none',
@@ -144,7 +115,7 @@ export default function AuthScreen({ setScreen }) {
               fontWeight: '600',
             }}
           >
-            {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Login'}
+            Already have an account? Login
           </button>
         </div>
       </div>

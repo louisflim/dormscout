@@ -57,13 +57,11 @@ const Toggle = ({ checked, onChange }) => (
 export default function SettingsTenant({ onLogout, setScreen, darkMode = false, setDarkMode }) {
   const colors = darkMode ? COLORS.dark : COLORS.light;
   const [activeNav, setActiveNav] = useState('settings');
-  const [fontSize, setFontSize] = useState('medium');
 
   // Notifications
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [inAppNotifications, setInAppNotifications] = useState(true);
   const [messageAlerts, setMessageAlerts] = useState(true);
-  const [bookingUpdates, setBookingUpdates] = useState(true);
 
   // Privacy
   const [showProfile, setShowProfile] = useState(true);
@@ -265,27 +263,6 @@ export default function SettingsTenant({ onLogout, setScreen, darkMode = false, 
                 label="Dark Mode"
                 control={<Toggle checked={darkMode} onChange={setDarkMode} />}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0' }}>
-                <label style={{ fontSize: '14px', color: colors.text, fontWeight: '500' }}>Font Size</label>
-                <select
-                  value={fontSize}
-                  onChange={(e) => setFontSize(e.target.value)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: `1px solid ${colors.border}`,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    background: colors.cardBg,
-                    color: colors.text,
-                  }}
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
-                </select>
-              </div>
             </SettingSection>
 
             {/* Notifications Section */}
@@ -301,10 +278,6 @@ export default function SettingsTenant({ onLogout, setScreen, darkMode = false, 
               <SettingRow
                 label="New Message Alerts"
                 control={<Toggle checked={messageAlerts} onChange={setMessageAlerts} />}
-              />
-              <SettingRow
-                label="Booking Updates"
-                control={<Toggle checked={bookingUpdates} onChange={setBookingUpdates} />}
               />
             </SettingSection>
 
