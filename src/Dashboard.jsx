@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Map from './map.jsx';
+import Listings from './components/Listings';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -86,6 +87,40 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
   const stats = STATS[userType] || STATS.tenant;
   const isLandlord = userType === 'landlord';
 
+  // Live listings synced from localStorage / Listings component
+  const [currentListings, setCurrentListings] = useState([]);
+
+  useEffect(() => {
+    function loadFromStorage() {
+      try {
+        const raw = localStorage.getItem('dormscout_listings');
+        if (raw) setCurrentListings(JSON.parse(raw));
+        else {
+          // seed dashboard with fallback LISTINGS and persist so Listings component sees it too
+          setCurrentListings(LISTINGS);
+          try {
+            localStorage.setItem('dormscout_listings', JSON.stringify(LISTINGS));
+          } catch (e) {
+            // ignore storage errors
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load listings in Dashboard', e);
+        setCurrentListings([]);
+      }
+    }
+
+    loadFromStorage();
+
+    const handler = (e) => {
+      if (e && e.detail) setCurrentListings(e.detail);
+      else loadFromStorage();
+    };
+
+    window.addEventListener('dormscout:listingsUpdated', handler);
+    return () => window.removeEventListener('dormscout:listingsUpdated', handler);
+  }, []);
+
   const handleNavClick = (id) => {
     if (id === 'settings') {
       setScreen(isLandlord ? 'settings-landlord' : 'settings-tenant');
@@ -93,6 +128,10 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
       setActiveNav(id);
     }
   };
+
+  // If landlord, replace All Listings stat value with live count
+  const listingCount = (currentListings && currentListings.length > 0) ? currentListings.length : LISTINGS.length;
+  const statsToRender = stats.map((s) => (isLandlord && s.title === 'All Listings' ? { ...s, value: String(listingCount) } : s));
 
   return (
     <div style={{
@@ -218,7 +257,7 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                   textAlign: 'left',
                   border: 'none',
                   background: activeNav === item.id ? PRIMARY : 'transparent',
-                  color: activeNav === item.id ? '#fff' : colors.text,
+                  color: activeNav === item.id ? '#fff' : PRIMARY, // inactive should be PRIMARY so it's readable
                   borderRadius: activeNav === item.id ? '12px' : '0',
                   cursor: 'pointer',
                   fontSize: '14px',
@@ -231,15 +270,16 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                   gap: '10px',
                 }}
                 onMouseEnter={(e) => {
+                  // On hover, if not active, give a subtle highlight and keep text readable
                   if (activeNav !== item.id) {
-                    e.target.style.background = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-                    e.target.style.color = colors.text;
+                    e.currentTarget.style.background = '#f5f5f5';
+                    e.currentTarget.style.color = PRIMARY;
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (activeNav !== item.id) {
-                    e.target.style.background = 'transparent';
-                    e.target.style.color = colors.text;
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = PRIMARY;
                   }
                 }}
               >
@@ -260,7 +300,7 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                   gap: '20px',
                   marginBottom: '24px',
                 }}>
-                  {stats.map((stat) => (
+                  {statsToRender.map((stat) => (
                     <div key={stat.title} style={{
                       background: colors.cardBg,
                       borderRadius: '16px',
@@ -290,15 +330,15 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                     }}>
                       <h5 style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 16px 0', color: colors.text }}>Current Listings</h5>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {LISTINGS.map((listing, idx) => (
-                          <div key={idx} style={{
+                        {(currentListings && currentListings.length > 0 ? currentListings : LISTINGS).map((listing, idx) => (
+                          <div key={listing.id || idx} style={{
                             padding: '12px',
                             background: darkMode ? '#0f3460' : '#f9f9f9',
                             borderRadius: '8px',
                             fontSize: '13px',
                             color: colors.text,
                           }}>
-                            {listing}
+                            {typeof listing === 'string' ? listing : listing.title}
                           </div>
                         ))}
                       </div>
@@ -327,6 +367,13 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                     </div>
                   </div>
                 </div>
+
+                {/* Render Listings management UI when listing nav is active */}
+                {activeNav === 'listing' && isLandlord && (
+                  <div style={{ marginTop: 24 }}>
+                    <Listings />
+                  </div>
+                )}
               </>
             )}
           </div>
