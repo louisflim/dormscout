@@ -24,9 +24,13 @@ export default function AuthScreen({ setScreen }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Navigate to dashboard if landlord is logging in
-    if (userType === 'landlord' && isLogin) {
-      setScreen('dashboard-landlord');
+    // Navigate to dashboard based on user type
+    if (isLogin) {
+      if (userType === 'landlord') {
+        setScreen('dashboard-landlord');
+      } else if (userType === 'tenant') {
+        setScreen('dashboard-tenant');
+      }
     }
   };
 
@@ -104,9 +108,21 @@ export default function AuthScreen({ setScreen }) {
 
           {isLogin && (
             <div style={{ textAlign: 'right', marginTop: '-8px', marginBottom: '12px' }}>
-              <a href="#" style={{ fontSize: '12px', color: PRIMARY, textDecoration: 'none' }}>
+              <button
+                type="button"
+                onClick={() => {/* Forgot password handler */}}
+                style={{
+                  fontSize: '12px',
+                  color: PRIMARY,
+                  textDecoration: 'none',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
                 Forgot Password?
-              </a>
+              </button>
             </div>
           )}
 

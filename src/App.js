@@ -1,11 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
 import Homepage from './homepage.jsx';
 import AuthScreen from './AuthScreen.jsx';
 import DashboardLandlord from './DashboardLandlord.jsx';
+import DashboardTenant from './DashboardTenant.jsx';
+import SettingsLandlord from './SettingsLandlord.jsx';
+import SettingsTenant from './SettingsTenant.jsx';
 
 function App() {
   const [screen, setScreen] = useState('home');
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
 
   const Header = () => (
     <header className="global-header">
@@ -26,14 +37,32 @@ function App() {
             Back to Main Menu
           </button>
         )}
+        {screen === 'dashboard-tenant' && (
+          <button onClick={() => setScreen('home')} className="primary-btn">
+            Back to Main Menu
+          </button>
+        )}
+        {screen === 'settings-landlord' && (
+          <button onClick={() => setScreen('home')} className="primary-btn">
+            Back to Main Menu
+          </button>
+        )}
+        {screen === 'settings-tenant' && (
+          <button onClick={() => setScreen('home')} className="primary-btn">
+            Back to Main Menu
+          </button>
+        )}
       </div>
     </header>
   );
 
   const screens = {
     home: <Homepage />,
-    auth: <AuthScreen setScreen={setScreen} />,
-    'dashboard-landlord': <DashboardLandlord onLogout={() => setScreen('home')} />,
+    auth: <AuthScreen setScreen={setScreen} darkMode={darkMode} />,
+    'dashboard-landlord': <DashboardLandlord onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} />,
+    'dashboard-tenant': <DashboardTenant onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} />,
+    'settings-landlord': <SettingsLandlord onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} setDarkMode={setDarkMode} />,
+    'settings-tenant': <SettingsTenant onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} setDarkMode={setDarkMode} />,
   };
 
   return (

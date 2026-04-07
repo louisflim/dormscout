@@ -24,7 +24,7 @@ const COLORS = {
   },
 };
 
-export default function DashboardLandlord({ onLogout, setScreen, darkMode = false }) {
+export default function DashboardTenant({ onLogout, setScreen, darkMode = false }) {
   const colors = darkMode ? COLORS.dark : COLORS.light;
   const [activeNav, setActiveNav] = useState('overview');
 
@@ -32,7 +32,7 @@ export default function DashboardLandlord({ onLogout, setScreen, darkMode = fals
     const icons = {
       overview: '📊',
       map: '🗺️',
-      listing: '📋',
+      booking: '📅',
       messages: '💬',
       settings: '⚙️',
       reviews: '⭐'
@@ -42,7 +42,7 @@ export default function DashboardLandlord({ onLogout, setScreen, darkMode = fals
       <button
         onClick={() => {
           if (id === 'settings') {
-            setScreen('settings-landlord');
+            setScreen('settings-tenant');
           } else {
             setActiveNav(id);
           }
@@ -143,22 +143,13 @@ export default function DashboardLandlord({ onLogout, setScreen, darkMode = fals
         <h2 style={{
           fontSize: '48px',
           fontWeight: '700',
-          margin: '0 0 8px 0',
+          margin: '0 0 32px 0',
           textAlign: 'center',
           lineHeight: '1.1',
         }}>
           <span style={{ color: PRIMARY }}>Welcome</span>
           <span style={{ color: SECONDARY }}> Back</span>
         </h2>
-        <h3 style={{
-          fontSize: '36px',
-          fontWeight: '700',
-          margin: '0 0 32px 0',
-          textAlign: 'center',
-          color: SECONDARY,
-        }}>
-          Kobe Bryant!
-        </h3>
 
         {/* Dashboard Title */}
         <div style={{ marginBottom: '28px' }}>
@@ -175,7 +166,7 @@ export default function DashboardLandlord({ onLogout, setScreen, darkMode = fals
             color: colors.secondaryText,
             margin: 0,
           }}>
-            See an overview of your current listings, messages, and recent activity.
+            See an overview of your current bookings, messages, and recent activity.
           </p>
         </div>
 
@@ -191,7 +182,7 @@ export default function DashboardLandlord({ onLogout, setScreen, darkMode = fals
           }}>
             <NavItem id="overview" label="Overview" />
             <NavItem id="map" label="Map View" />
-            <NavItem id="listing" label="Listing" />
+            <NavItem id="booking" label="Booking" />
             <NavItem id="messages" label="Messages" />
             <NavItem id="settings" label="Settings" />
             <NavItem id="reviews" label="Reviews" />
@@ -210,10 +201,10 @@ export default function DashboardLandlord({ onLogout, setScreen, darkMode = fals
                 background: colors.cardBg,
                 borderRadius: '16px',
                 padding: '24px',
-                textAlign: 'center',
+                textAlign: 'left',
               }}>
-                <h5 style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '500', margin: '0 0 12px 0', textTransform: 'uppercase' }}>All Listings</h5>
-                <p style={{ fontSize: '48px', fontWeight: '700', margin: 0, color: PRIMARY }}>4</p>
+                <h5 style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '500', margin: '0 0 12px 0', textTransform: 'uppercase' }}>Your Current Booking</h5>
+                <p style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: colors.text }}>Sunshine Boarding House</p>
               </div>
               <div style={{
                 background: colors.cardBg,
@@ -222,7 +213,7 @@ export default function DashboardLandlord({ onLogout, setScreen, darkMode = fals
                 textAlign: 'center',
               }}>
                 <h5 style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '500', margin: '0 0 12px 0', textTransform: 'uppercase' }}>Notifications</h5>
-                <p style={{ fontSize: '48px', fontWeight: '700', margin: 0, color: PRIMARY }}>3</p>
+                <p style={{ fontSize: '48px', fontWeight: '700', margin: 0, color: PRIMARY }}>1</p>
               </div>
               <div style={{
                 background: colors.cardBg,
@@ -231,63 +222,34 @@ export default function DashboardLandlord({ onLogout, setScreen, darkMode = fals
                 textAlign: 'center',
               }}>
                 <h5 style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '500', margin: '0 0 12px 0', textTransform: 'uppercase' }}>Messages</h5>
-                <p style={{ fontSize: '48px', fontWeight: '700', margin: 0, color: PRIMARY }}>3</p>
+                <p style={{ fontSize: '48px', fontWeight: '700', margin: 0, color: PRIMARY }}>1</p>
               </div>
             </div>
 
-            {/* Bottom Cards Row */}
+            {/* Recent Messages Card */}
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '20px',
+              background: colors.cardBg,
+              borderRadius: '16px',
+              padding: '24px',
             }}>
-              {/* Current Listings */}
-              <div style={{
-                background: colors.cardBg,
-                borderRadius: '16px',
-                padding: '24px',
-              }}>
-                <h5 style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 16px 0', color: colors.text }}>Current Listings</h5>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {['Sunshine Boarding House', 'BlueSky Apartments', 'Casa Mariposa'].map((listing, idx) => (
-                    <div key={idx} style={{
-                      padding: '12px',
-                      background: darkMode ? '#0f3460' : '#f9f9f9',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      color: colors.text,
-                    }}>
-                      {listing}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Recent Messages */}
-              <div style={{
-                background: colors.cardBg,
-                borderRadius: '16px',
-                padding: '24px',
-              }}>
-                <h5 style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 16px 0', color: colors.text }}>Recent Messages</h5>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {[
-                    { name: 'LeBron James', property: 'Sunshine Boarding House' },
-                    { name: 'Steph Curry', property: 'Sunshine Boarding House' },
-                    { name: 'Michael Jordan', property: 'Sunshine Boarding House' },
-                  ].map((msg, idx) => (
-                    <div key={idx} style={{
-                      padding: '12px',
-                      background: darkMode ? '#0f3460' : '#f9f9f9',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      color: colors.text,
-                    }}>
-                      <div style={{ fontWeight: '600', color: colors.text }}>{msg.name}</div>
-                      <div style={{ fontSize: '12px', color: colors.secondaryText }}>{msg.property}</div>
-                    </div>
-                  ))}
-                </div>
+              <h5 style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 16px 0', color: colors.text }}>Recent Messages</h5>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {[
+                  { name: 'LeBron James', property: 'Sunshine Boarding House' },
+                  { name: 'Steph Curry', property: 'Sunshine Boarding House' },
+                  { name: 'Michael Jordan', property: 'Sunshine Boarding House' },
+                ].map((msg, idx) => (
+                  <div key={idx} style={{
+                    padding: '12px',
+                    background: darkMode ? '#0f3460' : '#f9f9f9',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    color: colors.text,
+                  }}>
+                    <div style={{ fontWeight: '600', color: colors.text }}>{msg.name}</div>
+                    <div style={{ fontSize: '12px', color: colors.secondaryText }}>{msg.property}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
