@@ -292,6 +292,11 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
           <div style={{ flex: 1 }}>
             {activeNav === 'map' ? (
               <Map darkMode={darkMode} />
+            ) : activeNav === 'listing' && isLandlord ? (
+              // If landlord selected the Listing nav, show the Listings board as the main content only
+              <div style={{ marginTop: 24 }}>
+                <Listings mode="board" />
+              </div>
             ) : (
               <>
                 <div style={{
@@ -367,13 +372,6 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                     </div>
                   </div>
                 </div>
-
-                {/* Render Listings management UI when listing nav is active */}
-                {activeNav === 'listing' && isLandlord && (
-                  <div style={{ marginTop: 24 }}>
-                    <Listings />
-                  </div>
-                )}
               </>
             )}
           </div>
