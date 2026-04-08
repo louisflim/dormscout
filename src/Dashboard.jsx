@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Map from './map.jsx';
 import ListingPage from './ListingPage';
+import BookingPage from './BookingPage';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -282,17 +283,19 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
           lineHeight: '1.1',
         }}>
           {activeNav === 'map' ? (
-            <>
-              <span style={{ color: PRIMARY }}>Map</span>
-              <span style={{ color: SECONDARY }}> View</span>
-            </>
-          ) : activeNav === 'listing' ? (
-            <span style={{ color: PRIMARY }}>Listings</span>
-          ) : (
-            <>
-              <span style={{ color: PRIMARY }}>Welcome</span>
-              <span style={{ color: SECONDARY }}> Back</span>
-            </>
+              <>
+                <span style ={{ color: PRIMARY }}>MAP </span>
+                <span style ={{ color: SECONDARY }}>View</span>
+              </>
+            ) : activeNav === 'listing' && isLandlord ? (
+                <span style ={{ color: PRIMARY }}>Listings</span>
+            ) : activeNav === 'booking' && !isLandlord ? (
+                <span style ={{ color: PRIMARY }}>My Bookings</span>
+            ) : (
+              <>
+                <span style ={{ color: PRIMARY }}>Welcome</span>
+                <span style ={{ color: SECONDARY }}>Back</span>
+              </>
           )}
         </h2>
         {isLandlord && activeNav !== 'listing' && (
@@ -382,9 +385,11 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
 
           <div style={{ flex: 1 }}>
             {activeNav === 'map' ? (
-              <Map darkMode={darkMode} />
+              <Map darkMode={darkMode} userType={userType} />
             ) : activeNav === 'listing' && isLandlord ? (
               <ListingPage darkMode={darkMode} />
+            ) : activeNav === 'booking' && !isLandlord ? (
+                <BookingPage darkMode={darkMode} />
             ) : (
               <>
                 <div style={{
