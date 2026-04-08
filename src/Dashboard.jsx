@@ -75,9 +75,9 @@ const ICONS = {
   reviews: '⭐',
 };
 
-export default function Dashboard({ userType = 'tenant', onLogout, setScreen, dashboardType, darkMode = false, setDarkMode }) {
+export default function Dashboard({ userType = 'tenant', onLogout, setScreen, dashboardType, darkMode = false, setDarkMode, desiredNav = 'overview', setDesiredNav }) {
   const colors = darkMode ? COLORS.dark : COLORS.light;
-  const [activeNav, setActiveNav] = useState('overview');
+  const [activeNav, setActiveNav] = useState(desiredNav);
   const [showDropdown, setShowDropdown] = useState(false);
   const navItems = NAV_ITEMS[userType] || NAV_ITEMS.tenant;
   const stats = STATS[userType] || STATS.tenant;
@@ -177,6 +177,27 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
             >
               <div
                 onClick={() => {
+                  setScreen(isLandlord ? 'profile-landlord' : 'profile-tenant');
+                  setShowDropdown(false);
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  borderBottom: `1px solid ${colors.border}`,
+                  transition: 'background 0.2s ease',
+                  fontWeight: '600',
+                  background: PRIMARY,
+                  color: '#fff',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                👤 My Profile
+              </div>
+
+              <div
+                onClick={() => {
                   setScreen(isLandlord ? 'settings-landlord' : 'settings-tenant');
                   setShowDropdown(false);
                 }}
@@ -191,7 +212,7 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                 onMouseEnter={(e) => e.currentTarget.style.background = colors.border}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
-                👤 Profile Settings
+                ⚙️ Profile Settings
               </div>
 
               <div

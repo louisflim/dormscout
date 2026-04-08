@@ -43,7 +43,7 @@ const FEATURES = [
   },
 ];
 
-export default function AboutUs({ darkMode = false, onBack }) {
+export default function AboutUs({ darkMode = false, onBack, setScreen }) {
   const colors = darkMode ? COLORS.dark : COLORS.light;
 
   return (
@@ -249,14 +249,16 @@ export default function AboutUs({ darkMode = false, onBack }) {
           }}>
             Have any questions about DormScout? Feel free to reach out to our support team.
           </p>
-          <a
-            href="mailto:info@dormscout.com"
+          <button
+            onClick={function () { if (setScreen) setScreen('support'); }}
             style={{
               display: 'inline-block',
               background: PRIMARY,
               color: '#fff',
               padding: '10px 24px',
               borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
               textDecoration: 'none',
               fontWeight: '600',
               transition: 'opacity 0.2s ease',
@@ -265,7 +267,7 @@ export default function AboutUs({ darkMode = false, onBack }) {
             onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
           >
             Contact Us
-          </a>
+          </button>
         </div>
       </div>
     </div>

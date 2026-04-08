@@ -116,7 +116,7 @@ const SettingSection = ({ title, children, colors }) => (
   </div>
 );
 
-export default function Settings({ userType = 'tenant', onLogout, setScreen, darkMode = false, setDarkMode }) {
+export default function Settings({ userType = 'tenant', onLogout, setScreen, darkMode = false, setDarkMode, setDesiredNav }) {
   const colors = darkMode ? COLORS.dark : COLORS.light;
   const [activeNav, setActiveNav] = useState('settings');
   const [activeSettingTab, setActiveSettingTab] = useState('profile');
@@ -166,6 +166,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
     if (id === 'settings') {
       setActiveNav(id);
     } else {
+      setDesiredNav(id);
       setScreen(isLandlord ? 'dashboard-landlord' : 'dashboard-tenant');
     }
   };
@@ -230,6 +231,27 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
             >
               <div
                 onClick={() => {
+                  setScreen(isLandlord ? 'profile-landlord' : 'profile-tenant');
+                  setShowDropdown(false);
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  borderBottom: `1px solid ${colors.border}`,
+                  transition: 'background 0.2s ease',
+                  fontWeight: '600',
+                  background: PRIMARY,
+                  color: '#fff',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                👤 My Profile
+              </div>
+
+              <div
+                onClick={() => {
                   setActiveSettingTab('profile');
                   setShowDropdown(false);
                 }}
@@ -244,10 +266,14 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                 onMouseEnter={(e) => e.currentTarget.style.background = colors.border}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
-                👤 Profile Settings
+                ⚙️ Profile Settings
               </div>
 
               <div
+                onClick={() => {
+                  setScreen('support');
+                  setShowDropdown(false);
+                }}
                 style={{
                   padding: '12px 16px',
                   cursor: 'pointer',
