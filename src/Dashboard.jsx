@@ -113,7 +113,7 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
         <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, color: colors.text }}>DormScout</h1>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <div
-            onClick={() => setScreen(isLandlord ? 'profile-landlord' : 'profile-tenant')}
+            onClick={() => setScreen(isLandlord ? 'settings-landlord' : 'settings-tenant')}
             style={{
               width: '40px',
               height: '40px',

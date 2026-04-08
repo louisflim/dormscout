@@ -6,7 +6,6 @@ import Register from './register.jsx';
 import Dashboard from './Dashboard.jsx';
 import Settings from './Settings.jsx';
 import ForgotPassword from './ForgotPassword.jsx';
-import ProfileSettings from './ProfileSettings.jsx';
 
 function App() {
   const [screen, setScreen] = useState('home');
@@ -53,11 +52,6 @@ function App() {
             Back to Main Menu
           </button>
         )}
-        {(screen === 'profile-landlord' || screen === 'profile-tenant') && (
-          <button onClick={() => setScreen('home')} className="primary-btn">
-            Back to Main Menu
-          </button>
-        )}
       </div>
     </header>
   );
@@ -71,8 +65,6 @@ function App() {
     'dashboard-tenant': <Dashboard userType="tenant" onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} />,
     'settings-landlord': <Settings userType="landlord" onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} setDarkMode={setDarkMode} />,
     'settings-tenant': <Settings userType="tenant" onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} setDarkMode={setDarkMode} />,
-    'profile-landlord': <ProfileSettings role="landlord" onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} />,
-    'profile-tenant': <ProfileSettings role="tenant" onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} />,
     'forgot-password': <ForgotPassword setScreen={setScreen} />,
   };
 

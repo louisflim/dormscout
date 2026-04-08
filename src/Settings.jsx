@@ -119,13 +119,26 @@ const SettingSection = ({ title, children, colors }) => (
 export default function Settings({ userType = 'tenant', onLogout, setScreen, darkMode = false, setDarkMode }) {
   const colors = darkMode ? COLORS.dark : COLORS.light;
   const [activeNav, setActiveNav] = useState('settings');
+  const [activeSettingTab, setActiveSettingTab] = useState('profile');
+
+  // Profile settings states
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [university, setUniversity] = useState('');
+  const [course, setCourse] = useState('');
+  const [yearLevel, setYearLevel] = useState('');
+  const [studentId, setStudentId] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [businessName, setBusinessName] = useState('');
+  const [businessPermit, setBusinessPermit] = useState('');
 
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [inAppNotifications, setInAppNotifications] = useState(true);
   const [messageAlerts, setMessageAlerts] = useState(true);
-
-  const [showProfile, setShowProfile] = useState(true);
-  const [showContact, setShowContact] = useState(true);
 
   const navItems = NAV_ITEMS[userType] || NAV_ITEMS.tenant;
   const isLandlord = userType === 'landlord';
@@ -160,7 +173,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
         <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, color: colors.text }}>DormScout</h1>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <div
-            onClick={() => setScreen(isLandlord ? 'profile-landlord' : 'profile-tenant')}
+            onClick={() => setActiveSettingTab('profile')}
             style={{
               width: '40px',
               height: '40px',
@@ -270,6 +283,471 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
             padding: '32px',
             border: `1px solid ${colors.border}`,
           }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '32px' }}>
+              <button
+                onClick={() => setActiveSettingTab('profile')}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: activeSettingTab === 'profile' ? PRIMARY : colors.border,
+                  color: activeSettingTab === 'profile' ? '#fff' : colors.text,
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  transition: 'all 0.25s ease',
+                }}
+              >
+                Profile Settings
+              </button>
+              <button
+                onClick={() => setActiveSettingTab('application')}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: activeSettingTab === 'application' ? PRIMARY : colors.border,
+                  color: activeSettingTab === 'application' ? '#fff' : colors.text,
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  transition: 'all 0.25s ease',
+                }}
+              >
+                Application Settings
+              </button>
+            </div>
+
+            {activeSettingTab === 'profile' && (
+              <>
+                <SettingSection title="Profile Picture" colors={colors}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
+                    <div
+                      style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '50%',
+                        background: '#9370DB',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontSize: '36px',
+                      }}
+                    >
+                      👤
+                    </div>
+                    <div>
+                      <p style={{ color: colors.secondaryText, fontSize: '14px', margin: '0 0 8px 0' }}>
+                        Click the avatar to upload a new profile picture.
+                      </p>
+                      <button
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: PRIMARY,
+                          color: '#fff',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                        }}
+                      >
+                        Upload Profile
+                      </button>
+                    </div>
+                  </div>
+                </SettingSection>
+
+                <SettingSection title="Personal Information" colors={colors}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                        First Name
+                      </label>
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '6px',
+                          border: `1px solid ${colors.border}`,
+                          background: colors.bg,
+                          color: colors.text,
+                          fontSize: '14px',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                        Last Name
+                      </label>
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '6px',
+                          border: `1px solid ${colors.border}`,
+                          background: colors.bg,
+                          color: colors.text,
+                          fontSize: '14px',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '6px',
+                          border: `1px solid ${colors.border}`,
+                          background: colors.bg,
+                          color: colors.text,
+                          fontSize: '14px',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '6px',
+                          border: `1px solid ${colors.border}`,
+                          background: colors.bg,
+                          color: colors.text,
+                          fontSize: '14px',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    style={{
+                      marginTop: '16px',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: PRIMARY,
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Save Changes
+                  </button>
+                </SettingSection>
+
+                {isLandlord && (
+                  <SettingSection title="Business Information" colors={colors}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                          Business Name
+                        </label>
+                        <input
+                          type="text"
+                          value={businessName}
+                          onChange={(e) => setBusinessName(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '6px',
+                            border: `1px solid ${colors.border}`,
+                            background: colors.bg,
+                            color: colors.text,
+                            fontSize: '14px',
+                            boxSizing: 'border-box',
+                          }}
+                          placeholder="Enter business name"
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                          Business Permit Number
+                        </label>
+                        <input
+                          type="text"
+                          value={businessPermit}
+                          onChange={(e) => setBusinessPermit(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '6px',
+                            border: `1px solid ${colors.border}`,
+                            background: colors.bg,
+                            color: colors.text,
+                            fontSize: '14px',
+                            boxSizing: 'border-box',
+                          }}
+                          placeholder="Enter permit number"
+                        />
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '13px', color: colors.secondaryText, margin: '12px 0', fontStyle: 'italic' }}>
+                      ✓ Fill in your business details to be verified as a legitimate landlord
+                    </p>
+                    <button
+                      style={{
+                        marginTop: '16px',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: PRIMARY,
+                        color: '#fff',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                      }}
+                    >
+                      Verify
+                    </button>
+                  </SettingSection>
+                )}
+
+                {!isLandlord && (
+                  <SettingSection title="Student Information" colors={colors}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                          University
+                        </label>
+                        <select
+                          value={university}
+                          onChange={(e) => setUniversity(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '6px',
+                            border: `1px solid ${colors.border}`,
+                            background: colors.bg,
+                            color: colors.text,
+                            fontSize: '14px',
+                            boxSizing: 'border-box',
+                          }}
+                        >
+                          <option value="">Select Your School</option>
+                          <option>Cebu Institute of Technology - University</option>
+                          <option>University of San Carlos - Downtown</option>
+                          <option>University of the Visayas</option>
+                          <option>University of Cebu - Main</option>
+                          <option>University of San Carlos - Talamban</option>
+                          <option>University of Cebu - Banilad</option>
+                          <option>University of Cebu - METC</option>
+                          <option>University of San Jose-Recoletos - Main</option>
+                          <option>University of San Jose-Recoletos - Basak</option>
+                          <option>Cebu Normal University</option>
+                          <option>University of the Philippines Cebu</option>
+                          <option>Southwestern University PHINMA</option>
+                          <option>Cebu Technological University</option>
+                          <option>Saint Theresa's College</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                          Course
+                        </label>
+                        <input
+                          type="text"
+                          value={course}
+                          onChange={(e) => setCourse(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '6px',
+                            border: `1px solid ${colors.border}`,
+                            background: colors.bg,
+                            color: colors.text,
+                            fontSize: '14px',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                          Year Level
+                        </label>
+                        <input
+                          type="text"
+                          value={yearLevel}
+                          onChange={(e) => setYearLevel(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '6px',
+                            border: `1px solid ${colors.border}`,
+                            background: colors.bg,
+                            color: colors.text,
+                            fontSize: '14px',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                          Student ID
+                        </label>
+                        <input
+                          type="text"
+                          value={studentId}
+                          onChange={(e) => setStudentId(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '6px',
+                            border: `1px solid ${colors.border}`,
+                            background: colors.bg,
+                            color: colors.text,
+                            fontSize: '14px',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      style={{
+                        marginTop: '16px',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: PRIMARY,
+                        color: '#fff',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                      }}
+                    >
+                      Save Changes
+                    </button>
+                  </SettingSection>
+                )}
+
+                <SettingSection title="Change Password" colors={colors}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        border: `1px solid ${colors.border}`,
+                        background: colors.bg,
+                        color: colors.text,
+                        fontSize: '14px',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        border: `1px solid ${colors.border}`,
+                        background: colors.bg,
+                        color: colors.text,
+                        fontSize: '14px',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '12px', color: colors.secondaryText, fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        border: `1px solid ${colors.border}`,
+                        background: colors.bg,
+                        color: colors.text,
+                        fontSize: '14px',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                  <button
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: PRIMARY,
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Save Changes
+                  </button>
+                </SettingSection>
+
+                <SettingSection title="Danger Zone" colors={colors}>
+                  <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '16px' }}>
+                    Once you delete your account, there is no going back. Please be certain.
+                  </p>
+                  <button
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: '#dc3545',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Delete Account
+                  </button>
+                </SettingSection>
+              </>
+            )}
+
+            {activeSettingTab === 'application' && (
+              <>
             <SettingSection title="Appearance" colors={colors}>
               <SettingRow
                 label="Dark Mode"
@@ -295,52 +773,8 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                 colors={colors}
               />
             </SettingSection>
-
-            <SettingSection title="Privacy" colors={colors}>
-              <SettingRow
-                label="Show Profile"
-                control={<Toggle checked={showProfile} onChange={setShowProfile} />}
-                colors={colors}
-              />
-              <SettingRow
-                label="Show Contact Number"
-                control={<Toggle checked={showContact} onChange={setShowContact} />}
-                colors={colors}
-              />
-            </SettingSection>
-
-            <SettingSection title="Account" colors={colors}>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                <button
-                  style={{
-                    padding: '12px 24px',
-                    borderRadius: '6px',
-                    border: `1px solid ${PRIMARY}`,
-                    background: '#fff',
-                    color: PRIMARY,
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                  }}
-                >
-                  Change Password
-                </button>
-                <button
-                  style={{
-                    padding: '12px 24px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    background: '#dc3545',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                  }}
-                >
-                  Delete Account
-                </button>
-              </div>
-            </SettingSection>
+              </>
+            )}
           </div>
         </div>
       </div>
