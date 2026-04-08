@@ -74,7 +74,7 @@ const ICONS = {
   reviews: '⭐',
 };
 
-export default function Dashboard({ userType = 'tenant', onLogout, setScreen, darkMode = false, setDarkMode }) {
+export default function Dashboard({ userType = 'tenant', onLogout, setScreen, dashboardType, darkMode = false, setDarkMode }) {
   const colors = darkMode ? COLORS.dark : COLORS.light;
   const [activeNav, setActiveNav] = useState('overview');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -82,6 +82,13 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
   const stats = STATS[userType] || STATS.tenant;
   const isLandlord = userType === 'landlord';
   const dropdownRef = useRef(null);
+
+  // Track which dashboard type is active
+  useEffect(() => {
+    if (dashboardType) {
+      dashboardType(isLandlord ? 'landlord' : 'tenant');
+    }
+  }, [isLandlord, dashboardType]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -187,6 +194,10 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
               </div>
 
               <div
+                onClick={() => {
+                  setScreen('support');
+                  setShowDropdown(false);
+                }}
                 style={{
                   padding: '12px 16px',
                   cursor: 'pointer',
@@ -199,6 +210,25 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
                 ❓ Help and Support
+              </div>
+
+              <div
+                onClick={() => {
+                  setScreen('about-us');
+                  setShowDropdown(false);
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: colors.text,
+                  borderBottom: `1px solid ${colors.border}`,
+                  transition: 'background 0.2s ease',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = colors.border}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                ℹ️ About Us
               </div>
 
               <div

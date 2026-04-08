@@ -71,7 +71,7 @@ export default function Listings({ mode = 'manage', darkMode = false }) {
   const [listings, setListings] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
-    title: '', address: '', price: '', rooms: '', description: '', tags: '', images: [],
+    title: '', address: '', price: '', rooms: '', availableRooms: '', description: '', tags: '', images: [],
     lat: null, lng: null
   });
   const [imageFiles, setImageFiles] = useState([]);
@@ -102,6 +102,7 @@ export default function Listings({ mode = 'manage', darkMode = false }) {
         const parsed = JSON.parse(raw).map((l) => ({
           ...l,
           tags: l.tags || [],
+          availableRooms: l.availableRooms || '',
           lat: l.lat || null,
           lng: l.lng || null
         }));
@@ -114,6 +115,7 @@ export default function Listings({ mode = 'manage', darkMode = false }) {
             address: '123 Campus Rd',
             price: '3500',
             rooms: 'Single/Double',
+            availableRooms: '5',
             description: 'Cozy place near campus',
             tags: ['Wifi', 'Single'],
             images: [],
@@ -219,7 +221,7 @@ export default function Listings({ mode = 'manage', darkMode = false }) {
 
   function resetForm() {
     setForm({
-      title: '', address: '', price: '', rooms: '', description: '', tags: '', images: [],
+      title: '', address: '', price: '', rooms: '', availableRooms: '', description: '', tags: '', images: [],
       lat: null, lng: null
     });
     previewUrls.forEach((u) => URL.revokeObjectURL(u));
@@ -424,6 +426,11 @@ export default function Listings({ mode = 'manage', darkMode = false }) {
                         <div style={{ ...styles.cardTitle, color: c.text }}>{l.title}</div>
                         <div style={{ ...styles.cardAddress, color: c.secondaryText }}>{l.address}</div>
                         <div style={styles.cardPrice}>₱{l.price}</div>
+                        {l.availableRooms && (
+                          <div style={{ fontSize: 13, color: c.secondaryText, fontWeight: 500 }}>
+                            📍 {l.availableRooms} {l.availableRooms === '10' ? 'Rooms' : 'Room(s)'} Available
+                          </div>
+                        )}
                         <div style={styles.tagContainer}>
                           {(l.tags || []).map((tag, i) => (
                             <span key={i} style={{ ...styles.tag, background: c.tagBg, color: c.tagText }}>{tag}</span>
@@ -517,13 +524,34 @@ export default function Listings({ mode = 'manage', darkMode = false }) {
               </div>
               <p style={{ fontSize: 12, color: c.secondaryText, marginTop: 4 }}>Click on the map to pin the location.</p>
 
-              <div style={{ marginTop: 12 }}>
-                <input
-                  value={form.rooms}
-                  onChange={(e) => setForm((f) => ({ ...f, rooms: e.target.value }))}
-                  placeholder="Rooms (e.g., Single, Double)"
-                  style={{ ...styles.input, background: c.inputBg, color: c.text, borderColor: c.inputBorder }}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+                <div>
+                  <input
+                    value={form.rooms}
+                    onChange={(e) => setForm((f) => ({ ...f, rooms: e.target.value }))}
+                    placeholder="Room types (e.g., Single, Double)"
+                    style={{ ...styles.input, background: c.inputBg, color: c.text, borderColor: c.inputBorder }}
+                  />
+                </div>
+                <div>
+                  <select
+                    value={form.availableRooms}
+                    onChange={(e) => setForm((f) => ({ ...f, availableRooms: e.target.value }))}
+                    style={{ ...styles.input, background: c.inputBg, color: c.text, borderColor: c.inputBorder }}
+                  >
+                    <option value="">Rooms Available</option>
+                    <option value="1">1 Room Available</option>
+                    <option value="2">2 Rooms Available</option>
+                    <option value="3">3 Rooms Available</option>
+                    <option value="4">4 Rooms Available</option>
+                    <option value="5">5 Rooms Available</option>
+                    <option value="6">6 Rooms Available</option>
+                    <option value="7">7 Rooms Available</option>
+                    <option value="8">8 Rooms Available</option>
+                    <option value="9">9 Rooms Available</option>
+                    <option value="10">10+ Rooms Available</option>
+                  </select>
+                </div>
               </div>
 
               <textarea
@@ -585,7 +613,10 @@ export default function Listings({ mode = 'manage', darkMode = false }) {
                       )}
                       <div>
                         <div style={{ ...styles.cardTitle, color: c.text }}>{l.title}</div>
-                        <div style={{ ...styles.cardAddress, color: c.secondaryText }}>{l.address} • ₱{l.price}</div>
+                        <div style={{ ...styles.cardAddress, color: c.secondaryText }}>
+                          {l.address} • ₱{l.price}
+                          {l.availableRooms && ` • ${l.availableRooms} Room(s) Available`}
+                        </div>
                       </div>
                     </div>
                     <div style={styles.listItemActions}>

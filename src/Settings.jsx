@@ -305,15 +305,24 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
       </nav>
 
       <div style={{ padding: '32px 40px', maxWidth: '1400px', margin: '0 auto' }}>
+        <h2 style={{
+          fontSize: '48px',
+          fontWeight: '700',
+          margin: '0 0 8px 0',
+          textAlign: 'center',
+          lineHeight: '1.1',
+        }}>
+          <span style={{ color: PRIMARY }}>Settings</span>
+        </h2>
         <div style={{ marginBottom: '28px' }}>
-          <h2 style={{
-            fontSize: '32px',
+          <h4 style={{
+            fontSize: '20px',
             fontWeight: '700',
             margin: '0 0 8px 0',
             color: colors.text,
           }}>
             Settings
-          </h2>
+          </h4>
           <p style={{
             fontSize: '14px',
             color: colors.secondaryText,
@@ -466,6 +475,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                         type="text"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="John"
                         style={{
                           width: '100%',
                           padding: '10px 12px',
@@ -486,6 +496,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                         type="text"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Doe"
                         style={{
                           width: '100%',
                           padding: '10px 12px',
@@ -508,6 +519,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                        placeholder="john@example.com"
                         style={{
                           width: '100%',
                           padding: '10px 12px',
@@ -528,6 +540,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                         type="tel"
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
+                        placeholder="+63 9XX XXX XXXX"
                         style={{
                           width: '100%',
                           padding: '10px 12px',
@@ -671,6 +684,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                           type="text"
                           value={course}
                           onChange={(e) => setCourse(e.target.value)}
+                          placeholder="Bachelor of Science in Computer Science"
                           style={{
                             width: '100%',
                             padding: '10px 12px',
@@ -693,6 +707,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                           type="text"
                           value={yearLevel}
                           onChange={(e) => setYearLevel(e.target.value)}
+                          placeholder="2nd Year / 3rd Year"
                           style={{
                             width: '100%',
                             padding: '10px 12px',
@@ -713,6 +728,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                           type="text"
                           value={studentId}
                           onChange={(e) => setStudentId(e.target.value)}
+                          placeholder="2024001234"
                           style={{
                             width: '100%',
                             padding: '10px 12px',
@@ -753,6 +769,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                       type="password"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter your current password"
                       style={{
                         width: '100%',
                         padding: '10px 12px',
@@ -773,6 +790,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter your new password"
                       style={{
                         width: '100%',
                         padding: '10px 12px',
@@ -793,6 +811,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
                       type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm your new password"
                       style={{
                         width: '100%',
                         padding: '10px 12px',

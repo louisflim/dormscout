@@ -6,9 +6,12 @@ import Register from './register.jsx';
 import Dashboard from './Dashboard.jsx';
 import Settings from './Settings.jsx';
 import ForgotPassword from './ForgotPassword.jsx';
+import Support from './Support.jsx';
+import AboutUs from './AboutUs.jsx';
 
 function App() {
   const [screen, setScreen] = useState('home');
+  const [dashboardType, setDashboardType] = useState('tenant'); // Track which dashboard user is on
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -61,11 +64,13 @@ function App() {
     auth: <Login setScreen={setScreen} />,
     login: <Login setScreen={setScreen} />,
     register: <Register setScreen={setScreen} />,
-    'dashboard-landlord': <Dashboard userType="landlord" onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} setDarkMode={setDarkMode} />,
-    'dashboard-tenant': <Dashboard userType="tenant" onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} setDarkMode={setDarkMode} />,
+    'dashboard-landlord': <Dashboard userType="landlord" onLogout={() => setScreen('home')} setScreen={setScreen} dashboardType={setDashboardType} darkMode={darkMode} setDarkMode={setDarkMode} />,
+    'dashboard-tenant': <Dashboard userType="tenant" onLogout={() => setScreen('home')} setScreen={setScreen} dashboardType={setDashboardType} darkMode={darkMode} setDarkMode={setDarkMode} />,
     'settings-landlord': <Settings userType="landlord" onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} setDarkMode={setDarkMode} />,
     'settings-tenant': <Settings userType="tenant" onLogout={() => setScreen('home')} setScreen={setScreen} darkMode={darkMode} setDarkMode={setDarkMode} />,
     'forgot-password': <ForgotPassword setScreen={setScreen} />,
+    'support': <Support darkMode={darkMode} onBack={() => setScreen(dashboardType === 'landlord' ? 'dashboard-landlord' : 'dashboard-tenant')} />,
+    'about-us': <AboutUs darkMode={darkMode} onBack={() => setScreen(dashboardType === 'landlord' ? 'dashboard-landlord' : 'dashboard-tenant')} />,
   };
 
   return (
