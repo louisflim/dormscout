@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Map from './map.jsx';
 import ListingPage from './ListingPage';
 
@@ -223,7 +223,7 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                   textAlign: 'left',
                   border: 'none',
                   background: activeNav === item.id ? PRIMARY : 'transparent',
-                  color: activeNav === item.id ? '#fff' : (darkMode ? '#fff' : PRIMARY),
+                  color: activeNav === item.id ? '#ffffff' : (darkMode ? '#ffffff' : '#E8622E'),
                   borderRadius: activeNav === item.id ? '12px' : '0',
                   cursor: 'pointer',
                   fontSize: '14px',
@@ -238,13 +238,13 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
                 onMouseEnter={(e) => {
                   if (activeNav !== item.id) {
                     e.currentTarget.style.background = darkMode ? '#1a1a4a' : '#f5f5f5';
-                    e.currentTarget.style.color = darkMode ? '#fff' : PRIMARY;
+                    e.currentTarget.style.color = darkMode ? '#ffffff' : '#E8622E';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (activeNav !== item.id) {
                     e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = darkMode ? '#fff' : PRIMARY;
+                    e.currentTarget.style.color = darkMode ? '#ffffff' : '#E8622E';
                   }
                 }}
               >

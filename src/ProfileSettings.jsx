@@ -168,6 +168,9 @@ export default function ProfileSettings({ role = 'tenant', onLogout, setScreen, 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Navigation
+  const [activeNav, setActiveNav] = useState('settings');
+
   const handlePicChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -178,8 +181,9 @@ export default function ProfileSettings({ role = 'tenant', onLogout, setScreen, 
   };
 
   const handleNavClick = (id) => {
+    setActiveNav(id);
     if (id === 'settings') {
-      setScreen(isLandlord ? 'settings-landlord' : 'settings-tenant');
+      // Stay on current page
     } else {
       setScreen(isLandlord ? 'dashboard-landlord' : 'dashboard-tenant');
     }
@@ -280,12 +284,13 @@ export default function ProfileSettings({ role = 'tenant', onLogout, setScreen, 
                   padding: '12px 16px',
                   textAlign: 'left',
                   border: 'none',
-                  background: 'transparent',
-                  color: colors.text,
-                  borderRadius: '0',
+                  background: activeNav === item.id ? PRIMARY : 'transparent',
+                  color: activeNav === item.id ? '#ffffff' : (darkMode ? '#ffffff' : '#E8622E'),
+                  borderRadius: activeNav === item.id ? '12px' : '0',
                   cursor: 'pointer',
                   fontSize: '14px',
-                  fontWeight: '500',
+                  fontWeight: activeNav === item.id ? '600' : '500',
+                  margin: activeNav === item.id ? '6px' : '0',
                   marginBottom: '4px',
                   transition: 'all 0.25s ease',
                   display: 'flex',
@@ -293,10 +298,16 @@ export default function ProfileSettings({ role = 'tenant', onLogout, setScreen, 
                   gap: '10px',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+                  if (activeNav !== item.id) {
+                    e.currentTarget.style.background = darkMode ? '#1a1a4a' : '#f5f5f5';
+                    e.currentTarget.style.color = darkMode ? '#ffffff' : '#E8622E';
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
+                  if (activeNav !== item.id) {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = darkMode ? '#ffffff' : '#E8622E';
+                  }
                 }}
               >
                 <span style={{ fontSize: '16px' }}>{ICONS[item.id] || '•'}</span>
