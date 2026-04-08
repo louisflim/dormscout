@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -120,6 +120,7 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
   const colors = darkMode ? COLORS.dark : COLORS.light;
   const [activeNav, setActiveNav] = useState('settings');
   const [activeSettingTab, setActiveSettingTab] = useState('profile');
+  const [showDropdown, setShowDropdown] = useState(false);
 
   // Profile settings states
   const [firstName, setFirstName] = useState('');
@@ -139,6 +140,24 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [inAppNotifications, setInAppNotifications] = useState(true);
   const [messageAlerts, setMessageAlerts] = useState(true);
+
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown]);
 
   const navItems = NAV_ITEMS[userType] || NAV_ITEMS.tenant;
   const isLandlord = userType === 'landlord';
@@ -171,9 +190,9 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
         alignItems: 'center',
       }}>
         <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, color: colors.text }}>DormScout</h1>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+        <div ref={dropdownRef} style={{ display: 'flex', gap: '16px', alignItems: 'center', position: 'relative' }}>
           <div
-            onClick={() => setActiveSettingTab('profile')}
+            onClick={() => setShowDropdown(!showDropdown)}
             style={{
               width: '40px',
               height: '40px',
@@ -185,25 +204,103 @@ export default function Settings({ userType = 'tenant', onLogout, setScreen, dar
               color: '#fff',
               fontSize: '18px',
               cursor: 'pointer',
+              transition: 'transform 0.2s ease',
+              transform: 'scale(1)',
             }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
           >
             👤
           </div>
-          <button
-            onClick={onLogout}
-            style={{
-              padding: '8px 16px',
-              border: `1px solid ${PRIMARY}`,
-              borderRadius: '6px',
-              background: PRIMARY,
-              color: '#fff',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '600',
-            }}
-          >
-            Logout
-          </button>
+
+          {showDropdown && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '60px',
+                right: '0',
+                background: colors.cardBg,
+                borderRadius: '12px',
+                border: `1px solid ${colors.border}`,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                minWidth: '220px',
+                zIndex: 1001,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                onClick={() => {
+                  setActiveSettingTab('profile');
+                  setShowDropdown(false);
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: colors.text,
+                  borderBottom: `1px solid ${colors.border}`,
+                  transition: 'background 0.2s ease',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = colors.border}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                👤 Profile Settings
+              </div>
+
+              <div
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: colors.text,
+                  borderBottom: `1px solid ${colors.border}`,
+                  transition: 'background 0.2s ease',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = colors.border}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                ❓ Help and Support
+              </div>
+
+              <div
+                onClick={() => setDarkMode(!darkMode)}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: colors.text,
+                  borderBottom: `1px solid ${colors.border}`,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  transition: 'background 0.2s ease',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = colors.border}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <span>{darkMode ? '☀️' : '🌙'} {darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+              </div>
+
+              <div
+                onClick={() => {
+                  setShowDropdown(false);
+                  onLogout();
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#dc3545',
+                  fontWeight: '600',
+                  transition: 'background 0.2s ease',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = colors.border}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                🚪 Logout
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
