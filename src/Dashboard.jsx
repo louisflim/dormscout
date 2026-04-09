@@ -305,13 +305,16 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
         }}>
           {activeNav === 'map' ? (
               <>
-                <span style ={{ color: PRIMARY }}>MAP </span>
+                <span style ={{ color: PRIMARY }}>Map </span>
                 <span style ={{ color: SECONDARY }}>View</span>
               </>
             ) : activeNav === 'listing' && isLandlord ? (
                 <span style ={{ color: PRIMARY }}>Listings</span>
             ) : activeNav === 'booking' && !isLandlord ? (
-                <span style ={{ color: PRIMARY }}>My Bookings</span>
+                <>
+                  <span style ={{ color: PRIMARY }}>My </span>
+                  <span style ={{ color: SECONDARY }}>Bookings</span>
+                </>
             ) : (
               <>
                 <span style ={{ color: PRIMARY }}>Welcome</span>
@@ -327,7 +330,7 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
             textAlign: 'center',
             color: SECONDARY,
           }}>
-            Kobe Bryant!
+
           </h3>
         )}
 

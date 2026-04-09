@@ -87,7 +87,7 @@ export default function ListingPage({ mode = 'board', darkMode = false }) {
     } catch (e) { console.error('Failed to load listings', e); }
 
     return () => { mountedRef.current = false; previewUrls.forEach((u) => URL.revokeObjectURL(u)); };
-  }, []); // Empty array ensures this only runs ONCE on mount
+  }, [previewUrls]);
 
   // REMOVED THE BUGGY SAVE EFFECT. We will save manually in handlers.
 
@@ -245,14 +245,41 @@ export default function ListingPage({ mode = 'board', darkMode = false }) {
                 {listings.map((l) => {
                   const selected = selectedId === l.id;
                   return (
-                    <div key={l.id} onClick={() => setSelectedId(l.id)} style={{ background: c.cardBg, border: selected ? `2px solid ${PRIMARY}` : `1px solid ${c.border}`, borderRadius: 12, overflow: 'hidden', cursor: 'pointer' }}>
-                      {l.lat && l.lng ? (<div style={{ height: 140, width: '100%' }}><SmallMap lat={l.lat} lng={l.lng} /></div>) : (<div style={{ height: 140, width: '100%', background: c.hoverBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.secondaryText }}>No Location Set</div>)}
-                      <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ fontWeight: 700, fontSize: 16, color: c.text }}>{l.title}</div>
-                        <div style={{ fontSize: 13, color: c.secondaryText }}>{l.address}</div>
-                        {l.university && (<div style={{ fontSize: 12, fontWeight: '600', padding: '4px 8px', borderRadius: 4, display: 'inline-block', marginTop: 4, background: `${PRIMARY}15`, color: PRIMARY }}>🎓 {l.university}</div>)}
-                        <div style={{ fontSize: 14, fontWeight: 700, color: PRIMARY }}>₱{l.price}</div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>{(l.tags || []).map((tag, i) => (<span key={i} style={{ background: c.tagBg, color: c.tagText, padding: '4px 8px', borderRadius: 12, fontSize: 12 }}>{tag}</span>))}</div>
+                    <div key={l.id} style={{ background: c.cardBg, border: selected ? `2px solid ${PRIMARY}` : `1px solid ${c.border}`, borderRadius: 12, overflow: 'hidden', cursor: 'pointer', position: 'relative' }}>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); startEdit(l); }}
+                        style={{
+                          position: 'absolute',
+                          top: 8,
+                          left: 8,
+                          background: PRIMARY,
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '6px 10px',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          zIndex: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          transition: 'transform 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        ✏️ Edit
+                      </button>
+                      <div onClick={() => setSelectedId(l.id)}>
+                        {l.lat && l.lng ? (<div style={{ height: 140, width: '100%' }}><SmallMap lat={l.lat} lng={l.lng} /></div>) : (<div style={{ height: 140, width: '100%', background: c.hoverBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.secondaryText }}>No Location Set</div>)}
+                        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ fontWeight: 700, fontSize: 16, color: c.text }}>{l.title}</div>
+                          <div style={{ fontSize: 13, color: c.secondaryText }}>{l.address}</div>
+                          {l.university && (<div style={{ fontSize: 12, fontWeight: '600', padding: '4px 8px', borderRadius: 4, display: 'inline-block', marginTop: 4, background: `${PRIMARY}15`, color: PRIMARY }}>🎓 {l.university}</div>)}
+                          <div style={{ fontSize: 14, fontWeight: 700, color: PRIMARY }}>₱{l.price}</div>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>{(l.tags || []).map((tag, i) => (<span key={i} style={{ background: c.tagBg, color: c.tagText, padding: '4px 8px', borderRadius: 12, fontSize: 12 }}>{tag}</span>))}</div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -302,7 +329,7 @@ export default function ListingPage({ mode = 'board', darkMode = false }) {
               </div>
               <div style={{ marginTop: 12, display: 'flex', gap: 12 }}>
                 <button type="submit" style={{ padding: '10px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, background: PRIMARY, color: '#fff' }}>{editingId ? 'Update Listing' : 'Add Listing'}</button>
-                {editingId && (<button type="button" onClick={resetForm} style={{ padding: '10px 16px', background: 'transparent', color: PRIMARY, border: `1px solid ${PRIMARY}`, borderRadius: 8, cursor: 'pointer' }}>Cancel</button>)}
+                <button type="button" onClick={() => { resetForm(); setViewMode('board'); }} style={{ padding: '10px 16px', background: 'transparent', color: PRIMARY, border: `1px solid ${PRIMARY}`, borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
               </div>
             </form>
           </>

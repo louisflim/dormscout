@@ -122,6 +122,7 @@ export default function Map({ darkMode = false, userType = 'tenant'}) {
     uniMarkersRef.current = UNIVERSITIES.map((uni) => {
       const marker = L.marker(uni.coords, { icon: makeBlueLabel(uni.abbr) }).addTo(mapInstance.current);
       marker.bindPopup(`<b>${uni.name}</b>`);
+      marker.on('click', () => handleUniversityClick(uni));
       return marker;
     });
 
@@ -151,8 +152,22 @@ export default function Map({ darkMode = false, userType = 'tenant'}) {
       );
     });
 
+    // Also check if search matches a university
+    const searchMatchesUniversity = search.trim() && UNIVERSITIES.some(u => 
+      (u.name && u.name.toLowerCase().includes(search.toLowerCase())) || 
+      (u.abbr && u.abbr.toLowerCase().includes(search.toLowerCase()))
+    );
+
+    // If searching for a university, show all dorms near that university
+    const finalFiltered = searchMatchesUniversity 
+      ? listings.filter(l => {
+          const s = search.toLowerCase();
+          return l.university && l.university.toLowerCase().includes(s);
+        })
+      : filtered;
+
     // Add new markers
-    markersRef.current = filtered.map((listing) => {
+    markersRef.current = finalFiltered.map((listing) => {
       if (!listing.lat || !listing.lng) return null;
 
       const marker = L.marker([listing.lat, listing.lng], { icon: orangePinIcon })
@@ -188,11 +203,10 @@ export default function Map({ darkMode = false, userType = 'tenant'}) {
     setSelectedListing(null); // Close modal
   };
 
-  const formatDate = (isoString) => {
-    if (!isoString) return 'N/A';
-    return new Date(isoString).toLocaleDateString('en-US', {
-      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
+  const handleUniversityClick = (university) => {
+    if (mapInstance.current && university.coords) {
+      mapInstance.current.setView(university.coords, 15);
+    }
   };
 
   return (
@@ -226,47 +240,78 @@ export default function Map({ darkMode = false, userType = 'tenant'}) {
           overflow: 'hidden',
           border: `1px solid ${SECONDARY}`,
           background: darkMode ? '#0f3460' : '#fff',
+          position: 'relative',
         }}>
           <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
-        </div>
 
-        {/* Legend */}
-        <div style={{
-          position: 'absolute',
-          top: '16px',
-          right: '16px',
-          background: darkMode ? 'rgba(22,33,62,0.9)' : 'rgba(255,255,255,0.95)',
-          borderRadius: '12px',
-          padding: '12px 16px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          zIndex: 1000,
-          fontSize: '13px',
-          color: c.text,
-        }}>
-          <div style={{ fontWeight: 700, marginBottom: '8px', fontSize: '14px' }}>Legend</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <svg width="16" height="22" viewBox="0 0 30 42"><path d="M15 0C6.716 0 0 6.716 0 15c0 10.5 15 27 15 27s15-16.5 15-27C30 6.716 23.284 0 15 0z" fill={PRIMARY}/><circle cx="15" cy="14" r="6" fill="#fff"/></svg>
-            <span>Listings</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="22" viewBox="0 0 30 42"><path d="M15 0C6.716 0 0 6.716 0 15c0 10.5 15 27 15 27s15-16.5 15-27C30 6.716 23.284 0 15 0z" fill={BLUE}/><circle cx="15" cy="14" r="6" fill="#fff"/></svg>
-            <span>Universities</span>
+          {/* Legend */}
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            background: darkMode ? 'rgba(22,33,62,0.9)' : 'rgba(255,255,255,0.95)',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+            fontSize: '13px',
+            color: c.text,
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: '8px', fontSize: '14px' }}>Legend</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <svg width="16" height="22" viewBox="0 0 30 42"><path d="M15 0C6.716 0 0 6.716 0 15c0 10.5 15 27 15 27s15-16.5 15-27C30 6.716 23.284 0 15 0z" fill={PRIMARY}/><circle cx="15" cy="14" r="6" fill="#fff"/></svg>
+              <span>Dorms</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <svg width="16" height="22" viewBox="0 0 30 42"><path d="M15 0C6.716 0 0 6.716 0 15c0 10.5 15 27 15 27s15-16.5 15-27C30 6.716 23.284 0 15 0z" fill={BLUE}/><circle cx="15" cy="14" r="6" fill="#fff"/></svg>
+              <span>Universities</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Listing Cards below Map */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-        {listings.filter(l => !search.trim() || (l.title && l.title.toLowerCase().includes(search.toLowerCase()))).length === 0 ? (
+        {/* Universities matching search */}
+        {search.trim() && UNIVERSITIES.filter(u => {
+          const s = search.toLowerCase();
+          return (u.name && u.name.toLowerCase().includes(s)) || (u.abbr && u.abbr.toLowerCase().includes(s));
+        }).map((university) => (
+          <button
+            key={`uni-${university.abbr}`}
+            type="button"
+            onClick={() => handleUniversityClick(university)}
+            style={{
+              padding: '18px',
+              borderRadius: '22px',
+              border: `2px solid ${BLUE}`,
+              background: c.cardBg,
+              color: c.text,
+              textAlign: 'left',
+              cursor: 'pointer',
+              transition: 'transform 0.2s'
+            }}
+          >
+            <div style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px', color: BLUE }}>📍 {university.name}</div>
+            <div style={{ color: c.secondaryText, fontSize: '13px' }}>Click to zoom to campus</div>
+          </button>
+        ))}
+        
+        {/* Listings matching search */}
+        {listings.filter(l => !search.trim() || (l.title && l.title.toLowerCase().includes(search.toLowerCase())) || (l.address && l.address.toLowerCase().includes(search.toLowerCase())) || (l.university && l.university.toLowerCase().includes(search.toLowerCase()))).length === 0 && (!search.trim() || UNIVERSITIES.filter(u => (u.name && u.name.toLowerCase().includes(search.toLowerCase())) || (u.abbr && u.abbr.toLowerCase().includes(search.toLowerCase()))).length === 0) ? (
           <div style={{ padding: '24px', borderRadius: '20px', background: c.cardBg, border: `1px solid ${SECONDARY}`, color: c.text }}>
-            No listings found. Try another search term.
+            No listings or universities found. Try another search term.
           </div>
         ) : (
-          listings.filter(l => !search.trim() || (l.title && l.title.toLowerCase().includes(search.toLowerCase()))).map((listing) => (
+          listings.filter(l => !search.trim() || (l.title && l.title.toLowerCase().includes(search.toLowerCase())) || (l.address && l.address.toLowerCase().includes(search.toLowerCase())) || (l.university && l.university.toLowerCase().includes(search.toLowerCase()))).map((listing) => (
             <button
               key={listing.id}
               type="button"
-              onClick={() => setSelectedListing(listing)}
+              onClick={() => {
+                if (listing.lat && listing.lng && mapInstance.current) {
+                  mapInstance.current.setView([listing.lat, listing.lng], 15);
+                }
+              }}
               style={{
                 padding: '18px',
                 borderRadius: '22px',
