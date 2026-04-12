@@ -3,6 +3,8 @@ import Map from './map.jsx';
 import ListingPage from './ListingPage';
 import BookingPage from './BookingPage';
 import Reviews from './Reviews.jsx';
+import Messaging from './Messaging.jsx';
+import Settings from './Settings.jsx';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -109,12 +111,8 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
   }, [showDropdown]);
 
   const handleNavClick = (id) => {
-  if (id === 'settings') {
-    setScreen(isLandlord ? 'settings-landlord' : 'settings-tenant');
-  } else {
-    setActiveNav(id);  
-  }
-};
+    setActiveNav(id);
+  };
 
   const statsToRender = stats;
 
@@ -199,7 +197,7 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
 
               <div
                 onClick={() => {
-                  setScreen(isLandlord ? 'settings-landlord' : 'settings-tenant');
+                  setActiveNav('settings');
                   setShowDropdown(false);
                 }}
                 style={{
@@ -297,32 +295,59 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
       </nav>
 
       <div style={{ padding: '32px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-        <h2 style={{
-          fontSize: '48px',
-          fontWeight: '700',
-          margin: isLandlord ? '0 0 8px 0' : '0 0 32px 0',
-          textAlign: 'center',
-          lineHeight: '1.1',
-        }}>
-          {activeNav === 'map' ? (
-              <>
-                <span style ={{ color: PRIMARY }}>Map </span>
-                <span style ={{ color: SECONDARY }}>View</span>
-              </>
-            ) : activeNav === 'listing' && isLandlord ? (
-                <span style ={{ color: PRIMARY }}>Listings</span>
-            ) : activeNav === 'booking' && !isLandlord ? (
+        {activeNav !== 'messages' && activeNav !== 'reviews' && (
+          <h2 style={{
+            fontSize: '48px',
+            fontWeight: '700',
+            margin: isLandlord ? '0 0 8px 0' : '0 0 32px 0',
+            textAlign: 'center',
+            lineHeight: '1.1',
+          }}>
+            {activeNav === 'map' ? (
                 <>
-                  <span style ={{ color: PRIMARY }}>My </span>
-                  <span style ={{ color: SECONDARY }}>Bookings</span>
+                  <span style ={{ color: PRIMARY }}>Map </span>
+                  <span style ={{ color: SECONDARY }}>View</span>
                 </>
-            ) : (
-              <>
-                <span style ={{ color: PRIMARY }}>Welcome</span>
-                <span style ={{ color: SECONDARY }}>Back</span>
-              </>
-          )}
-        </h2>
+              ) : activeNav === 'listing' && isLandlord ? (
+                  <span style ={{ color: PRIMARY }}>Listings</span>
+              ) : activeNav === 'booking' && !isLandlord ? (
+                  <>
+                    <span style ={{ color: PRIMARY }}>My </span>
+                    <span style ={{ color: SECONDARY }}>Bookings</span>
+                  </>
+              ) : activeNav === 'settings' ? (
+                  <span style ={{ color: PRIMARY }}>Settings</span>
+              ) : (
+                <>
+                  <span style ={{ color: PRIMARY }}>Welcome</span>
+                  <span style ={{ color: SECONDARY }}>Back</span>
+                </>
+            )}
+          </h2>
+        )}
+        {activeNav === 'reviews' && (
+          <h2 style={{
+            fontSize: '48px',
+            fontWeight: '700',
+            margin: '0 0 32px 0',
+            textAlign: 'center',
+            lineHeight: '1.1',
+          }}>
+            <span style ={{ color: PRIMARY }}>Reviews</span>
+          </h2>
+        )}
+        {activeNav === 'messages' && (
+          <h2 style={{
+            fontSize: '48px',
+            fontWeight: '700',
+            margin: '0 0 32px 0',
+            textAlign: 'center',
+            lineHeight: '1.1',
+          }}>
+            <span style ={{ color: PRIMARY }}>Messages</span>
+          </h2>
+        )}
+
         {isLandlord && activeNav !== 'listing' && (
           <h3 style={{
             fontSize: '36px',
@@ -336,27 +361,55 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
         )}
 
         <div style={{ marginBottom: '28px' }}>
-          <h4 style={{
-            fontSize: '20px',
-            fontWeight: '700',
-            margin: '0 0 8px 0',
-            color: colors.text,
-          }}>
-            {activeNav === 'map' ? 'Map' : activeNav === 'listing' ? 'Listing' : 'Dashboard'}
-          </h4>
-          <p style={{
-            fontSize: '14px',
-            color: colors.secondaryText,
-            margin: 0,
-          }}>
-            {activeNav === 'map'
-              ? 'Search for dorms around Cebu City and find the perfect dorm near campus'
-              : activeNav === 'listing'
-                ? 'Create or delete your listing.'
-                : isLandlord
-                  ? 'See an overview of your current listings, messages, and recent activity.'
-                  : 'See an overview of your current bookings, messages, and recent activity.'}
-          </p>
+          {activeNav === 'messages' ? (
+            <>
+              <h4 style={{
+                fontSize: '20px',
+                fontWeight: '700',
+                margin: '0 0 8px 0',
+                color: colors.text,
+              }}>
+                Messages
+              </h4>
+              <p style={{
+                fontSize: '14px',
+                color: colors.secondaryText,
+                margin: 0,
+              }}>
+                Chat with landlords and property managers about bookings.
+              </p>
+            </>
+          ) : (
+            <>
+              <h4 style={{
+                fontSize: '20px',
+                fontWeight: '700',
+                margin: '0 0 8px 0',
+                color: colors.text,
+              }}>
+                {activeNav === 'map' ? 'Map' : activeNav === 'listing' ? 'Listing' : activeNav === 'settings' ? 'Settings' : activeNav === 'reviews' ? 'Reviews' : activeNav === 'booking' ? 'Booking' : 'Dashboard'}
+              </h4>
+              <p style={{
+                fontSize: '14px',
+                color: colors.secondaryText,
+                margin: 0,
+              }}>
+                {activeNav === 'map'
+                  ? 'Search for dorms around Cebu City and find the perfect dorm near campus'
+                  : activeNav === 'listing'
+                    ? 'Create or delete your listing.'
+                    : activeNav === 'settings'
+                      ? 'Manage your profile, security, and application preferences.'
+                      : activeNav === 'reviews'
+                        ? 'Real feedback from students who have lived there'
+                        : activeNav === 'booking'
+                          ? 'Manage and track all your boarding house booking requests.'
+                          : isLandlord
+                            ? 'See an overview of your current listings, messages, and recent activity.'
+                            : 'See an overview of your current bookings, messages, and recent activity.'}
+              </p>
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: '24px' }}>
@@ -416,7 +469,11 @@ export default function Dashboard({ userType = 'tenant', onLogout, setScreen, da
             ) : activeNav === 'booking' && !isLandlord ? (
                 <BookingPage darkMode={darkMode} />
             ) : activeNav === 'reviews' ? (
-                <Reviews userType={userType} />
+                <Reviews userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            ) : activeNav === 'messages' ? (
+                <Messaging darkMode={darkMode} userType={userType} />
+            ) : activeNav === 'settings' ? (
+                <Settings darkMode={darkMode} setDarkMode={setDarkMode} userType={userType} />
             ) : (
               <>
                 <div style={{

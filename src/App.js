@@ -81,8 +81,8 @@ function App() {
     'forgot-password': <ForgotPassword setScreen={setScreen} />,
     'support': <Support darkMode={darkMode} onBack={() => setScreen(dashboardType === 'landlord' ? 'dashboard-landlord' : 'dashboard-tenant')} />,
     'about-us': <AboutUs darkMode={darkMode} onBack={() => setScreen(dashboardType === 'landlord' ? 'dashboard-landlord' : 'dashboard-tenant')} setScreen={setScreen} />,
-    'reviews-tenant': <Reviews userType="tenant" />,
-    'reviews-landlord': <Reviews userType="landlord" />,
+    'reviews-tenant': <Reviews userType="tenant" darkMode={darkMode} setDarkMode={setDarkMode} />,
+    'reviews-landlord': <Reviews userType="landlord" darkMode={darkMode} setDarkMode={setDarkMode} />
   };
 
   return (
