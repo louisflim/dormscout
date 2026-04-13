@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -44,6 +45,7 @@ const FEATURES = [
 ];
 
 export default function AboutUs({ darkMode = false, onBack, setScreen }) {
+  const navigate = useNavigate();
   const colors = darkMode ? COLORS.dark : COLORS.light;
 
   return (
@@ -67,7 +69,7 @@ export default function AboutUs({ darkMode = false, onBack, setScreen }) {
       }}>
         <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, color: colors.text }}>DormScout</h1>
         <button
-          onClick={onBack}
+          onClick={() => navigate(-1)}
           style={{
             background: PRIMARY,
             color: '#fff',

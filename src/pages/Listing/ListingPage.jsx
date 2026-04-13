@@ -18,16 +18,35 @@ const defaultIcon = L.icon({
 // --- Helper Components ---
 function SmallMap({ lat, lng }) {
   const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+
   useEffect(() => {
     const node = mapRef.current;
     if (!node) return;
-    if (!node._leaflet_id) {
-      const map = L.map(node, { center: [lat || 0, lng || 0], zoom: 14, zoomControl: false, dragging: false, scrollWheelZoom: false });
+
+    // Initialize map only once
+    if (!mapInstanceRef.current) {
+      const map = L.map(node, {
+        center: [lat || 0, lng || 0],
+        zoom: 14,
+        zoomControl: false,
+        dragging: false,
+        scrollWheelZoom: false
+      });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
       L.marker([lat, lng], { icon: defaultIcon }).addTo(map);
+      mapInstanceRef.current = map;
     }
-    return () => { if (node && node._leaflet_id) node.remove(); };
+
+    // Cleanup function
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
   }, [lat, lng]);
+
   return <div ref={mapRef} style={{ width: '100%', height: '100%' }} />;
 }
 
@@ -272,7 +291,23 @@ export default function ListingPage({ mode = 'board', darkMode = false }) {
                         ✏️ Edit
                       </button>
                       <div onClick={() => setSelectedId(l.id)}>
-                        {l.lat && l.lng ? (<div style={{ height: 140, width: '100%' }}><SmallMap lat={l.lat} lng={l.lng} /></div>) : (<div style={{ height: 140, width: '100%', background: c.hoverBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.secondaryText }}>No Location Set</div>)}
+                        {l.images && l.images.length > 0 ? (
+                          <div style={{ height: 140, width: '100%', position: 'relative' }}>
+                            <img
+                              src={l.images[0]}
+                              alt={l.title}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          </div>
+                        ) : l.lat && l.lng ? (
+                          <div style={{ height: 140, width: '100%' }}>
+                            <SmallMap lat={l.lat} lng={l.lng} />
+                          </div>
+                        ) : (
+                          <div style={{ height: 140, width: '100%', background: c.hoverBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.secondaryText }}>
+                            🏠 No Image
+                          </div>
+                        )}
                         <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                           <div style={{ fontWeight: 700, fontSize: 16, color: c.text }}>{l.title}</div>
                           <div style={{ fontSize: 13, color: c.secondaryText }}>{l.address}</div>

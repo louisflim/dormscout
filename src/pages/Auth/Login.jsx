@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
 
-export default function Login({ setScreen }) {
-  const [userType, setUserType] = useState('tenant');
+export default function Login({ setUserType }) {
+  const [userType, setUserTypeLocal] = useState('tenant');
+  const navigate = useNavigate();
 
   const loginFields = [
     { name: 'email', placeholder: 'Email', type: 'email' },
@@ -14,10 +16,13 @@ export default function Login({ setScreen }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     // Navigate to dashboard based on user type
+    if (setUserType) {
+      setUserType(userType);
+    }
     if (userType === 'landlord') {
-      setScreen('dashboard-landlord');
-    } else if (userType === 'tenant') {
-      setScreen('dashboard-tenant');
+    navigate('/dashboard');
+    } else {
+        navigate('/dashboard');
     }
   };
 
@@ -27,7 +32,7 @@ export default function Login({ setScreen }) {
       <div className="auth-card">
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '20px' }}>
           <button
-            onClick={() => setUserType('tenant')}
+            onClick={() => setUserTypeLocal('tenant')}
             style={{
               padding: '8px 16px',
               border: userType === 'tenant' ? `2px solid ${PRIMARY}` : '1px solid #ddd',
@@ -42,7 +47,7 @@ export default function Login({ setScreen }) {
             Tenant
           </button>
           <button
-            onClick={() => setUserType('landlord')}
+            onClick={() => setUserTypeLocal('landlord')}
             style={{
               padding: '8px 16px',
               border: userType === 'landlord' ? `2px solid ${PRIMARY}` : '1px solid #ddd',
@@ -76,7 +81,7 @@ export default function Login({ setScreen }) {
           <div style={{ textAlign: 'right', marginTop: '-8px', marginBottom: '12px' }}>
             <button
               type="button"
-              onClick={() => setScreen('forgot-password')}
+              onClick={() => navigate('/forgot-password')}
               style={{
                 fontSize: '12px',
                 color: PRIMARY,
@@ -98,7 +103,7 @@ export default function Login({ setScreen }) {
 
         <div style={{ textAlign: 'center', marginTop: '16px' }}>
           <button
-            onClick={() => setScreen('register')}
+            onClick={() => navigate('/register')}
             style={{
               background: 'none',
               border: 'none',

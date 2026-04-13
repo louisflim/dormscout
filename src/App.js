@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import './App.css';
 import Homepage from './pages/Home/HomePage.jsx';
 import Login from './pages/Auth/Login.jsx';
@@ -13,22 +13,53 @@ import Settings from './pages/Settings/Settings.jsx';
 import Reviews from './pages/Reviews/Reviews.jsx';
 
 function App() {
-  const [userType, setUserType] = useState(null); // 'landlord' or 'tenant'
+  const [userType, setUserType] = useState(null);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
   });
 
-  useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
-  }, [darkMode]);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Simplified Header matching your original
+  const Header = () => (
+    <header className="global-header">
+      <div className="logo">DormScout</div>
+      <div style={{ display: 'flex', gap: '12px' }}>
+        {location.pathname === '/' && (
+          <button onClick={() => navigate('/login')} className="primary-btn">
+            Login
+          </button>
+        )}
+        {(location.pathname === '/login' ||
+          location.pathname === '/register' ||
+          location.pathname === '/forgot-password') && (
+          <button onClick={() => navigate('/')} className="primary-btn">
+            Back to Main Menu
+          </button>
+        )}
+        {(location.pathname === '/dashboard' ||
+          location.pathname === '/profile' ||
+          location.pathname === '/settings' ||
+          location.pathname === '/reviews' ||
+          location.pathname === '/support' ||
+          location.pathname === '/about') && (
+          <button onClick={() => navigate('/')} className="primary-btn">
+            Back to Main Menu
+          </button>
+        )}
+      </div>
+    </header>
+  );
 
   return (
     <div className="app-shell">
+      <Header />
       <Routes>
         <Route path="/" element={<Homepage />} />
         <Route path="/login" element={<Login setUserType={setUserType} />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/register" element={<Register setUserType={setUserType} />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/dashboard" element={
           userType ? (

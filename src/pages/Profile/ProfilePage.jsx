@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -28,50 +29,51 @@ const SAMPLE_BOARDING_HOUSES = [
   {
     id: 1,
     title: 'Sunshine Boarding House',
-    price: '\u20B15,500/month',
+    price: '₱5,500/month',
     rooms: '15 rooms',
     availableRooms: '3 available',
     address: 'Cebu City, Cebu',
-    image: '\uD83C\uDFE0',
+    image: '🏠',
   },
   {
     id: 2,
     title: 'Cozy Dorm',
-    price: '\u20B14,200/month',
+    price: '₱4,200/month',
     rooms: '12 rooms',
     availableRooms: '5 available',
     address: 'Mandaue, Cebu',
-    image: '\uD83C\uDFE2',
+    image: '🏢',
   },
   {
     id: 3,
     title: 'Campus Haven',
-    price: '\u20B16,000/month',
+    price: '₱6,000/month',
     rooms: '20 rooms',
     availableRooms: '2 available',
     address: 'Cebu City, Cebu',
-    image: '\uD83C\uDFD8\uFE0F',
+    image: '🏛️',
   },
 ];
 
-function ProfilePage({ role, darkMode, setScreen, onBack, onLogout, setDarkMode }) {
-  var userRole = role || 'tenant';
-  var isDark = darkMode || false;
-  var colors = isDark ? COLORS.dark : COLORS.light;
-  var isLandlord = userRole === 'landlord';
+export default function ProfilePage({ role, darkMode, setDarkMode }) {
+  const navigate = useNavigate();
 
-  var dropdownState = useState(false);
-  var showDropdown = dropdownState[0];
-  var setShowDropdown = dropdownState[1];
+  const userRole = role || 'tenant';
+  const isDark = darkMode || false;
+  const colors = isDark ? COLORS.dark : COLORS.light;
+  const isLandlord = userRole === 'landlord';
 
-  var picState = useState('\uD83D\uDC64');
-  var profilePicture = picState[0];
-  var setProfilePicture = picState[1];
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [profilePicture, setProfilePicture] = useState('👤');
 
-  var handleProfilePictureChange = function () {
-    var emojis = ['\uD83D\uDC64', '\uD83D\uDC68', '\uD83D\uDC69', '\uD83E\uDDD1', '\uD83D\uDE0A', '\uD83C\uDFAD'];
-    var randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+  const handleProfilePictureChange = () => {
+    const emojis = ['👤', '👨', '👩', '🧑', '😊', '🎭'];
+    const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
     setProfilePicture(randomEmoji);
+  };
+
+  const handleLogout = () => {
+    navigate('/');
   };
 
   return (
@@ -94,162 +96,126 @@ function ProfilePage({ role, darkMode, setScreen, onBack, onLogout, setDarkMode 
         <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, color: colors.text }}>
           DormScout
         </h1>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          {onBack && (
-            <button
-              onClick={onBack}
-              style={{
-                background: PRIMARY,
-                color: '#fff',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '600',
-              }}
-            >
-              &larr; Back
-            </button>
-          )}
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', position: 'relative' }}>
-            <div
-              onClick={function () { setShowDropdown(!showDropdown); }}
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                background: '#9370DB',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                fontSize: '18px',
-                cursor: 'pointer',
-              }}
-            >
-              {'\uD83D\uDC64'}
-            </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', position: 'relative' }}>
+          <div
+            onClick={() => setShowDropdown(!showDropdown)}
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              background: '#9370DB',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: '18px',
+              cursor: 'pointer',
+            }}
+          >
+            {profilePicture}
+          </div>
 
-            {showDropdown && (
+          {showDropdown && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '60px',
+                right: '0',
+                background: colors.cardBg,
+                borderRadius: '12px',
+                border: '1px solid ' + colors.border,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                minWidth: '220px',
+                zIndex: 1001,
+                overflow: 'hidden',
+              }}
+            >
               <div
                 style={{
-                  position: 'absolute',
-                  top: '60px',
-                  right: '0',
-                  background: colors.cardBg,
-                  borderRadius: '12px',
-                  border: '1px solid ' + colors.border,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  minWidth: '220px',
-                  zIndex: 1001,
-                  overflow: 'hidden',
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  borderBottom: '1px solid ' + colors.border,
+                  fontWeight: '600',
+                  background: PRIMARY,
+                  color: '#fff',
                 }}
               >
-                <div
-                  onClick={function () { setShowDropdown(false); }}
-                  onMouseEnter={function (e) { e.currentTarget.style.opacity = '0.8'; }}
-                  onMouseLeave={function (e) { e.currentTarget.style.opacity = '1'; }}
-                  style={{
-                    padding: '12px 16px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    borderBottom: '1px solid ' + colors.border,
-                    fontWeight: '600',
-                    background: PRIMARY,
-                    color: '#fff',
-                    transition: 'opacity 0.2s ease',
-                  }}
-                >
-                  {'\uD83D\uDC64'} My Profile
-                </div>
-                <div
-                  onClick={function () {
-                    setScreen(isLandlord ? 'settings-landlord' : 'settings-tenant');
-                    setShowDropdown(false);
-                  }}
-                  onMouseEnter={function (e) { e.currentTarget.style.background = colors.border; }}
-                  onMouseLeave={function (e) { e.currentTarget.style.background = 'transparent'; }}
-                  style={{
-                    padding: '12px 16px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: colors.text,
-                    borderBottom: '1px solid ' + colors.border,
-                    transition: 'background 0.2s ease',
-                  }}
-                >
-                  {'\u2699\uFE0F'} Profile Settings
-                </div>
-                <div
-                  onClick={function () {
-                    setScreen('support');
-                    setShowDropdown(false);
-                  }}
-                  onMouseEnter={function (e) { e.currentTarget.style.background = colors.border; }}
-                  onMouseLeave={function (e) { e.currentTarget.style.background = 'transparent'; }}
-                  style={{
-                    padding: '12px 16px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: colors.text,
-                    borderBottom: '1px solid ' + colors.border,
-                    transition: 'background 0.2s ease',
-                  }}
-                >
-                  {'\u2753'} Help and Support
-                </div>
-                <div
-                  onClick={function () { setShowDropdown(false); }}
-                  onMouseEnter={function (e) { e.currentTarget.style.background = colors.border; }}
-                  onMouseLeave={function (e) { e.currentTarget.style.background = 'transparent'; }}
-                  style={{
-                    padding: '12px 16px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: colors.text,
-                    borderBottom: '1px solid ' + colors.border,
-                    transition: 'background 0.2s ease',
-                  }}
-                >
-                  {'\u2139\uFE0F'} About Us
-                </div>
-                <div
-                  onClick={function () { if (setDarkMode) setDarkMode(!isDark); }}
-                  onMouseEnter={function (e) { e.currentTarget.style.background = colors.border; }}
-                  onMouseLeave={function (e) { e.currentTarget.style.background = 'transparent'; }}
-                  style={{
-                    padding: '12px 16px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: colors.text,
-                    borderBottom: '1px solid ' + colors.border,
-                    transition: 'background 0.2s ease',
-                  }}
-                >
-                  <span>{isDark ? '\u2600\uFE0F Light Mode' : '\uD83C\uDF19 Dark Mode'}</span>
-                </div>
-                <div
-                  onClick={function () {
-                    setShowDropdown(false);
-                    if (onLogout) onLogout();
-                  }}
-                  onMouseEnter={function (e) { e.currentTarget.style.background = colors.border; }}
-                  onMouseLeave={function (e) { e.currentTarget.style.background = 'transparent'; }}
-                  style={{
-                    padding: '12px 16px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: '#dc3545',
-                    fontWeight: '600',
-                    transition: 'background 0.2s ease',
-                  }}
-                >
-                  {'\uD83D\uDEAA'} Logout
-                </div>
+                {profilePicture} My Profile
               </div>
-            )}
-          </div>
+              <div
+                onClick={() => {
+                  navigate('/settings');
+                  setShowDropdown(false);
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: colors.text,
+                  borderBottom: '1px solid ' + colors.border,
+                }}
+              >
+                ⚙️ Profile Settings
+              </div>
+              <div
+                onClick={() => {
+                  navigate('/support');
+                  setShowDropdown(false);
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: colors.text,
+                  borderBottom: '1px solid ' + colors.border,
+                }}
+              >
+                ❓ Help and Support
+              </div>
+              <div
+                onClick={() => {
+                  navigate('/about');
+                  setShowDropdown(false);
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: colors.text,
+                  borderBottom: '1px solid ' + colors.border,
+                }}
+              >
+                ℹ️ About Us
+              </div>
+              <div
+                onClick={() => setDarkMode(!isDark)}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: colors.text,
+                  borderBottom: '1px solid ' + colors.border,
+                }}
+              >
+                {isDark ? '☀️ Light Mode' : '🌙 Dark Mode'}
+              </div>
+              <div
+                onClick={() => {
+                  setShowDropdown(false);
+                  handleLogout();
+                }}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#dc3545',
+                  fontWeight: '600',
+                }}
+              >
+                🚪 Logout
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -368,88 +334,82 @@ function ProfilePage({ role, darkMode, setScreen, onBack, onLogout, setDarkMode 
               <span style={{ color: PRIMARY }}>My</span> Listings
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-              {SAMPLE_BOARDING_HOUSES.map(function (house) {
-                return (
+              {SAMPLE_BOARDING_HOUSES.map((house) => (
+                <div
+                  key={house.id}
+                  style={{
+                    background: colors.cardBg,
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                    border: '1px solid ' + colors.border,
+                    cursor: 'pointer',
+                  }}
+                >
                   <div
-                    key={house.id}
                     style={{
-                      background: colors.cardBg,
-                      borderRadius: '16px',
-                      overflow: 'hidden',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                      border: '1px solid ' + colors.border,
-                      cursor: 'pointer',
+                      width: '100%',
+                      height: '180px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '64px',
                     }}
                   >
-                    <div
-                      style={{
-                        width: '100%',
-                        height: '180px',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '64px',
-                      }}
-                    >
-                      {house.image}
+                    {house.image}
+                  </div>
+                  <div style={{ padding: '20px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 8px 0', color: colors.text }}>
+                      {house.title}
+                    </h3>
+                    <p style={{ fontSize: '14px', color: colors.secondaryText, margin: '0 0 12px 0' }}>
+                      {house.address}
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                      <div style={{
+                        background: isDark ? '#1a1a4a' : '#f5f5f5',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        color: colors.secondaryText,
+                        textAlign: 'center',
+                      }}>
+                        {house.rooms}
+                      </div>
+                      <div style={{
+                        background: isDark ? '#1a1a4a' : '#f5f5f5',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        color: colors.secondaryText,
+                        textAlign: 'center',
+                      }}>
+                        {house.availableRooms}
+                      </div>
                     </div>
-                    <div style={{ padding: '20px' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 8px 0', color: colors.text }}>
-                        {house.title}
-                      </h3>
-                      <p style={{ fontSize: '14px', color: colors.secondaryText, margin: '0 0 12px 0' }}>
-                        {house.address}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <p style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: PRIMARY }}>
+                        {house.price}
                       </p>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                        <div
-                          style={{
-                            background: isDark ? '#1a1a4a' : '#f5f5f5',
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            color: colors.secondaryText,
-                            textAlign: 'center',
-                          }}
-                        >
-                          {house.rooms}
-                        </div>
-                        <div
-                          style={{
-                            background: isDark ? '#1a1a4a' : '#f5f5f5',
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            color: colors.secondaryText,
-                            textAlign: 'center',
-                          }}
-                        >
-                          {house.availableRooms}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <p style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: PRIMARY }}>
-                          {house.price}
-                        </p>
-                        <button
-                          style={{
-                            background: SECONDARY,
-                            color: '#fff',
-                            border: 'none',
-                            padding: '8px 16px',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                          }}
-                        >
-                          View
-                        </button>
-                      </div>
+                      <button
+                        style={{
+                          background: SECONDARY,
+                          color: '#fff',
+                          border: 'none',
+                          padding: '8px 16px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                        }}
+                      >
+                        View
+                      </button>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -463,5 +423,3 @@ function ProfilePage({ role, darkMode, setScreen, onBack, onLogout, setDarkMode 
     </div>
   );
 }
-
-export default ProfilePage;

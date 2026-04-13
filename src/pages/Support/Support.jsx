@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -42,14 +43,15 @@ const FAQ_ITEMS = [
 const CONTACT_INFO = [
   { icon: '📧', label: 'Email', value: 'support@dormscout.com' },
   { icon: '📱', label: 'Phone', value: '+63 (32) 123-4567' },
-  { icon: '', label: 'Address', value: 'Cebu City, Philippines' },
+  { icon: '📍', label: 'Address', value: 'Cebu City, Philippines' },
 ];
 
-export default function Support({ darkMode = false, onBack }) {
+export default function Support({ darkMode = false }) {
+  const navigate = useNavigate();
   const colors = darkMode ? COLORS.dark : COLORS.light;
-  const [expandedIndex, setExpandedIndex] = React.useState(null);
-  const [formData, setFormData] = React.useState({ name: '', email: '', subject: '', message: '' });
-  const [submitted, setSubmitted] = React.useState(false);
+  const [expandedIndex, setExpandedIndex] = useState(null);
+  const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
+  const [submitted, setSubmitted] = useState(false);
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
@@ -58,7 +60,6 @@ export default function Support({ darkMode = false, onBack }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // For now, just show a success message
     setSubmitted(true);
     setFormData({ name: '', email: '', subject: '', message: '' });
     setTimeout(() => setSubmitted(false), 3000);
@@ -85,7 +86,7 @@ export default function Support({ darkMode = false, onBack }) {
       }}>
         <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, color: colors.text }}>DormScout</h1>
         <button
-          onClick={onBack}
+          onClick={() => navigate(-1)}
           style={{
             background: PRIMARY,
             color: '#fff',
