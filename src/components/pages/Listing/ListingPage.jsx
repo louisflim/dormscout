@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useBooking } from '../../../context/BookingContext';
-import TenantManagement from '../../TenantManagement';
+import TenantManagement from './TenantManagement';
 import './ListingPage.css';
 
 // eslint-disable-next-line no-unused-vars

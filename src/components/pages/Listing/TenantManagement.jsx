@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useBooking } from '../context/BookingContext';
+import { useBooking } from '../../../context/BookingContext';
 
 const SECONDARY = '#5BADA8';
 
