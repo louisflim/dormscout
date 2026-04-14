@@ -6,6 +6,8 @@ import BookingPage from '../Booking/BookingPage';
 import Reviews from '../Reviews/Reviews';
 import Messaging from '../Messaging/Messaging';
 import Settings from '../Settings/Settings';
+import Notifications from '../Notifications/Notifications';
+import { useBooking } from '../../../context/BookingContext';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -36,6 +38,7 @@ const NAV_ITEMS = {
     { id: 'overview', label: 'Overview' },
     { id: 'map', label: 'Map View' },
     { id: 'listing', label: 'Listing' },
+    { id: 'notifications', label: 'Notifications' },
     { id: 'messages', label: 'Messages' },
     { id: 'settings', label: 'Settings' },
     { id: 'reviews', label: 'Reviews' },
@@ -44,6 +47,7 @@ const NAV_ITEMS = {
     { id: 'overview', label: 'Overview' },
     { id: 'map', label: 'Map View' },
     { id: 'booking', label: 'Booking' },
+    { id: 'notifications', label: 'Notifications' },
     { id: 'messages', label: 'Messages' },
     { id: 'settings', label: 'Settings' },
     { id: 'reviews', label: 'Reviews' },
@@ -74,6 +78,7 @@ const ICONS = {
   map: '🗺️',
   listing: '📋',
   booking: '📅',
+  notifications: '🔔',
   messages: '💬',
   settings: '⚙️',
   reviews: '⭐',
@@ -91,6 +96,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
   const isLandlord = userType === 'landlord';
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const { getUnreadCount, getNotifications, markNotificationRead } = useBooking();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -287,7 +293,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
 
       {/* Everything below this line is unchanged */}
       <div style={{ padding: '32px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-        {activeNav !== 'messages' && activeNav !== 'reviews' && (
+        {activeNav !== 'messages' && activeNav !== 'reviews' && activeNav !== 'notifications' && (
           <h2 style={{
             fontSize: '48px',
             fontWeight: '700',
@@ -313,6 +319,11 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
             <span style={{ color: PRIMARY }}>Reviews</span>
           </h2>
         )}
+        {activeNav === 'notifications' && (
+          <h2 style={{ fontSize: '48px', fontWeight: '700', margin: '0 0 32px 0', textAlign: 'center', lineHeight: '1.1' }}>
+            <span style={{ color: PRIMARY }}>Notifications</span>
+          </h2>
+        )}
         {activeNav === 'messages' && (
           <h2 style={{ fontSize: '48px', fontWeight: '700', margin: '0 0 32px 0', textAlign: 'center', lineHeight: '1.1' }}>
             <span style={{ color: PRIMARY }}>Messages</span>
@@ -330,7 +341,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
           ) : (
             <>
               <h4 style={{ fontSize: '20px', fontWeight: '700', margin: '0 0 8px 0', color: colors.text }}>
-                {activeNav === 'map' ? 'Map' : activeNav === 'listing' ? 'Listing' : activeNav === 'settings' ? 'Settings' : activeNav === 'reviews' ? 'Reviews' : activeNav === 'booking' ? 'Booking' : 'Dashboard'}
+                {activeNav === 'map' ? 'Map' : activeNav === 'listing' ? 'Listing' : activeNav === 'settings' ? 'Settings' : activeNav === 'reviews' ? 'Reviews' : activeNav === 'booking' ? 'Booking' : activeNav === 'notifications' ? 'Notifications' : 'Dashboard'}
               </h4>
               <p style={{ fontSize: '14px', color: colors.secondaryText, margin: 0 }}>
                 {activeNav === 'map' ? 'Search for dorms around Cebu City and find the perfect dorm near campus'
@@ -338,6 +349,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
                   : activeNav === 'settings' ? 'Manage your profile, security, and application preferences.'
                   : activeNav === 'reviews' ? 'Real feedback from students who have lived there'
                   : activeNav === 'booking' ? 'Manage and track all your boarding house booking requests.'
+                  : activeNav === 'notifications' ? 'Stay updated with booking requests, approvals, and messages.'
                   : isLandlord ? 'See an overview of your current listings, messages, and recent activity.'
                   : 'See an overview of your current bookings, messages, and recent activity.'}
               </p>
@@ -384,6 +396,14 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
               >
                 <span style={{ fontSize: '16px' }}>{ICONS[item.id] || '•'}</span>
                 {item.label}
+                {item.id === 'notifications' && getUnreadCount(userType) > 0 && (
+                  <span style={{
+                    marginLeft: 'auto', background: '#dc3545', color: '#fff', fontSize: '11px',
+                    padding: '2px 7px', borderRadius: '10px', fontWeight: '700', minWidth: '18px', textAlign: 'center',
+                  }}>
+                    {getUnreadCount(userType)}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -395,6 +415,8 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
               <ListingPage darkMode={darkMode} editListingData={editListingData} onEditHandled={() => setEditListingData(null)} />
             ) : activeNav === 'booking' && !isLandlord ? (
               <BookingPage darkMode={darkMode} />
+            ) : activeNav === 'notifications' ? (
+              <Notifications darkMode={darkMode} userType={userType} />
             ) : activeNav === 'reviews' ? (
               <Reviews userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
             ) : activeNav === 'messages' ? (
@@ -416,9 +438,10 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
                   ))}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: isLandlord ? '1fr 1fr' : '1fr', gap: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  {/* Recent Messages */}
                   <div style={{ background: colors.cardBg, borderRadius: '16px', padding: '24px' }}>
-                    <h5 style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 16px 0', color: colors.text }}>Recent Messages</h5>
+                    <h5 style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 16px 0', color: colors.text }}>💬 Recent Messages</h5>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {MESSAGES.map((msg, idx) => (
                         <div key={idx} style={{ padding: '12px', background: darkMode ? '#0f3460' : '#f9f9f9', borderRadius: '8px', fontSize: '13px', color: colors.text }}>
@@ -426,6 +449,66 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
                           <div style={{ fontSize: '12px', color: colors.secondaryText }}>{msg.property}</div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Recent Notifications */}
+                  <div style={{ background: colors.cardBg, borderRadius: '16px', padding: '24px' }}>
+                    <h5 style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 16px 0', color: colors.text }}>
+                      🔔 Recent Notifications
+                      {getUnreadCount(userType) > 0 && (
+                        <span style={{
+                          marginLeft: '8px', background: '#dc3545', color: '#fff',
+                          fontSize: '11px', padding: '2px 7px', borderRadius: '10px', fontWeight: '700',
+                        }}>
+                          {getUnreadCount(userType)} new
+                        </span>
+                      )}
+                    </h5>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {getNotifications(userType).slice(0, 3).length === 0 ? (
+                        <div style={{ padding: '12px', background: darkMode ? '#0f3460' : '#f9f9f9', borderRadius: '8px', fontSize: '13px', color: colors.secondaryText, textAlign: 'center' }}>
+                          No notifications yet
+                        </div>
+                      ) : (
+                        getNotifications(userType).slice(0, 3).map((notif) => (
+                          <div
+                            key={notif.id}
+                            onClick={() => { markNotificationRead(notif.id); setActiveNav('notifications'); }}
+                            style={{
+                              padding: '10px 12px',
+                              background: notif.read ? (darkMode ? '#0f3460' : '#f9f9f9') : (darkMode ? '#1a2a50' : '#fff8f0'),
+                              border: notif.read ? 'none' : `1px solid ${PRIMARY}`,
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              gap: '10px',
+                              alignItems: 'flex-start',
+                              transition: 'opacity 0.2s',
+                            }}
+                          >
+                            <span style={{ fontSize: '16px', flexShrink: 0 }}>
+                              {notif.type === 'new_booking' ? '📦' : notif.type === 'booking_accepted' ? '✅' : notif.type === 'booking_rejected' ? '❌' : '💬'}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: '600', fontSize: '12px', color: colors.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {notif.title}
+                              </div>
+                              <div style={{ fontSize: '11px', color: colors.secondaryText, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {notif.message}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      {getNotifications(userType).length > 3 && (
+                        <button
+                          onClick={() => setActiveNav('notifications')}
+                          style={{ background: 'transparent', border: 'none', color: PRIMARY, fontSize: '12px', fontWeight: '600', cursor: 'pointer', padding: '4px 0', textAlign: 'left' }}
+                        >
+                          View all {getNotifications(userType).length} notifications →
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

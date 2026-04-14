@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useBooking } from '../../../context/BookingContext';
+import TenantManagement from '../../TenantManagement';
 
 // --- Constants ---
 const PRIMARY = '#E8622E';
@@ -112,6 +114,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
   // --- State ---
   const [listings, setListings] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const { getPendingCount } = useBooking();
 
   const [form, setForm] = useState({
     title: '', address: '', price: '', rooms: '', availableRooms: '', description: '', tags: '', images: [],
@@ -331,6 +334,17 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                   const selected = selectedId === l.id;
                   return (
                     <div key={l.id} style={{ background: c.cardBg, border: selected ? `2px solid ${PRIMARY}` : `1px solid ${c.border}`, borderRadius: 12, overflow: 'visible', cursor: 'pointer', position: 'relative', zIndex: selected ? 20 : 1 }}>
+                      {/* Notification Badge */}
+                      {getPendingCount(l.id) > 0 && (
+                        <div style={{
+                          position: 'absolute', top: -8, right: -8, background: '#dc3545', color: '#fff',
+                          borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', fontSize: 12, fontWeight: '700', zIndex: 200,
+                          boxShadow: '0 2px 6px rgba(220,53,69,0.4)',
+                        }}>
+                          {getPendingCount(l.id)}
+                        </div>
+                      )}
                       <button 
                         onClick={(e) => { e.stopPropagation(); startEdit(l); }}
                         style={{
@@ -391,6 +405,17 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
               <button onClick={() => selectedId && removeListing(selectedId)} disabled={!selectedId} style={{ padding: '10px 16px', border: 'none', borderRadius: 8, cursor: selectedId ? 'pointer' : 'not-allowed', fontWeight: 600, background: '#dc3545', color: '#fff', opacity: selectedId ? 1 : 0.5 }}>Delete Selected</button>
               <button onClick={createNewListing} style={{ padding: '10px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, background: PRIMARY, color: '#fff' }}>Create New Listing</button>
             </div>
+
+            {/* Tenant Management for selected listing */}
+            {selectedId && (
+              <div style={{ marginTop: '32px', background: c.cardBg, borderRadius: '16px', padding: '24px', border: `1px solid ${c.border}` }}>
+                <TenantManagement
+                  listingId={selectedId}
+                  listingTitle={listings.find(l => l.id === selectedId)?.title || ''}
+                  darkMode={darkMode}
+                />
+              </div>
+            )}
           </>
         ) : (
           <>

@@ -30,7 +30,7 @@ const FEATURES = [
   {
     icon: '🔍',
     title: 'Smart Search',
-    description: 'Filter by location, price, amenities, and more to find your perfect dorm.',
+    description: 'Filter by location to find your perfect dorm.',
   },
   {
     icon: '💬',

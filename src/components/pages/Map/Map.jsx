@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useBooking } from '../../../context/BookingContext';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -112,6 +113,12 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [selectedListing, setSelectedListing] = useState(null);
   const [search, setSearch] = useState('');
 
+  // Booking flow states
+  const [bookingStep, setBookingStep] = useState('info'); // 'info' | 'booking' | 'confirming' | 'success'
+  const [moveInDate, setMoveInDate] = useState('');
+
+  const { createBooking } = useBooking();
+
   // Theme colors
   const dk = darkMode;
   const c = {
@@ -219,23 +226,32 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   }, [listings, search]);
 
   const handleBook = (listing) => {
-    const rawBookings = localStorage.getItem(BOOKING_KEY);
-    const currentBookings = rawBookings ? JSON.parse(rawBookings) : [];
+    setBookingStep('booking');
+  };
 
-    const alreadyBooked = currentBookings.find(b => b.id === listing.id);
-    if (alreadyBooked) {
-      alert('You have already booked this property!');
+  const handleConfirmBooking = (listing) => {
+    if (!moveInDate) {
+      alert('Please select a move-in date.');
       return;
     }
+    setBookingStep('confirming');
+    // Simulate loading
+    setTimeout(() => {
+      createBooking(listing, moveInDate);
+      // Also store in legacy format for BookingPage compatibility
+      const rawBookings = localStorage.getItem(BOOKING_KEY);
+      const currentBookings = rawBookings ? JSON.parse(rawBookings) : [];
+      if (!currentBookings.find(b => b.id === listing.id)) {
+        localStorage.setItem(BOOKING_KEY, JSON.stringify([...currentBookings, { id: listing.id, bookedAt: new Date().toISOString(), moveInDate, status: 'pending' }]));
+      }
+      setBookingStep('success');
+    }, 1500);
+  };
 
-    const newBooking = {
-      id: listing.id,
-      bookedAt: new Date().toISOString()
-    };
-
-    localStorage.setItem(BOOKING_KEY, JSON.stringify([...currentBookings, newBooking]));
-    alert(`Successfully booked: ${listing.title}`);
-    setSelectedListing(null); // Close modal
+  const closeModal = () => {
+    setSelectedListing(null);
+    setBookingStep('info');
+    setMoveInDate('');
   };
 
   const handleUniversityClick = (university) => {
@@ -386,7 +402,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
           }}>
             {/* Close Button */}
             <button
-              onClick={() => setSelectedListing(null)}
+              onClick={closeModal}
               style={{
                 position: 'absolute', top: 10, right: 15,
                 background: 'transparent', border: 'none',
@@ -397,6 +413,18 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
             </button>
 
             <div style={{ padding: '24px' }}>
+              {/* Image Preview */}
+              {selectedListing.images && selectedListing.images.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '16px', paddingBottom: '8px' }}>
+                  {selectedListing.images.slice(0, 4).map((img, i) => (
+                    <img key={i} src={img} alt={`Dorm ${i + 1}`} style={{
+                      width: '120px', height: '80px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0,
+                      border: `1px solid ${c.border}`
+                    }} />
+                  ))}
+                </div>
+              )}
+
               <h2 style={{ margin: '0 0 5px 0', color: c.text }}>{selectedListing.title}</h2>
               <p style={{ margin: '0 0 20px 0', color: c.secondaryText }}>{selectedListing.address}</p>
 
@@ -428,56 +456,151 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
               {userType === 'tenant' ? (
                 <>
-                  <button
-                    onClick={() => handleBook(selectedListing)}
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      background: PRIMARY,
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '12px',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      marginBottom: '10px'
-                    }}
-                  >
-                    Book This Property
-                  </button>
-                  <button
-                    onClick={() => alert('Contact landlord functionality coming soon!')}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      background: SECONDARY,
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '12px',
-                      fontSize: '15px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      marginBottom: '12px'
-                    }}
-                  >
-                    Contact Landlord
-                  </button>
-                  <button
-                    onClick={() => alert('Report functionality coming soon!')}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#ef4444',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      padding: '10px 0',
-                      width: '100%',
-                      textAlign: 'center'
-                    }}
-                  >
-                    Report Listing
-                  </button>
+                  {bookingStep === 'info' && (
+                    <>
+                      <button
+                        onClick={() => handleBook(selectedListing)}
+                        style={{
+                          width: '100%',
+                          padding: '14px',
+                          background: PRIMARY,
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          marginBottom: '10px'
+                        }}
+                      >
+                        📅 Book This Property
+                      </button>
+                      <button
+                        onClick={() => alert('Contact landlord functionality coming soon!')}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          background: SECONDARY,
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontSize: '15px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          marginBottom: '12px'
+                        }}
+                      >
+                        💬 Contact Landlord
+                      </button>
+                      <button
+                        onClick={() => alert('Report functionality coming soon!')}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ef4444',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          padding: '10px 0',
+                          width: '100%',
+                          textAlign: 'center'
+                        }}
+                      >
+                        Report Listing
+                      </button>
+                    </>
+                  )}
+
+                  {bookingStep === 'booking' && (
+                    <div style={{ background: darkMode ? '#0f3460' : '#f7f7f7', padding: '20px', borderRadius: '12px' }}>
+                      <h4 style={{ margin: '0 0 16px 0', color: c.text, fontSize: '16px' }}>📅 Select Move-in Date</h4>
+                      <input
+                        type="date"
+                        value={moveInDate}
+                        onChange={(e) => setMoveInDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          border: `1px solid ${c.border}`,
+                          background: darkMode ? '#16213e' : '#fff',
+                          color: c.text,
+                          fontSize: '15px',
+                          marginBottom: '16px',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <button
+                        onClick={() => handleConfirmBooking(selectedListing)}
+                        style={{
+                          width: '100%',
+                          padding: '14px',
+                          background: PRIMARY,
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          marginBottom: '10px'
+                        }}
+                      >
+                        ✔ Confirm Booking
+                      </button>
+                      <button
+                        onClick={() => setBookingStep('info')}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          background: 'transparent',
+                          color: c.secondaryText,
+                          border: `1px solid ${c.border}`,
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ← Back
+                      </button>
+                    </div>
+                  )}
+
+                  {bookingStep === 'confirming' && (
+                    <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                      <div style={{ fontSize: '40px', marginBottom: '12px' }}>⏳</div>
+                      <p style={{ color: c.text, fontSize: '16px', fontWeight: '600' }}>Confirming booking...</p>
+                      <p style={{ color: c.secondaryText, fontSize: '14px' }}>Please wait</p>
+                    </div>
+                  )}
+
+                  {bookingStep === 'success' && (
+                    <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                      <div style={{ fontSize: '48px', marginBottom: '12px' }}>✅</div>
+                      <h4 style={{ margin: '0 0 8px 0', color: '#28a745', fontSize: '18px' }}>Booking Request Sent!</h4>
+                      <p style={{ color: c.secondaryText, fontSize: '14px', margin: '0 0 8px 0' }}>
+                        Your booking request has been sent to the landlord.
+                      </p>
+                      <p style={{ color: c.text, fontSize: '13px', margin: '0 0 20px 0' }}>
+                        Move-in date: <strong>{moveInDate}</strong> · Status: <span style={{ color: '#ffc107', fontWeight: 600 }}>Pending</span>
+                      </p>
+                      <button
+                        onClick={closeModal}
+                        style={{
+                          padding: '12px 32px',
+                          background: PRIMARY,
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontSize: '15px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>

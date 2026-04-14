@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import './App.css';
-import Homepage from './pages/Home/HomePage.jsx';
-import Login from './pages/Auth/Login.jsx';
-import Register from './pages/Auth/Register.jsx';
-import Dashboard from './pages/Dashboard/Dashboard.jsx';
-import ForgotPassword from './pages/Auth/ForgotPassword.jsx';
-import Support from './pages/Support/Support.jsx';
-import AboutUs from './pages/About/AboutUs.jsx';
-import ProfilePage from './pages/Profile/ProfilePage.jsx';
-import Settings from './pages/Settings/Settings.jsx';
-import Reviews from './pages/Reviews/Reviews.jsx';
+import { BookingProvider } from './context/BookingContext';
+import Homepage from './components/pages/Home/HomePage.jsx';
+import Login from './components/pages/Auth/Login.jsx';
+import Register from './components/pages/Auth/Register.jsx';
+import Dashboard from './components/pages/Dashboard/Dashboard.jsx';
+import ForgotPassword from './components/pages/Auth/ForgotPassword.jsx';
+import Support from './components/pages/Support/Support.jsx';
+import AboutUs from './components/pages/About/AboutUs.jsx';
+import ProfilePage from './components/pages/Profile/ProfilePage.jsx';
+import Settings from './components/pages/Settings/Settings.jsx';
+import Reviews from './components/pages/Reviews/Reviews.jsx';
 
 function App() {
   const [userType, setUserType] = useState(null);
@@ -57,6 +58,7 @@ function App() {
   const hideGlobalHeader = pagesWithOwnNav.includes(location.pathname);
 
   return (
+    <BookingProvider>
     <div className="app-shell">
       {!hideGlobalHeader && <Header />}
       <Routes>
@@ -85,6 +87,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </div>
+    </BookingProvider>
   );
 }
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useBooking } from '../../../context/BookingContext';
 
 // --- Constants ---
 const PRIMARY = '#E8622E';
@@ -35,6 +36,10 @@ function SmallMap({ lat, lng }) {
 export default function BookingPage({ darkMode = false }) {
   const [bookings, setBookings] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null); // For the Modal
+  const { bookings: contextBookings, cancelBooking } = useBooking();
+  const [cancelModal, setCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelMoveOutDate, setCancelMoveOutDate] = useState('');
 
   // Theme colors
   const dk = darkMode;
@@ -72,18 +77,27 @@ export default function BookingPage({ darkMode = false }) {
     setBookings(myBookings);
   }
 
-  const handleCancelBooking = (id) => {
-    if (!window.confirm('Are you sure you want to cancel this booking?')) return;
+  const handleCancelBooking = () => {
+    if (!selectedBooking) return;
+    const id = selectedBooking.id;
 
+    // Remove from localStorage my_bookings
     const rawBookingData = localStorage.getItem(STORAGE_KEY_BOOKINGS);
     let bookingData = rawBookingData ? JSON.parse(rawBookingData) : [];
-
-    // Remove the booking
     bookingData = bookingData.filter(b => b.id !== id);
     localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookingData));
 
-    setSelectedBooking(null); // Close modal
-    loadBookings(); // Refresh list
+    // Cancel in context (removes tenant record + notifies both)
+    const ctxBooking = contextBookings.find(cb => cb.listingId === id);
+    if (ctxBooking) {
+      cancelBooking(ctxBooking.id, cancelReason, cancelMoveOutDate);
+    }
+
+    setCancelModal(false);
+    setCancelReason('');
+    setCancelMoveOutDate('');
+    setSelectedBooking(null);
+    loadBookings();
   };
 
   const formatDate = (isoString) => {
@@ -201,8 +215,27 @@ export default function BookingPage({ darkMode = false }) {
               <div style={{ background: c.inputBg, padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
                 <h4 style={{ margin: '0 0 10px 0', color: PRIMARY }}>Booking Details</h4>
                 <p style={{ margin: 0, color: c.text, fontSize: '14px' }}>
-                  <strong>Status:</strong> <span style={{ color: '#28a745' }}>Confirmed</span>
+                  <strong>Status:</strong> {(() => {
+                    const ctxBooking = contextBookings.find(cb => cb.listingId === selectedBooking.id);
+                    const status = ctxBooking ? ctxBooking.status : 'pending';
+                    const statusColor = status === 'accepted' ? '#28a745' : status === 'rejected' ? '#dc3545' : '#ffc107';
+                    return <span style={{ color: statusColor, textTransform: 'capitalize', fontWeight: 600 }}>{status}</span>;
+                  })()}
                 </p>
+                {(() => {
+                  const ctxBooking = contextBookings.find(cb => cb.listingId === selectedBooking.id);
+                  if (ctxBooking && ctxBooking.status === 'rejected') {
+                    return <p style={{ margin: '8px 0 0 0', color: '#dc3545', fontSize: '14px', fontWeight: '600', background: 'rgba(220,53,69,0.1)', padding: '8px 12px', borderRadius: '8px' }}>
+                      ❌ Your booking has been rejected by the landlord.
+                    </p>;
+                  }
+                  if (ctxBooking && ctxBooking.moveInDate) {
+                    return <p style={{ margin: '5px 0 0 0', color: c.text, fontSize: '14px' }}>
+                      <strong>Move-in Date:</strong> {ctxBooking.moveInDate}
+                    </p>;
+                  }
+                  return null;
+                })()}
                 <p style={{ margin: '5px 0 0 0', color: c.text, fontSize: '14px' }}>
                   <strong>Booked On:</strong> {formatDate(selectedBooking.bookedAt)}
                 </p>
@@ -256,7 +289,7 @@ export default function BookingPage({ darkMode = false }) {
               {/* Action Buttons */}
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
-                  onClick={() => handleCancelBooking(selectedBooking.id)}
+                  onClick={() => setCancelModal(true)}
                   style={{
                     flex: 1,
                     padding: '12px',
@@ -288,6 +321,80 @@ export default function BookingPage({ darkMode = false }) {
                   Contact Landlord
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Booking Modal */}
+      {cancelModal && selectedBooking && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: c.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, padding: '20px',
+        }}>
+          <div style={{
+            background: c.cardBg, borderRadius: '16px', width: '100%', maxWidth: '440px',
+            padding: '28px', position: 'relative', boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+          }}>
+            <button onClick={() => setCancelModal(false)} style={{
+              position: 'absolute', top: 10, right: 15, background: 'transparent',
+              border: 'none', fontSize: '24px', cursor: 'pointer', color: c.secondaryText,
+            }}>&times;</button>
+            <h3 style={{ margin: '0 0 6px 0', color: c.text }}>Cancel Booking</h3>
+            <p style={{ margin: '0 0 20px 0', color: c.secondaryText, fontSize: '14px' }}>
+              You are cancelling your booking for <strong style={{ color: c.text }}>{selectedBooking.title}</strong>.
+            </p>
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: c.secondaryText }}>
+                Move-out Date
+              </label>
+              <input
+                type="date"
+                value={cancelMoveOutDate}
+                onChange={e => setCancelMoveOutDate(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px 12px', borderRadius: '8px', fontSize: '14px',
+                  border: `1px solid ${c.border}`, background: c.inputBg, color: c.text,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: c.secondaryText }}>
+                Reason for Cancellation
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Enter reason..."
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px 12px', borderRadius: '8px', fontSize: '14px',
+                  border: `1px solid ${c.border}`, background: c.inputBg, color: c.text,
+                  resize: 'vertical', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setCancelModal(false)}
+                style={{
+                  flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${c.border}`,
+                  color: c.text, borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+                }}
+              >
+                Keep Booking
+              </button>
+              <button
+                onClick={handleCancelBooking}
+                style={{
+                  flex: 1, padding: '12px', background: '#dc3545', border: 'none',
+                  color: '#fff', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+                }}
+              >
+                Confirm Cancel
+              </button>
             </div>
           </div>
         </div>
