@@ -32,7 +32,24 @@ export default function AboutUs({ darkMode = false, onBack, setScreen }) {
   return (
     <div className={`about-wrapper ${theme}`}>
       <nav className={`about-nav ${theme}`}>
-        <h1 className="about-nav-title">DormScout</h1>
+        <button
+          className="about-nav-title-btn"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            cursor: 'pointer',
+            fontSize: 24,
+            fontWeight: 700,
+            color: theme === 'dark' ? '#eaeaea' : '#333',
+            fontFamily: 'inherit',
+          }}
+          aria-label="Go to Overview"
+          onClick={() => navigate('/dashboard?section=overview')}
+        >
+          DormScout
+        </button>
         <button className="about-back-btn" onClick={() => navigate(-1)}>
           ← Back
         </button>

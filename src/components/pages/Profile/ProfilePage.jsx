@@ -55,7 +55,24 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
 
       {/* ── Navbar ── */}
       <nav className="profile-nav" style={{ background: colors.navBg }}>
-        <h1 className="profile-nav__logo" style={{ color: colors.text }}>DormScout</h1>
+        <button
+          className="profile-nav-title-btn"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            cursor: 'pointer',
+            fontSize: 24,
+            fontWeight: 700,
+            color: colors.text,
+            fontFamily: 'inherit',
+          }}
+          aria-label="Go to Overview"
+          onClick={() => navigate('/dashboard?section=overview')}
+        >
+          DormScout
+        </button>
 
         <div className="profile-nav__actions">
           <div

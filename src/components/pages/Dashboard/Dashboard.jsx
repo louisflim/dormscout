@@ -63,7 +63,6 @@ const ICONS = {
 
 const SECTION_LABELS = {
   map:           'Map',
-  listing:       'Listing',
   settings:      'Settings',
   reviews:       'Reviews',
   booking:       'Booking',
@@ -72,7 +71,6 @@ const SECTION_LABELS = {
 
 const SECTION_DESCRIPTIONS = {
   map:           'Search for dorms around Cebu City and find the perfect dorm near campus',
-  listing:       'Create or delete your listing.',
   settings:      'Manage your profile, security, and application preferences.',
   reviews:       'Real feedback from students who have lived there',
   booking:       'Manage and track all your boarding house booking requests.',
@@ -128,10 +126,13 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
 
   const subDesc = activeNav === 'messages'
     ? SECTION_DESCRIPTIONS.messages
-    : SECTION_DESCRIPTIONS[activeNav]
-      || (isLandlord
-        ? 'See an overview of your current listings, messages, and recent activity.'
-        : 'See an overview of your current bookings, messages, and recent activity.');
+    : (activeNav === 'listing'
+        ? ''
+        : SECTION_DESCRIPTIONS[activeNav] || (isLandlord
+            ? 'See an overview of your current listings, messages, and recent activity.'
+            : 'See an overview of your current bookings, messages, and recent activity.'
+          )
+      );
 
   const hideHeading = ['messages', 'reviews', 'notifications'].includes(activeNav);
 
@@ -140,7 +141,24 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
 
       {/* ===== Navbar ===== */}
       <nav className="dashboard-nav">
-        <h1 className="dashboard-nav-title">DormScout</h1>
+        <button
+          className="dashboard-nav-title-btn"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            cursor: 'pointer',
+            fontSize: 24,
+            fontWeight: 700,
+            color: darkMode ? '#eaeaea' : '#333',
+            fontFamily: 'inherit',
+          }}
+          aria-label="Go to Overview"
+          onClick={() => { setActiveNav('overview'); navigate('?section=overview'); }}
+        >
+          DormScout
+        </button>
 
         <div ref={dropdownRef} className="dashboard-dropdown-wrap">
           <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
@@ -190,46 +208,51 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
         </div>
       </nav>
 
-      {/* ===== Content ===== */}
-      <div className="dashboard-content">
+      {/* ===== Layout: Sidebar + Content ===== */}
+      <div className="dashboard-layout">
 
-        {/* Page Heading */}
-        {!hideHeading && (
-          <h2 className={`dashboard-heading ${isLandlord && activeNav === 'listing' ? 'has-bottom-margin-sm' : 'has-bottom-margin-lg'}`}>
-            {getHeading(activeNav, isLandlord)}
-          </h2>
-        )}
-        {hideHeading && (
-          <h2 className="dashboard-heading has-bottom-margin-lg">
-            {getHeading(activeNav, isLandlord)}
-          </h2>
-        )}
-
-        {/* Sub-header */}
-        <div className="dashboard-subheader">
-          <h4>{subLabel}</h4>
-          <p>{subDesc}</p>
+        {/* Sidebar */}
+        <div className="dashboard-sidebar">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              className={`sidebar-nav-btn ${activeNav === item.id ? 'active' : ''}`}
+              onClick={() => setActiveNav(item.id)}
+            >
+              <span className="sidebar-nav-icon">{ICONS[item.id] || '•'}</span>
+              {item.label}
+              {item.id === 'notifications' && getUnreadCount(userType) > 0 && (
+                <span className="sidebar-badge">{getUnreadCount(userType)}</span>
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* Layout */}
-        <div className="dashboard-layout">
+        {/* Content */}
+        <div className="dashboard-content">
 
-          {/* Sidebar */}
-          <div className="dashboard-sidebar">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                className={`sidebar-nav-btn ${activeNav === item.id ? 'active' : ''}`}
-                onClick={() => setActiveNav(item.id)}
-              >
-                <span className="sidebar-nav-icon">{ICONS[item.id] || '•'}</span>
-                {item.label}
-                {item.id === 'notifications' && getUnreadCount(userType) > 0 && (
-                  <span className="sidebar-badge">{getUnreadCount(userType)}</span>
-                )}
-              </button>
-            ))}
-          </div>
+          {/* Page Heading */}
+          {activeNav === 'notifications' && (
+            <h2 className="dashboard-heading has-bottom-margin-lg"><span className="heading-primary">Notifications</span></h2>
+          )}
+          {!hideHeading && activeNav !== 'notifications' && (
+            <h2 className={`dashboard-heading ${activeNav === 'listing' ? 'has-bottom-margin-sm' : 'has-bottom-margin-lg'}`}>
+              {getHeading(activeNav, isLandlord)}
+            </h2>
+          )}
+          {hideHeading && activeNav !== 'notifications' && (
+            <h2 className="dashboard-heading has-bottom-margin-lg">
+              {getHeading(activeNav, isLandlord)}
+            </h2>
+          )}
+
+          {/* Sub-header */}
+          {activeNav !== 'listing' && (
+            <div className="dashboard-subheader">
+              <h4>{subLabel}</h4>
+              <p>{subDesc}</p>
+            </div>
+          )}
 
           {/* Main Panel */}
           <div className="dashboard-main">

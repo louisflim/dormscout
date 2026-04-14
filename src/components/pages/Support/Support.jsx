@@ -83,7 +83,24 @@ export default function Support({ darkMode = false }) {
 
       {/* ── Navbar ── */}
       <nav className="support-nav" style={{ background: darkMode ? '#16213e' : '#fff' }}>
-        <h1 className="support-nav__logo" style={{ color: colors.text }}>DormScout</h1>
+        <button
+          className="support-nav-title-btn"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            cursor: 'pointer',
+            fontSize: 24,
+            fontWeight: 700,
+            color: colors.text,
+            fontFamily: 'inherit',
+          }}
+          aria-label="Go to Overview"
+          onClick={() => navigate('/dashboard?section=overview')}
+        >
+          DormScout
+        </button>
         <button className="support-nav__back-btn" onClick={() => navigate(-1)}>← Back</button>
       </nav>
 
