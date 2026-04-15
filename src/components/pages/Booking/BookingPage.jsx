@@ -97,7 +97,7 @@ export default function BookingPage({ darkMode = false }) {
       {bookings.length === 0 ? (
         <div className="booking-empty">
           <p>You have no active bookings.</p>
-          <p>Go to Map View or Listing to book a property!</p>
+          <p>Go to Map View to book a property!</p>
         </div>
       ) : (
         <div className="bookings-grid">

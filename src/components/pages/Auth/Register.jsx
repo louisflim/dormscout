@@ -14,6 +14,7 @@ export default function Register({ setUserType }) {
   const navigate = useNavigate();
 
   const schools = [
+    'Asian College of Technology',
     'Cebu Institute of Technology - University',
     'Cebu Normal University',
     'Cebu Technological University',
@@ -28,6 +29,7 @@ export default function Register({ setUserType }) {
     'University of San Jose-Recoletos - Basak',
     'University of San Jose-Recoletos - Main',
     'University of the Visayas',
+
   ];
 
   const registerFields = [
