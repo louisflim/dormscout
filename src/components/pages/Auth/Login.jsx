@@ -8,7 +8,7 @@ const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
 
 export default function Login({ setUserType }) {
-  const [userType, setUserTypeLocal] = useState(' Tenant');
+  const [userType, setUserTypeLocal] = useState('tenant');
   const navigate = useNavigate();
 
   const handleSubmit = (e) => {
@@ -49,12 +49,12 @@ export default function Login({ setUserType }) {
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               <button
                 type="button"
-                onClick={() => setUserTypeLocal(' Tenant')}
+                onClick={() => setUserTypeLocal('tenant')}
                 style={{
                   flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px',
-                  border: userType === ' Tenant' ? `2px solid ${PRIMARY}` : '1px solid #ddd',
-                  background: userType === ' Tenant' ? `${PRIMARY}15` : '#fff',
-                  color: userType === ' Tenant' ? PRIMARY : '#333',
+                  border: userType === 'tenant' ? `2px solid ${PRIMARY}` : '1px solid #ddd',
+                  background: userType === 'tenant' ? `${PRIMARY}15` : '#fff',
+                  color: userType === 'tenant' ? PRIMARY : '#333',
                 }}
               >                Tenant
               </button>
