@@ -10,6 +10,26 @@ import Notifications from '../Notifications/Notifications';
 import { useBooking } from '../../../context/BookingContext';
 import './Dashboard.css';
 
+import {
+  LayoutDashboard,
+  MapPin,
+  ClipboardList,
+  CalendarDays,
+  Bell,
+  MessageCircle,
+  Settings as SettingsIcon,
+  Star,
+  User,
+  LogOut,
+  Moon,
+  Sun,
+  HelpCircle,
+  Info,
+  Package,
+  CheckCircle,
+  XCircle,
+} from 'lucide-react';
+
 const NAV_ITEMS = {
   landlord: [
     { id: 'overview',       label: 'Overview' },
@@ -50,15 +70,34 @@ const MESSAGES = [
   { name: 'Michael Jordan',  property: 'Sunshine Boarding House' },
 ];
 
-const ICONS = {
-  overview:      '📊',
-  map:           '🗺️',
-  listing:       '📋',
-  booking:       '📅',
-  notifications: '🔔',
-  messages:      '💬',
-  settings:      '⚙️',
-  reviews:       '⭐',
+const NAV_ICON = {
+  overview:      (color) => <LayoutDashboard  size={18} color={color} />,
+  map:           (color) => <MapPin           size={18} color={color} />,
+  listing:       (color) => <ClipboardList    size={18} color={color} />,
+  booking:       (color) => <CalendarDays     size={18} color={color} />,
+  notifications: (color) => <Bell             size={18} color={color} />,
+  messages:      (color) => <MessageCircle    size={18} color={color} />,
+  settings:      (color) => <SettingsIcon     size={18} color={color} />,
+  reviews:       (color) => <Star             size={18} color={color} />,
+};
+
+const NOTIF_ICON = {
+  new_booking:      <Package      size={16} color="#E8622E" />,
+  booking_accepted: <CheckCircle  size={16} color="#5BADA8" />,
+  booking_rejected: <XCircle      size={16} color="#dc3545" />,
+};
+
+const getNotifIcon = (type) => NOTIF_ICON[type] || <MessageCircle size={16} color="#888" />;
+
+const getHeading = (activeNav, isLandlord) => {
+  if (activeNav === 'map')                    return <><span className="heading-primary">Map </span><span className="heading-secondary">View</span></>;
+  if (activeNav === 'listing' && isLandlord)  return <span className="heading-primary">Listings</span>;
+  if (activeNav === 'booking' && !isLandlord) return <><span className="heading-primary">My </span><span className="heading-secondary">Bookings</span></>;
+  if (activeNav === 'settings')               return <span className="heading-primary">Settings</span>;
+  if (activeNav === 'reviews')                return <span className="heading-primary">Reviews</span>;
+  if (activeNav === 'notifications')          return <span className="heading-primary">Notifications</span>;
+  if (activeNav === 'messages')               return <span className="heading-primary">Messages</span>;
+  return <><span className="heading-primary">Welcome</span><span className="heading-secondary">Back</span></>;
 };
 
 const SECTION_LABELS = {
@@ -78,31 +117,12 @@ const SECTION_DESCRIPTIONS = {
   messages:      'Chat with landlords and property managers about bookings.',
 };
 
-const NOTIF_ICONS = {
-  new_booking:      '📦',
-  booking_accepted: '✅',
-  booking_rejected: '❌',
-};
-
-const getNotifIcon = (type) => NOTIF_ICONS[type] || '💬';
-
-const getHeading = (activeNav, isLandlord) => {
-  if (activeNav === 'map')           return <><span className="heading-primary">Map </span><span className="heading-secondary">View</span></>;
-  if (activeNav === 'listing' && isLandlord) return <span className="heading-primary">Listings</span>;
-  if (activeNav === 'booking' && !isLandlord) return <><span className="heading-primary">My </span><span className="heading-secondary">Bookings</span></>;
-  if (activeNav === 'settings')      return <span className="heading-primary">Settings</span>;
-  if (activeNav === 'reviews')       return <span className="heading-primary">Reviews</span>;
-  if (activeNav === 'notifications') return <span className="heading-primary">Notifications</span>;
-  if (activeNav === 'messages')      return <span className="heading-primary">Messages</span>;
-  return <><span className="heading-primary">Welcome</span><span className="heading-secondary">Back</span></>;
-};
-
 export default function Dashboard({ userType = 'tenant', darkMode = false, setDarkMode }) {
   const [searchParams]    = useSearchParams();
   const sectionFromUrl    = searchParams.get('section') || 'overview';
-  const [activeNav, setActiveNav]           = useState(sectionFromUrl);
+  const [activeNav, setActiveNav]             = useState(sectionFromUrl);
   const [editListingData, setEditListingData] = useState(null);
-  const [showDropdown, setShowDropdown]     = useState(false);
+  const [showDropdown, setShowDropdown]       = useState(false);
   const navItems   = NAV_ITEMS[userType]  || NAV_ITEMS.tenant;
   const stats      = STATS[userType]      || STATS.tenant;
   const isLandlord = userType === 'landlord';
@@ -139,20 +159,14 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
   return (
     <div className={`dashboard-wrapper ${theme}`}>
 
-      {/* ===== Navbar ===== */}
+      {/* ── Navbar ── */}
       <nav className="dashboard-nav">
         <button
           className="dashboard-nav-title-btn"
           style={{
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            margin: 0,
-            cursor: 'pointer',
-            fontSize: 24,
-            fontWeight: 700,
-            color: darkMode ? '#eaeaea' : '#333',
-            fontFamily: 'inherit',
+            background: 'none', border: 'none', padding: 0, margin: 0,
+            cursor: 'pointer', fontSize: 24, fontWeight: 700,
+            color: darkMode ? '#eaeaea' : '#333', fontFamily: 'inherit',
           }}
           aria-label="Go to Overview"
           onClick={() => { setActiveNav('overview'); navigate('?section=overview'); }}
@@ -161,8 +175,9 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
         </button>
 
         <div ref={dropdownRef} className="dashboard-dropdown-wrap">
+          {/* Avatar button */}
           <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
-            👤
+            <User size={20} color="#fff" />
           </div>
 
           {showDropdown && (
@@ -171,61 +186,69 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
                 className="dropdown-item dropdown-item-profile"
                 onClick={() => { navigate('/profile'); setShowDropdown(false); }}
               >
-                👤 My Profile
+                <User size={15} /> My Profile
               </div>
               <div
                 className="dropdown-item dropdown-item-default"
                 onClick={() => { setActiveNav('settings'); setShowDropdown(false); }}
               >
-                ⚙️ Profile Settings
+                <SettingsIcon size={15} /> Profile Settings
               </div>
               <div
                 className="dropdown-item dropdown-item-default"
                 onClick={() => { navigate('/support'); setShowDropdown(false); }}
               >
-                ❓ Help and Support
+                <HelpCircle size={15} /> Help and Support
               </div>
               <div
                 className="dropdown-item dropdown-item-default"
                 onClick={() => { navigate('/about'); setShowDropdown(false); }}
               >
-                ℹ️ About Us
+                <Info size={15} /> About Us
               </div>
               <div
                 className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
                 onClick={() => setDarkMode(!darkMode)}
               >
-                <span>{darkMode ? '☀️' : '🌙'} {darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                {darkMode
+                  ? <><Sun size={15} /> Light Mode</>
+                  : <><Moon size={15} /> Dark Mode</>
+                }
               </div>
               <div
                 className="dropdown-item dropdown-item-logout"
                 onClick={() => { setShowDropdown(false); navigate('/'); }}
               >
-                🚪 Logout
+                <LogOut size={15} /> Logout
               </div>
             </div>
           )}
         </div>
       </nav>
 
-      {/* ===== Layout: Sidebar + Content ===== */}
       <div className="dashboard-layout">
 
         {/* Sidebar */}
         <div className="dashboard-sidebar">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              className={`sidebar-nav-btn ${activeNav === item.id ? 'active' : ''}`}
-              onClick={() => setActiveNav(item.id)}
-            >
-              <span className="sidebar-nav-icon">{ICONS[item.id] || '•'}</span>
-              {item.label}
-              {item.id === 'notifications' && getUnreadCount(userType) > 0 && (
-                <span className="sidebar-badge">{getUnreadCount(userType)}</span>
-              )}
-            </button>
-          ))}
+          {navItems.map((item) => {
+            const isActive = activeNav === item.id;
+            const iconColor = isActive ? '#ffffff' : '#E8622E';
+            return (
+              <button
+                key={item.id}
+                className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
+                onClick={() => setActiveNav(item.id)}
+              >
+                <span className="sidebar-nav-icon">
+                  {NAV_ICON[item.id] ? NAV_ICON[item.id](iconColor) : <LayoutDashboard size={18} color={iconColor} />}
+                </span>
+                {item.label}
+                {item.id === 'notifications' && getUnreadCount(userType) > 0 && (
+                  <span className="sidebar-badge">{getUnreadCount(userType)}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Content */}
@@ -233,7 +256,9 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
 
           {/* Page Heading */}
           {activeNav === 'notifications' && (
-            <h2 className="dashboard-heading has-bottom-margin-lg"><span className="heading-primary">Notifications</span></h2>
+            <h2 className="dashboard-heading has-bottom-margin-lg">
+              <span className="heading-primary">Notifications</span>
+            </h2>
           )}
           {!hideHeading && activeNav !== 'notifications' && (
             <h2 className={`dashboard-heading ${activeNav === 'listing' ? 'has-bottom-margin-sm' : 'has-bottom-margin-lg'}`}>
@@ -276,7 +301,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
               <Settings darkMode={darkMode} setDarkMode={setDarkMode} userType={userType} />
             ) : (
 
-              /* ===== Overview ===== */
+              /* ── Overview ── */
               <>
                 <div className="stats-grid">
                   {stats.map((stat) => (
@@ -293,7 +318,10 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
                 <div className="overview-grid">
                   {/* Recent Messages */}
                   <div className="overview-card">
-                    <h5 className="overview-card-title">💬 Recent Messages</h5>
+                    <h5 className="overview-card-title">
+                      <MessageCircle size={16} color="#E8622E" style={{ marginRight: 6 }} />
+                      Recent Messages
+                    </h5>
                     <div className="messages-list">
                       {MESSAGES.map((msg, idx) => (
                         <div key={idx} className="message-item">
@@ -307,7 +335,8 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
                   {/* Recent Notifications */}
                   <div className="overview-card">
                     <h5 className="overview-card-title">
-                      🔔 Recent Notifications
+                      <Bell size={16} color="#E8622E" style={{ marginRight: 6 }} />
+                      Recent Notifications
                       {getUnreadCount(userType) > 0 && (
                         <span className="notif-badge">{getUnreadCount(userType)} new</span>
                       )}
