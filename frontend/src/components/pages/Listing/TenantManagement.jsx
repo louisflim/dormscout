@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBooking } from '../../../context/BookingContext';
+import { useAuth } from '../../../context/AuthContext';
 
 const SECONDARY = '#5BADA8';
 
@@ -77,12 +78,12 @@ function TenantDetailView({ booking, onClose, onAccept, onReject, onMessage, dar
               </div>
               <div>
                 <span style={{ fontSize: '12px', color: c.secondaryText }}>Dorm Applied For</span>
-                <p style={{ margin: '2px 0 0 0', color: c.text, fontSize: '14px' }}>{booking.listingTitle}</p>
+                <p style={{ margin: '2px 0 0 0', color: c.text, fontSize: '14px' }}>{booking.listingTitle || booking.dormName}</p>
               </div>
               <div>
                 <span style={{ fontSize: '12px', color: c.secondaryText }}>Booking Date</span>
                 <p style={{ margin: '2px 0 0 0', color: c.text, fontSize: '14px' }}>
-                  {new Date(booking.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  {new Date(booking.createdAt || booking.bookedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
               </div>
             </div>
@@ -122,6 +123,7 @@ function TenantDetailView({ booking, onClose, onAccept, onReject, onMessage, dar
 // --- Main TenantManagement component ---
 export default function TenantManagement({ listingId, listingTitle, darkMode = false, onMessageTenant }) {
   const { getBookingsForListing, getTenantsForListing, acceptBooking, rejectBooking, removeTenant, deleteRejectedBooking } = useBooking();
+  const { user, updateBookingStatus, addActivity } = useAuth();
   const navigate = useNavigate();
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [removeModal, setRemoveModal] = useState(null);
@@ -145,8 +147,31 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
 
   const statusColors = { pending: '#ffc107', accepted: '#28a745', rejected: '#dc3545', active: '#28a745' };
 
-  const handleAccept = (bookingId) => { acceptBooking(bookingId); setSelectedBooking(null); };
-  const handleReject = (bookingId) => { rejectBooking(bookingId); setSelectedBooking(null); };
+  const handleAccept = (bookingId) => {
+    // Update BookingContext
+    acceptBooking(bookingId);
+
+    // Update AuthContext - notify tenant
+    updateBookingStatus(bookingId, 'accepted');
+
+    // Add activity for landlord
+    addActivity('notification', 'You accepted a booking request', 'listing');
+
+    setSelectedBooking(null);
+  };
+
+  const handleReject = (bookingId) => {
+    // Update BookingContext
+    rejectBooking(bookingId);
+
+    // Update AuthContext - notify tenant
+    updateBookingStatus(bookingId, 'rejected');
+
+    // Add activity for landlord
+    addActivity('notification', 'You rejected a booking request', 'listing');
+
+    setSelectedBooking(null);
+  };
 
   const handleConfirmRemove = () => {
     if (!removeModal) return;
@@ -306,5 +331,3 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
     </div>
   );
 }
-
-

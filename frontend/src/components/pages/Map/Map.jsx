@@ -1,12 +1,12 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useBooking } from '../../../context/BookingContext';
+import { useAuth } from '../../../context/AuthContext';
 import './Map.css';
 
-const PRIMARY     = '#E8622E'; // needed for Leaflet SVG icons only
+const PRIMARY     = '#E8622E';
 const BLUE        = '#2563EB';
 const CENTER      = [10.3157, 123.8854];
 const STORAGE_KEY = 'dormscout_listings';
@@ -136,13 +136,31 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [search, setSearch]               = useState('');
   const [bookingStep, setBookingStep]     = useState('info');
   const [moveInDate, setMoveInDate]       = useState('');
+  const [pendingCounts, setPendingCounts] = useState({});
   const [landlordProfile, setLandlordProfile] = useState(() => {
     try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
   });
 
-  const { createBooking } = useBooking();
+  const { createBooking, getPendingCount, subscribeToBookings } = useBooking();
+  const { user, addBooking, addActivity } = useAuth();
   const navigate = useNavigate();
   const theme = darkMode ? 'dark' : 'light';
+
+  // Real-time pending booking counts
+  useEffect(() => {
+    function updatePendingCounts() {
+      const counts = {};
+      listings.forEach(listing => {
+        counts[listing.id] = getPendingCount(listing.id);
+      });
+      setPendingCounts(counts);
+    }
+
+    updatePendingCounts();
+    const unsubscribe = subscribeToBookings(updatePendingCounts);
+
+    return () => unsubscribe();
+  }, [listings, getPendingCount, subscribeToBookings]);
 
   // Reload landlord profile when it updates
   useEffect(() => {
@@ -207,7 +225,9 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const handleConfirmBooking = (listing) => {
     if (!moveInDate) { alert('Please select a move-in date.'); return; }
     setBookingStep('confirming');
+
     setTimeout(() => {
+      // 1. Save to old storage (for backwards compatibility)
       createBooking(listing, moveInDate);
       const raw = localStorage.getItem(BOOKING_KEY);
       const current = raw ? JSON.parse(raw) : [];
@@ -217,6 +237,27 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
           { id: listing.id, bookedAt: new Date().toISOString(), moveInDate, status: 'pending' }
         ]));
       }
+
+      // 2. ✅ Save to AuthContext (for Overview dashboard)
+      if (user) {
+        addBooking({
+          dormName: listing.title,
+          address: listing.address,
+          price: listing.price,
+          room: listing.rooms,
+          landlord: landlordProfile.businessName || landlordProfile.firstName || 'Landlord',
+          moveInDate,
+          lat: listing.lat,
+          lng: listing.lng,
+          university: listing.university,
+          tags: listing.tags,
+          availableRooms: listing.availableRooms,
+          images: listing.images,
+          description: listing.description,
+          status: 'pending',
+        });
+      }
+
       setBookingStep('success');
     }, 1500);
   };
@@ -320,6 +361,13 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                   </div>
                 );
               })()}
+              <div className="map-listing-card-pending">
+                {pendingCounts[listing.id] > 0 && (
+                  <span className="map-listing-card-pending-count">
+                    {pendingCounts[listing.id]} pending booking{pendingCounts[listing.id] !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
             </button>
           ))
         )}
@@ -485,4 +533,3 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     </div>
   );
 }
-

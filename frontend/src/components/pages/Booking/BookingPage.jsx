@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useBooking } from '../../../context/BookingContext';
+import { useAuth } from '../../../context/AuthContext';
 import './BookingPage.css';
 
 const STORAGE_KEY_LISTINGS = 'dormscout_listings';
@@ -31,26 +32,37 @@ function SmallMap({ lat, lng }) {
 }
 
 const getStatusClass = (status) => {
-  if (status === 'accepted') return 'status-accepted';
+  if (status === 'accepted' || status === 'Active') return 'status-accepted';
   if (status === 'rejected') return 'status-rejected';
   return 'status-pending';
+};
+
+const getStatusLabel = (status) => {
+  if (status === 'accepted' || status === 'Active') return 'Active';
+  if (status === 'rejected') return 'Rejected';
+  return 'Pending';
 };
 
 export default function BookingPage({ darkMode = false }) {
   const [bookings, setBookings]             = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
-  const { bookings: contextBookings, cancelBooking } = useBooking();
+  const { bookings: contextBookings, cancelBooking: contextCancel } = useBooking();
+  const { user, cancelBooking: authCancelBooking, updateBookingStatus } = useAuth();
   const [cancelModal, setCancelModal]       = useState(false);
   const [cancelReason, setCancelReason]     = useState('');
   const [cancelMoveOutDate, setCancelMoveOutDate] = useState('');
 
   const theme = darkMode ? 'dark' : 'light';
 
+  // Load bookings from AuthContext (real user data)
   useEffect(() => {
-    loadBookings();
-    window.addEventListener('storage', loadBookings);
-    return () => window.removeEventListener('storage', loadBookings);
-  }, []);
+    if (user?.bookings) {
+      setBookings(user.bookings);
+    } else {
+      // Fallback to old storage for backwards compatibility
+      loadBookings();
+    }
+  }, [user]);
 
   function loadBookings() {
     const rawBookingData = localStorage.getItem(STORAGE_KEY_BOOKINGS);
@@ -68,18 +80,25 @@ export default function BookingPage({ darkMode = false }) {
 
   const handleCancelBooking = () => {
     if (!selectedBooking) return;
-    const id = selectedBooking.id;
+
+    // Update AuthContext
+    authCancelBooking(selectedBooking.id);
+
+    // Also update old storage for backwards compatibility
     const rawBookingData = localStorage.getItem(STORAGE_KEY_BOOKINGS);
     let bookingData = rawBookingData ? JSON.parse(rawBookingData) : [];
-    bookingData = bookingData.filter(b => b.id !== id);
+    bookingData = bookingData.filter(b => b.id !== selectedBooking.id);
     localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookingData));
-    const ctxBooking = contextBookings.find(cb => cb.listingId === id);
-    if (ctxBooking) cancelBooking(ctxBooking.id, cancelReason, cancelMoveOutDate);
+
     setCancelModal(false);
     setCancelReason('');
     setCancelMoveOutDate('');
     setSelectedBooking(null);
-    loadBookings();
+
+    // Reload bookings
+    if (user?.bookings) {
+      setBookings(user.bookings.filter(b => b.id !== selectedBooking.id));
+    }
   };
 
   const formatDate = (isoString) => {
@@ -110,7 +129,7 @@ export default function BookingPage({ darkMode = false }) {
               )}
 
               <div className="booking-card-body">
-                <h4 className="booking-card-title">{b.title}</h4>
+                <h4 className="booking-card-title">{b.dormName || b.title}</h4>
                 <p className="booking-card-address">{b.address}</p>
                 {b.university && (
                   <div className="booking-university-badge">🎓 {b.university}</div>
@@ -121,6 +140,20 @@ export default function BookingPage({ darkMode = false }) {
                     <span key={i} className="booking-tag">{tag}</span>
                   ))}
                 </div>
+
+                {/* Status Badge - NEW */}
+                <div style={{ marginTop: '8px' }}>
+                  <span className={getStatusClass(b.status)} style={{
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    textTransform: 'capitalize'
+                  }}>
+                    {getStatusLabel(b.status)}
+                  </span>
+                </div>
+
                 <div className="booking-card-hint">Click to view booking details</div>
               </div>
             </div>
@@ -136,36 +169,35 @@ export default function BookingPage({ darkMode = false }) {
               &times;
             </button>
             <div className="detail-modal-body">
-              <h2 className="detail-modal-title">{selectedBooking.title}</h2>
+              <h2 className="detail-modal-title">{selectedBooking.dormName || selectedBooking.title}</h2>
               <p className="detail-modal-address">{selectedBooking.address}</p>
 
               {/* Booking Details Box */}
               <div className="booking-details-box">
                 <h4>Booking Details</h4>
                 {(() => {
-                  const ctxBooking = contextBookings.find(cb => cb.listingId === selectedBooking.id);
-                  const status = ctxBooking ? ctxBooking.status : 'pending';
+                  const status = selectedBooking.status || 'pending';
                   return (
                     <>
                       <p className="booking-details-row">
                         <strong>Status:</strong>{' '}
-                        <span className={getStatusClass(status)}>{status}</span>
+                        <span className={getStatusClass(status)}>{getStatusLabel(status)}</span>
                       </p>
-                      {ctxBooking?.status === 'rejected' && (
+                      {status === 'rejected' && (
                         <p className="booking-rejected-notice">
                           ❌ Your booking has been rejected by the landlord.
                         </p>
                       )}
-                      {ctxBooking?.moveInDate && (
+                      {selectedBooking.moveInDate && (
                         <p className="booking-details-row">
-                          <strong>Move-in Date:</strong> {ctxBooking.moveInDate}
+                          <strong>Move-in Date:</strong> {selectedBooking.moveInDate}
                         </p>
                       )}
                     </>
                   );
                 })()}
                 <p className="booking-details-row">
-                  <strong>Booked On:</strong> {formatDate(selectedBooking.bookedAt)}
+                  <strong>Booked On:</strong> {formatDate(selectedBooking.bookedAt || selectedBooking.createdAt)}
                 </p>
               </div>
 
@@ -206,15 +238,17 @@ export default function BookingPage({ darkMode = false }) {
                 {selectedBooking.description || 'No description provided.'}
               </p>
 
-              {/* Actions */}
-              <div className="modal-actions">
-                <button className="btn-cancel-booking" onClick={() => setCancelModal(true)}>
-                  Cancel Booking
-                </button>
-                <button className="btn-contact-landlord" onClick={() => alert('Contact landlord functionality coming soon!')}>
-                  Contact Landlord
-                </button>
-              </div>
+              {/* Actions - only show cancel if booking is pending/active */}
+              {(selectedBooking.status === 'pending' || selectedBooking.status === 'Active') && (
+                <div className="modal-actions">
+                  <button className="btn-cancel-booking" onClick={() => setCancelModal(true)}>
+                    Cancel Booking
+                  </button>
+                  <button className="btn-contact-landlord" onClick={() => alert('Contact landlord functionality coming soon!')}>
+                    Contact Landlord
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -230,7 +264,7 @@ export default function BookingPage({ darkMode = false }) {
             <h3 className="cancel-modal-title">Cancel Booking</h3>
             <p className="cancel-modal-subtitle">
               You are cancelling your booking for{' '}
-              <strong style={{ color: darkMode ? '#eaeaea' : '#333' }}>{selectedBooking.title}</strong>.
+              <strong style={{ color: darkMode ? '#eaeaea' : '#333' }}>{selectedBooking.dormName || selectedBooking.title}</strong>.
             </p>
 
             <div className="cancel-field">
@@ -267,4 +301,3 @@ export default function BookingPage({ darkMode = false }) {
     </div>
   );
 }
-

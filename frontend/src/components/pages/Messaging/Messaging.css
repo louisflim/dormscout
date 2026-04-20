@@ -233,3 +233,148 @@
   border-radius: 50%;
   border: 3px solid transparent; /* border-color set inline per instance */
 }
+
+Now add these CSS styles to your `Messaging.css`:
+
+```css
+/* ═══════════════════════════════════════════════════════════ */
+/* TYPOGRAPHY & INDICATORS */
+/* ═══════════════════════════════════════════════════════════ */
+
+.status-indicator {
+  font-size: 12px;
+  margin-left: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.status-indicator--read {
+  color: #E8622E;
+}
+
+.status-indicator--delivered {
+  color: #65676b;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* TYPING INDICATOR */
+/* ═══════════════════════════════════════════════════════════ */
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  margin-left: 8px;
+}
+
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(1) { animation-delay: 0s; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* NOTIFICATION TOGGLE */
+/* ═══════════════════════════════════════════════════════════ */
+
+.notification-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background 0.2s ease;
+}
+
+.notification-toggle:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* SIDEBAR UPDATES */
+/* ═══════════════════════════════════════════════════════════ */
+
+.messaging-sidebar__title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.conv-item__bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.conv-item__preview {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conv-item__unread-badge {
+  background: #E8622E;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* SEND BUTTON */
+/* ═══════════════════════════════════════════════════════════ */
+
+.send-btn {
+  background: #E8622E;
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: #d55a28;
+  transform: scale(1.05);
+}
+
+.send-btn:disabled {
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/* NO CONVERSATIONS */
+/* ═══════════════════════════════════════════════════════════ */
+
+.no-conversations {
+  padding: 24px;
+  text-align: center;
+  font-size: 14px;
+}

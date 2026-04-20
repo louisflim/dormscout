@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import './App.css';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookingProvider } from './context/BookingContext';
 import Homepage from './components/pages/Home/HomePage.jsx';
 import Login from './components/pages/Auth/Login.jsx';
@@ -11,18 +12,59 @@ import Support from './components/pages/Support/Support.jsx';
 import AboutUs from './components/pages/About/AboutUs.jsx';
 import ProfilePage from './components/pages/Profile/ProfilePage.jsx';
 import Report from './components/pages/Report/Report.jsx';
+import Reviews from './components/pages/Reviews/Reviews.jsx';
+import Settings from './components/pages/Settings/Settings.jsx';
+
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontSize: '18px',
+        color: '#666'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
 
 function App() {
-  const [userType, setUserType] = useState(null);
   const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : false;
+    try {
+      return localStorage.getItem('darkMode') === 'true';
+    } catch (_) {
+      return false;
+    }
+  });
+  const [userType, setUserType] = useState(() => {
+    return localStorage.getItem('userType') || null;
   });
 
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Simplified Header matching your original
+  useEffect(() => {
+    try {
+      localStorage.setItem('darkMode', darkMode ? 'true' : 'false');
+    } catch (_) {}
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    document.documentElement.classList.toggle('dark-mode', darkMode);
+  }, [darkMode]);
+
+  // Simplified Header
   const Header = () => (
     <header className="global-header">
       <div className="logo">DormScout</div>
@@ -61,44 +103,48 @@ function App() {
   const hideGlobalHeader = pagesWithOwnNav.includes(location.pathname);
 
   return (
-    <BookingProvider>
-    <div className="app-shell">
-      {!hideGlobalHeader && <Header />}
-      <Routes>
-        <Route path="/" element={<Homepage />} />
-        <Route path="/login" element={<Login setUserType={setUserType} />} />
-        <Route path="/register" element={<Register setUserType={setUserType} />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/dashboard" element={
-          userType ? (
-            <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-          ) : (
-            <Navigate to="/login" />
-          )
-        } />
-        {['/map', '/listing', '/booking', '/notifications', '/messages', '/settings', '/reviews'].map(path => (
-          <Route key={path} path={path} element={
-            userType ? (
-              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-            ) : (
-              <Navigate to="/login" />
-            )
-          } />
-        ))}
-        <Route path="/profile" element={
-          <ProfilePage userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-        } />
-        <Route path="/support" element={<Support darkMode={darkMode} />} />
-        <Route path="/about" element={<AboutUs darkMode={darkMode} />} />
-        <Route path="/report" element={
-          <Report userType={userType || 'tenant'} darkMode={darkMode} />
-        } />
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </div>
-    </BookingProvider>
+    <AuthProvider>
+      <BookingProvider>
+        <div className="app-shell">
+          {!hideGlobalHeader && <Header />}
+          <Routes>
+            <Route path="/" element={<Homepage key={location.key} />} />
+            <Route path="/login" element={<Login setUserType={setUserType} />} />
+            <Route path="/register" element={<Register setUserType={setUserType} />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+
+            {/* Protected Routes */}
+            <Route path="/dashboard" element={
+                <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            } />
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <ProfilePage userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            } />
+            <Route path="/support" element={
+              <ProtectedRoute>
+                <Support darkMode={darkMode} />
+              </ProtectedRoute>
+            } />
+            <Route path="/about" element={<AboutUs darkMode={darkMode} />} />
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <Settings userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            } />
+            <Route path="/reviews" element={
+              <ProtectedRoute>
+                <Reviews userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            } />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </div>
+      </BookingProvider>
+    </AuthProvider>
+
   );
 }
 
 export default App;
-

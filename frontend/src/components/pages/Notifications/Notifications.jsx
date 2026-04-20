@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBooking } from '../../../context/BookingContext';
 import './Notifications.css';
 
@@ -8,11 +8,14 @@ const NOTIF_ICONS = {
   new_booking:      '📦',
   booking_accepted: '✅',
   booking_rejected: '❌',
+  booking_cancelled: '❌',
   new_message:      '💬',
+  tenant_removed:   '🚫',
 };
 
 export default function Notifications({ darkMode = false, userType = 'tenant' }) {
-  const { getNotifications, markNotificationRead, deleteNotification, clearAllNotifications } = useBooking();
+  const { getNotifications, markNotificationRead, deleteNotification, clearAllNotifications, subscribeToNotifications } = useBooking();
+  const [notifications, setNotifications] = useState([]);
   const dk = darkMode;
 
   const c = {
@@ -23,7 +26,17 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
     unreadBg:      dk ? '#0f3460'           : '#fff8f0',
   };
 
-  const notifications = getNotifications(userType);
+  // Real-time notification updates
+  useEffect(() => {
+    const updateNotifications = () => {
+      setNotifications(getNotifications(userType));
+    };
+
+    updateNotifications();
+    const unsubscribe = subscribeToNotifications(updateNotifications);
+
+    return () => unsubscribe();
+  }, [userType, getNotifications, subscribeToNotifications]);
 
   const formatTime = (iso) => {
     if (!iso) return '';
@@ -50,7 +63,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
         {notifications.length > 0 && (
           <button
             className="notif-header__clear-btn"
-            onClick={() => clearAllNotifications(userType)}
+            onClick={() => { clearAllNotifications(userType); setNotifications([]); }}
             style={{ border: `1px solid ${c.border}`, color: c.secondaryText }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = '#dc3545';
@@ -92,7 +105,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
               {/* Body */}
               <div
                 className={`notif-card__body ${notif.read ? 'notif-card__body--static' : 'notif-card__body--clickable'}`}
-                onClick={() => { if (!notif.read) markNotificationRead(notif.id); }}
+                onClick={() => { if (!notif.read) { markNotificationRead(notif.id); setNotifications(prev => prev.map(n => n.id === notif.id ? {...n, read: true} : n)); } }}
               >
                 <div className="notif-card__top">
                   <h4 className="notif-card__title" style={{ color: c.text }}>
@@ -116,7 +129,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
               <button
                 className="notif-card__delete-btn"
                 title="Delete notification"
-                onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}
+                onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); setNotifications(prev => prev.filter(n => n.id !== notif.id)); }}
                 style={{ color: c.secondaryText }}
                 onMouseEnter={(e) => { e.currentTarget.style.color = '#dc3545'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = c.secondaryText; }}
@@ -130,4 +143,3 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
     </div>
   );
 }
-

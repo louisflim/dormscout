@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 // --- LocalStorage Keys ---
 const BOOKINGS_KEY = 'dormscout_bookings';
@@ -39,6 +39,33 @@ function saveJSON(key, data) {
 // --- Context ---
 const BookingContext = createContext();
 
+// Listeners for real-time updates
+let bookingListeners = [];
+let notificationListeners = [];
+let listingListeners = [];
+let settingsListeners = [];
+let messagingListeners = [];
+
+function notifyBookingChange() {
+  bookingListeners.forEach(listener => listener());
+}
+
+function notifyNotificationChange() {
+  notificationListeners.forEach(listener => listener());
+}
+
+function notifyListingChange() {
+  listingListeners.forEach(listener => listener());
+}
+
+function notifySettingsChange() {
+  settingsListeners.forEach(listener => listener());
+}
+
+function notifyMessagingChange() {
+  messagingListeners.forEach(listener => listener());
+}
+
 export function BookingProvider({ children }) {
   const [bookings, setBookings] = useState(() => loadJSON(BOOKINGS_KEY));
   const [notifications, setNotifications] = useState(() => loadJSON(NOTIFICATIONS_KEY));
@@ -46,10 +73,23 @@ export function BookingProvider({ children }) {
   const [tenants, setTenants] = useState(() => loadJSON(TENANTS_KEY));
 
   // Persist to localStorage on change
-  useEffect(() => { saveJSON(BOOKINGS_KEY, bookings); }, [bookings]);
-  useEffect(() => { saveJSON(NOTIFICATIONS_KEY, notifications); }, [notifications]);
-  useEffect(() => { saveJSON(MESSAGES_KEY, chatMessages); }, [chatMessages]);
-  useEffect(() => { saveJSON(TENANTS_KEY, tenants); }, [tenants]);
+  useEffect(() => {
+    saveJSON(BOOKINGS_KEY, bookings);
+    notifyBookingChange();
+  }, [bookings]);
+
+  useEffect(() => {
+    saveJSON(NOTIFICATIONS_KEY, notifications);
+    notifyNotificationChange();
+  }, [notifications]);
+
+  useEffect(() => {
+    saveJSON(MESSAGES_KEY, chatMessages);
+  }, [chatMessages]);
+
+  useEffect(() => {
+    saveJSON(TENANTS_KEY, tenants);
+  }, [tenants]);
 
   // --- CREATE BOOKING (tenant action) ---
   function createBooking(listing, moveInDate) {
@@ -93,12 +133,11 @@ export function BookingProvider({ children }) {
   // --- ACCEPT BOOKING (landlord action) ---
   function acceptBooking(bookingId) {
     setBookings(prev => prev.map(b =>
-      b.id === bookingId ? { ...b, status: 'accepted' } : b
+      b.id === bookingId ? { ...b, status: 'accepted', acceptedAt: new Date().toISOString() } : b
     ));
 
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
-      // Add tenant to the listing's tenant list
       setTenants(prev => [...prev, {
         id: `tenant-record-${Date.now()}`,
         bookingId,
@@ -113,7 +152,6 @@ export function BookingProvider({ children }) {
         status: 'active',
       }]);
 
-      // Notify tenant
       addNotification({
         type: 'booking_accepted',
         title: 'Booking Accepted!',
@@ -122,10 +160,14 @@ export function BookingProvider({ children }) {
         listingId: booking.listingId,
         forRole: 'tenant',
       });
+
+      if (window.__dormscoutSyncCallback) {
+        window.__dormscoutSyncCallback('acceptBooking', bookingId);
+      }
     }
   }
 
-  // --- CANCEL BOOKING (tenant action) — removes tenant record + notifies both ---
+  // --- CANCEL BOOKING (tenant action) ---
   function cancelBooking(bookingId, reason, moveOutDate) {
     const booking = bookings.find(b => b.id === bookingId);
     setBookings(prev => prev.filter(b => b.id !== bookingId));
@@ -157,10 +199,8 @@ export function BookingProvider({ children }) {
     setTenants(prev => prev.filter(t => t.id !== tenantRecordId));
 
     if (tenantRecord) {
-      // Remove the booking from context entirely
       setBookings(prev => prev.filter(b => b.id !== tenantRecord.bookingId));
 
-      // Also remove the listing from tenant's dormscout_my_bookings localStorage
       try {
         const raw = localStorage.getItem('dormscout_my_bookings');
         const myBookings = raw ? JSON.parse(raw) : [];
@@ -168,6 +208,7 @@ export function BookingProvider({ children }) {
           myBookings.filter(b => b.id !== tenantRecord.listingId)
         ));
       } catch (e) { /* ignore */ }
+
       addNotification({
         type: 'tenant_removed',
         title: 'Tenant Removed',
@@ -183,7 +224,7 @@ export function BookingProvider({ children }) {
     }
   }
 
-  // --- DELETE REJECTED BOOKING (landlord action — dismiss from list) ---
+  // --- DELETE REJECTED BOOKING ---
   function deleteRejectedBooking(bookingId) {
     setBookings(prev => prev.filter(b => b.id !== bookingId));
   }
@@ -204,6 +245,10 @@ export function BookingProvider({ children }) {
         listingId: booking.listingId,
         forRole: 'tenant',
       });
+
+      if (window.__dormscoutSyncCallback) {
+        window.__dormscoutSyncCallback('rejectBooking', bookingId);
+      }
     }
   }
 
@@ -229,7 +274,7 @@ export function BookingProvider({ children }) {
     setNotifications(prev => prev.filter(n => n.id !== notifId));
   }
 
-  // --- CLEAR ALL NOTIFICATIONS (for a role) ---
+  // --- CLEAR ALL NOTIFICATIONS ---
   function clearAllNotifications(role) {
     setNotifications(prev => prev.filter(n => n.forRole !== role));
   }
@@ -238,7 +283,7 @@ export function BookingProvider({ children }) {
   function sendMessage(conversationId, senderRole, text) {
     const msg = {
       id: `msg-${Date.now()}`,
-      sender: senderRole, // 'tenant' or 'landlord'
+      sender: senderRole,
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       createdAt: new Date().toISOString(),
@@ -248,7 +293,6 @@ export function BookingProvider({ children }) {
       [conversationId]: [...(prev[conversationId] || []), msg],
     }));
 
-    // Notify the other party
     const otherRole = senderRole === 'tenant' ? 'landlord' : 'tenant';
     addNotification({
       type: 'new_message',
@@ -259,17 +303,42 @@ export function BookingProvider({ children }) {
     });
   }
 
-  // --- HELPER: get bookings for a listing ---
+  // --- SUBSCRIBE FUNCTIONS ---
+  // ✅ FIX: All three were missing — defined here using the same pattern as the others
+  const subscribeToBookings = useCallback((listener) => {
+    bookingListeners.push(listener);
+    return () => { bookingListeners = bookingListeners.filter(l => l !== listener); };
+  }, []);
+
+  const subscribeToNotifications = useCallback((listener) => {
+    notificationListeners.push(listener);
+    return () => { notificationListeners = notificationListeners.filter(l => l !== listener); };
+  }, []);
+
+  const subscribeToListings = useCallback((listener) => {
+    listingListeners.push(listener);
+    return () => { listingListeners = listingListeners.filter(l => l !== listener); };
+  }, []);
+
+  const subscribeToSettings = useCallback((listener) => {
+    settingsListeners.push(listener);
+    return () => { settingsListeners = settingsListeners.filter(l => l !== listener); };
+  }, []);
+
+  const subscribeToMessaging = useCallback((listener) => {
+    messagingListeners.push(listener);
+    return () => { messagingListeners = messagingListeners.filter(l => l !== listener); };
+  }, []);
+
+  // --- HELPERS ---
   function getBookingsForListing(listingId) {
     return bookings.filter(b => b.listingId === listingId);
   }
 
-  // --- HELPER: get pending count for a listing ---
   function getPendingCount(listingId) {
     return bookings.filter(b => b.listingId === listingId && b.status === 'pending').length;
   }
 
-  // --- HELPER: get notifications for a role ---
   function getNotifications(role) {
     return notifications.filter(n => n.forRole === role);
   }
@@ -278,7 +347,6 @@ export function BookingProvider({ children }) {
     return notifications.filter(n => n.forRole === role && !n.read).length;
   }
 
-  // --- HELPER: get tenants for a listing ---
   function getTenantsForListing(listingId) {
     return tenants.filter(t => t.listingId === listingId);
   }
@@ -305,6 +373,14 @@ export function BookingProvider({ children }) {
       getNotifications,
       getUnreadCount,
       getTenantsForListing,
+      subscribeToBookings,
+      subscribeToNotifications,
+      subscribeToListings,      // ✅ now defined
+      subscribeToSettings,      // ✅ now defined
+      subscribeToMessaging,     // ✅ now defined
+      notifyListingChange,
+      notifySettingsChange,
+      notifyMessagingChange,
       MOCK_TENANT,
       MOCK_LANDLORD,
     }}>
@@ -318,5 +394,3 @@ export function useBooking() {
   if (!ctx) throw new Error('useBooking must be used within BookingProvider');
   return ctx;
 }
-
-

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Map from '../Map/Map';
 import ListingPage from '../Listing/ListingPage';
 import BookingPage from '../Booking/BookingPage';
@@ -8,6 +8,7 @@ import Messaging from '../Messaging/Messaging';
 import Settings from '../Settings/Settings';
 import Notifications from '../Notifications/Notifications';
 import { useBooking } from '../../../context/BookingContext';
+import { useAuth } from '../../../context/AuthContext';
 import './Dashboard.css';
 
 import {
@@ -33,6 +34,7 @@ import {
   X,
   TrendingUp,
   Clock,
+  Plus,
 } from 'lucide-react';
 
 const NAV_ITEMS = {
@@ -56,52 +58,6 @@ const NAV_ITEMS = {
   ],
 };
 
-// ─── Placeholder Data ─────────────────────────────────────────────────────────
-
-const TENANT_DATA = {
-  name: 'Jamie',
-  booking: {
-    dormName: 'Sunshine Boarding House',
-    landlord: 'Maria Reyes',
-    status: 'Active',       
-    since: 'January 2025',
-    room: 'Room 4B',
-  },
-  rent: {
-    amount: 4500,
-    dueDate: 'May 1, 2025',
-    lastPaid: 'April 1, 2025',
-    cycleProgress: 58,      // percent through billing cycle
-  },
-};
-
-const LANDLORD_DATA = {
-  name: 'Mars',
-  listings: {
-    active: 4,
-    vacant: 2,
-    pending: 1,
-  },
-  pendingRequests: [
-    { id: 1, name: 'Maria Santos',  dorm: 'Sunshine Boarding House', room: 'Room 2A', date: 'Apr 15' },
-    { id: 2, name: 'Paolo Cruz',    dorm: 'Green Leaf Dormitory',    room: 'Room 1C', date: 'Apr 16' },
-    { id: 3, name: 'Angela Reyes',  dorm: 'Sunshine Boarding House', room: 'Room 3B', date: 'Apr 17' },
-  ],
-};
-
-const RECENT_ACTIVITY = [
-  { id: 1, type: 'message',      text: 'Maria Reyes sent you a message',    time: '2 hrs ago',  nav: 'messages' },
-  { id: 2, type: 'notification', text: 'Your booking was confirmed',         time: 'Yesterday',  nav: 'notifications' },
-  { id: 3, type: 'review',       text: 'New review on Sunshine BH',          time: '2 days ago', nav: 'reviews' },
-  { id: 4, type: 'message',      text: 'LeBron James sent you a message',    time: '3 days ago', nav: 'messages' },
-];
-
-const SUGGESTED_DORMS = [
-  { id: 1, name: 'BlueSky Residences',   location: 'Lahug',       price: '₱3,800/mo', rating: 4.7 },
-  { id: 2, name: 'Green Leaf Dormitory', location: 'Gorordo Ave', price: '₱3,200/mo', rating: 4.5 },
-  { id: 3, name: 'CampusNest',           location: 'Banilad',     price: '₱2,900/mo', rating: 4.3 },
-];
-
 const NAV_ICON = {
   overview:      (c) => <LayoutDashboard size={18} color={c} />,
   map:           (c) => <MapPin          size={18} color={c} />,
@@ -113,15 +69,13 @@ const NAV_ICON = {
   reviews:       (c) => <Star            size={18} color={c} />,
 };
 
-
-
 const ACTIVITY_ICON = {
   message:      <MessageCircle size={15} color="#5BADA8" />,
   notification: <Bell          size={15} color="#E8622E" />,
   review:       <Star          size={15} color="#F59E0B" />,
+  booking:      <CalendarDays  size={15} color="#5BADA8" />,
+  listing:      <Home          size={15} color="#E8622E" />,
 };
-
-
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -152,12 +106,13 @@ const SECTION_DESCRIPTIONS = {
   listing:       'Create and manage your property listings.',
 };
 
-// Shared UI Pieces 
+// Shared UI Pieces
 
 function StatusBadge({ status }) {
   const map = {
     Active:  { bg: 'rgba(91,173,168,0.15)',  color: '#5BADA8' },
     Pending: { bg: 'rgba(245,158,11,0.15)',  color: '#B45309' },
+    Rejected:{ bg: 'rgba(220,53,69,0.15)',   color: '#dc3545' },
     None:    { bg: 'rgba(156,163,175,0.15)', color: '#6B7280' },
   };
   const s = map[status] || map.None;
@@ -171,20 +126,41 @@ function StatusBadge({ status }) {
   );
 }
 
-function TenantOverview({ darkMode, onNavigate }) {
+// ─── Tenant Overview (REAL DATA) ───────────────────────────────────────────────
+
+function TenantOverview({ darkMode, onNavigate, user }) {
   const cardBg  = darkMode ? '#16213e' : '#fff';
   const text    = darkMode ? '#eaeaea' : '#333';
   const subText = darkMode ? '#a0a0b0' : '#666';
   const rowBg   = darkMode ? '#0f3460' : '#f9f9f9';
 
+  const displayName = user?.name?.split(' ')[0] || 'User';
+
+  // Get bookings from user data
+  const bookings = user?.bookings || [];
+
+  // Get active booking (status = 'accepted')
+  const activeBooking = bookings.find(b => b.status === 'accepted');
+
+  // Get pending bookings (status = 'pending')
+  const pendingBookings = bookings.filter(b => b.status === 'pending');
+
+  // Get recent activities
+  const activities = user?.activities || [];
+
+  // Calculate stats
+  const totalBookings = bookings.length;
+  const activeCount = activeBooking ? 1 : 0;
+  const pendingCount = pendingBookings.length;
+
   return (
     <div className="overview-new">
 
-      {/* Greeting */}
+      {/* Greeting - REAL USER NAME */}
       <div className="overview-greeting">
         <div>
           <h2 className="overview-greeting-title">
-            {getGreeting()}, {TENANT_DATA.name}! 👋
+            {getGreeting()}, {displayName}! 👋
           </h2>
           <p className="overview-greeting-sub" style={{ color: subText }}>
             Here's your housing update for today.
@@ -203,27 +179,28 @@ function TenantOverview({ darkMode, onNavigate }) {
             <Home size={16} color="#E8622E" />
             <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Current Booking</span>
           </div>
-          {TENANT_DATA.booking.status === 'None' ? (
+
+          {totalBookings === 0 ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               <p style={{ color: subText, fontSize: 13, marginBottom: 12 }}>
-                You don't have an active booking yet.
+                You don't have any bookings yet.
               </p>
               <button className="ov-action-btn-primary" onClick={() => onNavigate('map')}>
                 <Search size={14} /> Find a Dorm
               </button>
             </div>
-          ) : (
+          ) : activeBooking ? (
             <>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 800, fontSize: 16, color: text }}>{TENANT_DATA.booking.dormName}</span>
-                  <StatusBadge status={TENANT_DATA.booking.status} />
+                  <span style={{ fontWeight: 800, fontSize: 16, color: text }}>{activeBooking.dormName}</span>
+                  <StatusBadge status="Active" />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {[
-                    ['Room',     TENANT_DATA.booking.room],
-                    ['Landlord', TENANT_DATA.booking.landlord],
-                    ['Since',    TENANT_DATA.booking.since],
+                    ['Room',     activeBooking.room || 'N/A'],
+                    ['Landlord', activeBooking.landlord || 'N/A'],
+                    ['Price',    activeBooking.price ? `₱${activeBooking.price}` : 'N/A'],
                   ].map(([label, val]) => (
                     <div key={label} style={{ display: 'flex', gap: 8, fontSize: 13 }}>
                       <span style={{ color: subText, width: 60, flexShrink: 0 }}>{label}</span>
@@ -236,6 +213,15 @@ function TenantOverview({ darkMode, onNavigate }) {
                 View booking details <ChevronRight size={13} />
               </button>
             </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <p style={{ color: subText, fontSize: 13, marginBottom: 12 }}>
+                No active booking. {pendingCount > 0 ? `${pendingCount} pending request(s) waiting for approval.` : 'Find a dorm to get started!'}
+              </p>
+              <button className="ov-action-btn-primary" onClick={() => onNavigate('map')}>
+                <Search size={14} /> Find a Dorm
+              </button>
+            </div>
           )}
         </div>
 
@@ -265,149 +251,18 @@ function TenantOverview({ darkMode, onNavigate }) {
         </div>
       </div>
 
-      {/* Rent Tracker */}
-      <div className="overview-card-new" style={{ background: cardBg }}>
-        <div className="overview-card-header">
-          <CreditCard size={16} color="#E8622E" />
-          <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Rent Tracker</span>
-          <span style={{ marginLeft: 'auto', fontSize: 11, color: subText }}>Placeholder · backend pending</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 26, fontWeight: 800, color: '#E8622E' }}>
-              ₱{TENANT_DATA.rent.amount.toLocaleString()}
-            </p>
-            <p style={{ margin: 0, fontSize: 12, color: subText }}>Monthly rent</p>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: text }}>
-              Due {TENANT_DATA.rent.dueDate}
-            </p>
-            <p style={{ margin: 0, fontSize: 11, color: subText }}>
-              Last paid: {TENANT_DATA.rent.lastPaid}
-            </p>
-          </div>
-        </div>
-        <div style={{ height: 8, borderRadius: 99, background: darkMode ? '#2a2a4a' : '#eee', overflow: 'hidden', marginBottom: 4 }}>
-          <div style={{
-            height: '100%',
-            width: `${TENANT_DATA.rent.cycleProgress}%`,
-            background: 'linear-gradient(90deg, #5BADA8, #E8622E)',
-            borderRadius: 99,
-            transition: 'width 0.6s ease',
-          }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: subText }}>
-          <span>Billing cycle</span>
-          <span>{TENANT_DATA.rent.cycleProgress}% through</span>
-        </div>
-      </div>
-
-      {/* Row 2: Activity + Suggested Dorms */}
-      <div className="overview-row-2col">
-
-        <div className="overview-card-new" style={{ background: cardBg }}>
-          <div className="overview-card-header">
-            <Clock size={16} color="#E8622E" />
-            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Recent Activity</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {RECENT_ACTIVITY.map((item) => (
-              <div key={item.id} className="activity-item" style={{ background: rowBg }}
-                onClick={() => onNavigate(item.nav)}>
-                <span className="activity-icon">{ACTIVITY_ICON[item.type]}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: text, fontWeight: 500 }}>{item.text}</p>
-                  <p style={{ margin: 0, fontSize: 11, color: subText }}>{item.time}</p>
-                </div>
-                <ChevronRight size={14} color={subText} />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="overview-card-new" style={{ background: cardBg }}>
-          <div className="overview-card-header">
-            <MapPin size={16} color="#E8622E" />
-            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Suggested Dorms</span>
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: subText }}>Placeholder</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {SUGGESTED_DORMS.map((dorm) => (
-              <div key={dorm.id} className="activity-item" style={{ background: rowBg, cursor: 'pointer' }}
-                onClick={() => onNavigate('map')}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: 'rgba(91,173,168,0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <Home size={16} color="#5BADA8" />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: text }}>{dorm.name}</p>
-                  <p style={{ margin: 0, fontSize: 11, color: subText }}>{dorm.location} · {dorm.price}</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                  <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: text }}>{dorm.rating}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button className="ov-link-btn" onClick={() => onNavigate('map')}
-            style={{ color: '#E8622E', marginTop: 8 }}>
-            Browse all dorms <ChevronRight size={13} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Landlord Overview ────────────────────────────────────────────────────────
-
-function LandlordOverview({ darkMode, onNavigate }) {
-  const [requests, setRequests] = useState(LANDLORD_DATA.pendingRequests);
-
-  const cardBg  = darkMode ? '#16213e' : '#fff';
-  const text    = darkMode ? '#eaeaea' : '#333';
-  const subText = darkMode ? '#a0a0b0' : '#666';
-  const rowBg   = darkMode ? '#0f3460' : '#f9f9f9';
-
-  const handleAccept = (id) => setRequests((prev) => prev.filter((r) => r.id !== id));
-  const handleReject = (id) => setRequests((prev) => prev.filter((r) => r.id !== id));
-
-  return (
-    <div className="overview-new">
-
-      {/* Greeting */}
-      <div className="overview-greeting">
-        <div>
-          <h2 className="overview-greeting-title">
-            {getGreeting()}, {LANDLORD_DATA.name}! 🏠
-          </h2>
-          <p className="overview-greeting-sub" style={{ color: subText }}>
-            Here's your property update for today.
-          </p>
-        </div>
-        <span style={{ fontSize: 12, color: subText, whiteSpace: 'nowrap' }}>
-          {new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </span>
-      </div>
-
-      {/* Row 1: Listings Summary + Quick Actions */}
-      <div className="overview-row-2col">
-
+      {/* Booking Stats - REAL DATA */}
+      {totalBookings > 0 && (
         <div className="overview-card-new" style={{ background: cardBg }}>
           <div className="overview-card-header">
             <ClipboardList size={16} color="#E8622E" />
-            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>My Listings</span>
+            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>My Bookings</span>
           </div>
           <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
             {[
-              { label: 'Active',  value: LANDLORD_DATA.listings.active,  color: '#5BADA8' },
-              { label: 'Vacant',  value: LANDLORD_DATA.listings.vacant,  color: '#E8622E' },
-              { label: 'Pending', value: LANDLORD_DATA.listings.pending, color: '#F59E0B' },
+              { label: 'Total',     value: totalBookings,  color: '#333' },
+              { label: 'Active',   value: activeCount,     color: '#5BADA8' },
+              { label: 'Pending',  value: pendingCount,    color: '#F59E0B' },
             ].map(({ label, value, color }) => (
               <div key={label} style={{
                 flex: 1, textAlign: 'center', padding: '12px 8px',
@@ -418,9 +273,302 @@ function LandlordOverview({ darkMode, onNavigate }) {
               </div>
             ))}
           </div>
-          <button className="ov-link-btn" onClick={() => onNavigate('listing')} style={{ color: '#E8622E' }}>
-            Manage listings <ChevronRight size={13} />
+          <button className="ov-link-btn" onClick={() => onNavigate('booking')} style={{ color: '#E8622E' }}>
+            View all bookings <ChevronRight size={13} />
           </button>
+        </div>
+      )}
+
+      {/* Row 2: Activity + Quick Links */}
+      <div className="overview-row-2col">
+
+        <div className="overview-card-new" style={{ background: cardBg }}>
+          <div className="overview-card-header">
+            <Clock size={16} color="#E8622E" />
+            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Recent Activity</span>
+          </div>
+
+          {activities.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px 0', color: subText, fontSize: 13 }}>
+              No recent activity yet. Start by exploring dorms!
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {activities.slice(0, 5).map((item) => (
+                <div key={item.id} className="activity-item" style={{ background: rowBg }}
+                  onClick={() => item.nav && onNavigate(item.nav)}>
+                  <span className="activity-icon">{ACTIVITY_ICON[item.type] || <Bell size={15} color="#666" />}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: text, fontWeight: 500 }}>{item.text}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: subText }}>{item.time}</p>
+                  </div>
+                  {item.nav && <ChevronRight size={14} color={subText} />}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="overview-card-new" style={{ background: cardBg }}>
+          <div className="overview-card-header">
+            <MapPin size={16} color="#E8622E" />
+            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Browse Dorms</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              className="quick-action-tile"
+              style={{ background: rowBg, color: text, justifyContent: 'flex-start', padding: '12px 16px', gap: 12 }}
+              onClick={() => onNavigate('map')}
+            >
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: 'rgba(91,173,168,0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <Search size={16} color="#5BADA8" />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: text }}>Explore Dormitories</p>
+                <p style={{ margin: 0, fontSize: 11, color: subText }}>Find your perfect place near campus</p>
+              </div>
+            </button>
+
+            {pendingCount > 0 && (
+              <div style={{
+                padding: '12px 16px',
+                background: '#F59E0B20',
+                borderRadius: 10,
+                border: '1px solid #F59E0B',
+              }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#B45309' }}>
+                  ⏳ {pendingCount} pending booking{pendingCount > 1 ? 's' : ''}
+                </p>
+                <p style={{ margin: '4px 0 0 0', fontSize: 11, color: subText }}>
+                  Waiting for landlord approval
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Landlord Overview (REAL DATA) ────────────────────────────────────────────
+
+function LandlordOverview({ darkMode, onNavigate, user }) {
+  const [requests, setRequests] = useState([]);
+  const { updateBookingStatus, addActivity } = useAuth();
+  const { bookings: contextBookings, acceptBooking, rejectBooking, subscribeToBookings } = useBooking();
+
+  const cardBg  = darkMode ? '#16213e' : '#fff';
+  const text    = darkMode ? '#eaeaea' : '#333';
+  const subText = darkMode ? '#a0a0b0' : '#666';
+  const rowBg   = darkMode ? '#0f3460' : '#f9f9f9';
+
+  const displayName = user?.name?.split(' ')[0] || 'Landlord';
+  const listings = user?.listings || [];
+  const activities = user?.activities || [];
+
+  // Calculate stats from real data
+  const activeListings = listings.filter(l => l.status === 'Active');
+  const vacantListings = listings.filter(l => l.status === 'Active' && l.availableRooms > 0);
+  const pendingListings = listings.filter(l => l.status === 'Pending');
+
+  // Load pending bookings from BookingContext with real-time updates
+  useEffect(() => {
+    function updateBookings() {
+      try {
+        // Get pending bookings from BookingContext
+        const myListingIds = listings.map(l => l.id);
+        const myRequests = contextBookings.filter(b =>
+          myListingIds.includes(b.listingId) && b.status === 'pending'
+        );
+        setRequests(myRequests);
+      } catch (_) {
+        setRequests([]);
+      }
+    }
+
+    updateBookings();
+
+    // Subscribe to real-time booking changes
+    const unsubscribe = subscribeToBookings(updateBookings);
+    window.addEventListener('storage', updateBookings);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('storage', updateBookings);
+    };
+  }, [listings, contextBookings, subscribeToBookings]);
+
+  const handleAccept = (request) => {
+    // Accept via BookingContext (triggers real-time update)
+    acceptBooking(request.id);
+
+    // Also sync to AuthContext for persistent user data
+    updateBookingStatus(request.id, 'accepted');
+
+    // Log activity
+    addActivity('booking', `You accepted ${request.tenantName}'s booking request for "${request.listingTitle}"`, 'listing');
+  };
+
+  const handleReject = (request) => {
+    // Reject via BookingContext (triggers real-time update)
+    rejectBooking(request.id);
+
+    // Also sync to AuthContext for persistent user data
+    updateBookingStatus(request.id, 'rejected');
+
+    // Log activity
+    addActivity('booking', `You rejected ${request.tenantName}'s booking request for "${request.listingTitle}"`, 'listing');
+  };
+
+  return (
+    <div className="overview-new">
+
+      {/* Greeting */}
+      <div className="overview-greeting">
+        <div>
+          <h2 className="overview-greeting-title">
+            {getGreeting()}, {displayName}! 🏠
+          </h2>
+          <p className="overview-greeting-sub" style={{ color: subText }}>
+            Here's your property update for today.
+          </p>
+        </div>
+        <span style={{ fontSize: 12, color: subText, whiteSpace: 'nowrap' }}>
+          {new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })}
+        </span>
+      </div>
+
+      {/* Pending Booking Requests - REAL-TIME UPDATES */}
+      {requests.length > 0 && (
+        <div className="overview-card-new" style={{ background: cardBg }}>
+          <div className="overview-card-header">
+            <Bell size={16} color="#E8622E" />
+            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Pending Booking Requests</span>
+            <span style={{
+              marginLeft: 8, background: '#dc3545', color: '#fff',
+              fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+            }}>
+              {requests.length}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {requests.map((req) => (
+              <div key={req.id} className="request-item" style={{ background: rowBg, padding: '12px', borderRadius: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    background: 'rgba(232,98,46,0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    fontSize: 18,
+                  }}>
+                    👤
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: text }}>{req.tenantName || 'Tenant'}</p>
+                    <p style={{ margin: '2px 0 0 0', fontSize: 12, color: subText }}>
+                      📍 {req.listingTitle || 'Property'}
+                    </p>
+                    <p style={{ margin: '2px 0 0 0', fontSize: 12, color: subText }}>
+                      📅 Move-in: {req.moveInDate || 'Not specified'}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button
+                      onClick={() => handleAccept(req)}
+                      style={{
+                        padding: '8px 12px', background: '#28a745', color: '#fff',
+                        border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = '#20c997'}
+                      onMouseLeave={(e) => e.target.style.background = '#28a745'}
+                    >
+                      ✔ Accept
+                    </button>
+                    <button
+                      onClick={() => handleReject(req)}
+                      style={{
+                        padding: '8px 12px', background: '#dc3545', color: '#fff',
+                        border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = '#c82333'}
+                      onMouseLeave={(e) => e.target.style.background = '#dc3545'}
+                    >
+                      ✖ Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Row 1: Listings Summary + Quick Actions */}
+      <div className="overview-row-2col">
+
+        <div className="overview-card-new" style={{ background: cardBg }}>
+          <div className="overview-card-header">
+            <ClipboardList size={16} color="#E8622E" />
+            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>My Listings</span>
+            <button
+              onClick={() => onNavigate('listing')}
+              style={{
+                marginLeft: 'auto',
+                background: '#E8622E',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <Plus size={12} /> Add New
+            </button>
+          </div>
+
+          {listings.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <p style={{ color: subText, fontSize: 13, marginBottom: 12 }}>
+                You haven't added any listings yet.
+              </p>
+              <button className="ov-action-btn-primary" onClick={() => onNavigate('listing')}>
+                <Plus size={14} /> Add Your First Listing
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                {[
+                  { label: 'Active',  value: activeListings.length,  color: '#5BADA8' },
+                  { label: 'Vacant',  value: vacantListings.length,   color: '#E8622E' },
+                  { label: 'Pending', value: pendingListings.length,  color: '#F59E0B' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{
+                    flex: 1, textAlign: 'center', padding: '12px 8px',
+                    borderRadius: 12, background: rowBg,
+                  }}>
+                    <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color }}>{value}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: subText, marginTop: 2 }}>{label}</p>
+                  </div>
+                ))}
+              </div>
+              <button className="ov-link-btn" onClick={() => onNavigate('listing')} style={{ color: '#E8622E' }}>
+                Manage listings <ChevronRight size={13} />
+              </button>
+            </>
+          )}
         </div>
 
         <div className="overview-card-new" style={{ background: cardBg }}>
@@ -431,9 +579,9 @@ function LandlordOverview({ darkMode, onNavigate }) {
           <div className="quick-actions-grid">
             {[
               { label: 'New Listing', icon: <ClipboardList  size={18} color="#E8622E" />, nav: 'listing' },
-              { label: 'Messages',    icon: <MessageCircle  size={18} color="#5BADA8" />, nav: 'messages' },
-              { label: 'Reviews',     icon: <Star           size={18} color="#F59E0B" />, nav: 'reviews' },
-              { label: 'Map View',    icon: <MapPin         size={18} color="#E8622E" />, nav: 'map' },
+              { label: 'Messages',   icon: <MessageCircle  size={18} color="#5BADA8" />, nav: 'messages' },
+              { label: 'Reviews',    icon: <Star           size={18} color="#F59E0B" />, nav: 'reviews' },
+              { label: 'Map View',   icon: <MapPin         size={18} color="#E8622E" />, nav: 'map' },
             ].map(({ label, icon, nav }) => (
               <button
                 key={label}
@@ -449,72 +597,32 @@ function LandlordOverview({ darkMode, onNavigate }) {
         </div>
       </div>
 
-      {/* Pending Booking Requests */}
-      <div className="overview-card-new" style={{ background: cardBg }}>
-        <div className="overview-card-header">
-          <Bell size={16} color="#E8622E" />
-          <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Pending Booking Requests</span>
-          {requests.length > 0 && (
-            <span style={{
-              marginLeft: 8, background: '#dc3545', color: '#fff',
-              fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
-            }}>
-              {requests.length}
-            </span>
-          )}
-        </div>
-        {requests.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '20px 0', color: subText, fontSize: 13 }}>
-            ✅ All caught up — no pending requests!
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {requests.map((req) => (
-              <div key={req.id} className="request-item" style={{ background: rowBg }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: 'rgba(232,98,46,0.12)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <User size={16} color="#E8622E" />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: text }}>{req.name}</p>
-                  <p style={{ margin: 0, fontSize: 11, color: subText }}>{req.dorm} · {req.room} · {req.date}</p>
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <button className="req-btn req-btn-accept" onClick={() => handleAccept(req.id)} title="Accept">
-                    <Check size={14} />
-                  </button>
-                  <button className="req-btn req-btn-reject" onClick={() => handleReject(req.id)} title="Reject">
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Recent Activity */}
       <div className="overview-card-new" style={{ background: cardBg }}>
         <div className="overview-card-header">
           <Clock size={16} color="#E8622E" />
           <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Recent Activity</span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {RECENT_ACTIVITY.map((item) => (
-            <div key={item.id} className="activity-item" style={{ background: rowBg }}
-              onClick={() => onNavigate(item.nav)}>
-              <span className="activity-icon">{ACTIVITY_ICON[item.type]}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 13, color: text, fontWeight: 500 }}>{item.text}</p>
-                <p style={{ margin: 0, fontSize: 11, color: subText }}>{item.time}</p>
+
+        {activities.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: subText, fontSize: 13 }}>
+            No recent activity yet. {requests.length > 0 ? 'Approve or reject pending requests!' : 'Add listings to get started!'}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {activities.slice(0, 5).map((item) => (
+              <div key={item.id} className="activity-item" style={{ background: rowBg }}
+                onClick={() => item.nav && onNavigate(item.nav)}>
+                <span className="activity-icon">{ACTIVITY_ICON[item.type] || <Bell size={15} color="#666" />}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: text, fontWeight: 500 }}>{item.text}</p>
+                  <p style={{ margin: 0, fontSize: 11, color: subText }}>{item.time}</p>
+                </div>
+                {item.nav && <ChevronRight size={14} color={subText} />}
               </div>
-              <ChevronRight size={14} color={subText} />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
     </div>
@@ -523,28 +631,21 @@ function LandlordOverview({ darkMode, onNavigate }) {
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
-export default function Dashboard({ userType = 'tenant', darkMode = false, setDarkMode }) {
-  const location   = useLocation();
-  const pathToSection = {
-    '/dashboard': 'overview', '/map': 'map', '/listing': 'listing',
-    '/booking': 'booking', '/notifications': 'notifications',
-    '/messages': 'messages', '/settings': 'settings', '/reviews': 'reviews',
-  };
-  const sectionFromPath = pathToSection[location.pathname] || 'overview';
-  const [activeNav, setActiveNav]             = useState(sectionFromPath);
+export default function Dashboard({ userType: propUserType, darkMode = false, setDarkMode }) {
+  const [searchParams]    = useSearchParams();
+  const sectionFromUrl    = searchParams.get('section') || 'overview';
+  const [activeNav, setActiveNav]             = useState(sectionFromUrl);
   const [editListingData, setEditListingData] = useState(null);
   const [showDropdown, setShowDropdown]       = useState(false);
-  const navItems   = NAV_ITEMS[userType] || NAV_ITEMS.tenant;
-  const isLandlord = userType === 'landlord';
   const dropdownRef = useRef(null);
   const navigate    = useNavigate();
   const { getUnreadCount } = useBooking();
-  const theme = darkMode ? 'dark' : 'light';
+  const { user, logout, addActivity } = useAuth();
 
-  // Sync activeNav when path changes (e.g. browser back/forward)
-  useEffect(() => {
-    setActiveNav(sectionFromPath);
-  }, [sectionFromPath]);
+  // Get userType from props or localStorage or default to 'tenant'
+  const userType = propUserType || user?.userType || localStorage.getItem('userType') || 'tenant';
+  const isLandlord = userType === 'landlord';
+  const theme = darkMode ? 'dark' : 'light';
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -570,6 +671,19 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
           )
       );
 
+  // Logout handler using AuthContext
+  const handleLogout = () => {
+    logout();
+
+    // 2. Clear ALL auth-related localStorage
+    localStorage.removeItem('dormScoutUser');
+    localStorage.removeItem('userType');
+    localStorage.removeItem('loginUserType');
+
+    // 3. Force full reload to reset ALL React states
+    window.location.href = '/';
+  };
+
   return (
     <div className={`dashboard-wrapper ${theme}`}>
 
@@ -583,7 +697,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
             color: darkMode ? '#eaeaea' : '#333', fontFamily: 'inherit',
           }}
           aria-label="Go to Overview"
-          onClick={() => { setActiveNav('overview'); navigate('/dashboard'); }}
+          onClick={() => { setActiveNav('overview'); navigate('?section=overview'); }}
         >
           DormScout
         </button>
@@ -599,10 +713,6 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
                 <User size={15} /> My Profile
               </div>
               <div className="dropdown-item dropdown-item-default"
-                onClick={() => { setActiveNav('settings'); navigate('/settings'); setShowDropdown(false); }}>
-                <SettingsIcon size={15} /> Profile Settings
-              </div>
-              <div className="dropdown-item dropdown-item-default"
                 onClick={() => { navigate('/support'); setShowDropdown(false); }}>
                 <HelpCircle size={15} /> Help and Support
               </div>
@@ -610,12 +720,17 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
                 onClick={() => { navigate('/about'); setShowDropdown(false); }}>
                 <Info size={15} /> About Us
               </div>
-              <div className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
-                onClick={() => setDarkMode(!darkMode)}>
-                {darkMode ? <><Sun size={15} /> Light Mode</> : <><Moon size={15} /> Dark Mode</>}
+              <div
+                className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
+                onClick={() => { setDarkMode(!darkMode); setShowDropdown(false); }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px', }}
+              >
+                {darkMode ? <Sun size={15} /> : <Moon size={15} />}
+                <span style={{ marginLeft: 8 }}>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
               </div>
+
               <div className="dropdown-item dropdown-item-logout"
-                onClick={() => { setShowDropdown(false); navigate('/'); }}>
+                onClick={() => { setShowDropdown(false); handleLogout(); }}>
                 <LogOut size={15} /> Logout
               </div>
             </div>
@@ -628,14 +743,14 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
 
         {/* Sidebar */}
         <div className="dashboard-sidebar">
-          {navItems.map((item) => {
+          {NAV_ITEMS[userType]?.map((item) => {
             const isActive  = activeNav === item.id;
             const iconColor = isActive ? '#ffffff' : '#E8622E';
             return (
               <button
                 key={item.id}
                 className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
-                onClick={() => { setActiveNav(item.id); navigate(`/${item.id === 'overview' ? 'dashboard' : item.id}`); }}
+                onClick={() => setActiveNav(item.id)}
               >
                 <span className="sidebar-nav-icon">
                   {NAV_ICON[item.id] ? NAV_ICON[item.id](iconColor) : <LayoutDashboard size={18} color={iconColor} />}
@@ -667,11 +782,11 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
             </div>
           )}
 
-          {/* Main Panel */}
+          {/* Main Panel - NOW PASSES user to Overview components */}
           <div className="dashboard-main">
             {activeNav === 'map' ? (
               <Map darkMode={darkMode} userType={userType}
-                onEditListing={(listing) => { setEditListingData(listing); setActiveNav('listing'); navigate('/listing'); }} />
+                onEditListing={(listing) => { setEditListingData(listing); setActiveNav('listing'); }} />
             ) : activeNav === 'listing' && isLandlord ? (
               <ListingPage darkMode={darkMode} editListingData={editListingData} onEditHandled={() => setEditListingData(null)} />
             ) : activeNav === 'booking' && !isLandlord ? (
@@ -686,8 +801,8 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
               <Settings darkMode={darkMode} setDarkMode={setDarkMode} userType={userType} />
             ) : (
               isLandlord
-                ? <LandlordOverview darkMode={darkMode} onNavigate={(id) => { setActiveNav(id); navigate(`/${id === 'overview' ? 'dashboard' : id}`); }} />
-                : <TenantOverview   darkMode={darkMode} onNavigate={(id) => { setActiveNav(id); navigate(`/${id === 'overview' ? 'dashboard' : id}`); }} />
+                ? <LandlordOverview darkMode={darkMode} onNavigate={setActiveNav} user={user} />
+                : <TenantOverview   darkMode={darkMode} onNavigate={setActiveNav} user={user} />
             )}
           </div>
         </div>
@@ -695,4 +810,3 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
     </div>
   );
 }
-

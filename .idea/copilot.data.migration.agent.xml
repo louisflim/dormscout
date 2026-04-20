@@ -8,6 +8,17 @@
     </option>
     <option name="pendingTurns">
       <map>
+        <entry key="63ef536d-8843-45cd-934d-cc02942cf0ac">
+          <value>
+            <set>
+              <option value="44c982cf-0302-4e12-a72c-e3e206cb85aa" />
+              <option value="1de95cae-10eb-43d6-862f-c03f80109fb0" />
+              <option value="eb6af0dc-030e-4143-b5b3-e44a4d52c02f" />
+              <option value="d0663fae-4200-4f4d-a025-c911dbbb0b97" />
+              <option value="3f3c06ea-31b6-429f-9544-90d9c025dd3d" />
+            </set>
+          </value>
+        </entry>
         <entry key="ad98694c-db8e-401b-8d10-4c289f0b73e3">
           <value>
             <set>
@@ -23,6 +34,19 @@
       </map>
     </option>
     <pendingWorkingSetItems>
+      <entry key="63ef536d-8843-45cd-934d-cc02942cf0ac">
+        <set>
+          <option value="file://$PROJECT_DIR$/frontend/src/App.js" />
+          <option value="file://$PROJECT_DIR$/frontend/src/components/pages/Dashboard/Dashboard.jsx" />
+          <option value="file://$PROJECT_DIR$/frontend/src/context/BookingContext.jsx" />
+          <option value="file://$PROJECT_DIR$/frontend/src/components/pages/Notifications/Notifications.jsx" />
+          <option value="file://$PROJECT_DIR$/frontend/src/components/pages/Map/Map.jsx" />
+          <option value="file://$PROJECT_DIR$/frontend/src/components/pages/Map/Map.css" />
+          <option value="file://$PROJECT_DIR$/frontend/src/components/pages/Listing/ListingPage.jsx" />
+          <option value="file://$PROJECT_DIR$/frontend/src/components/pages/Settings/Settings.jsx" />
+          <option value="file://$PROJECT_DIR$/frontend/src/components/pages/Messaging/Messaging.jsx" />
+        </set>
+      </entry>
       <entry key="ad98694c-db8e-401b-8d10-4c289f0b73e3" />
     </pendingWorkingSetItems>
   </component>

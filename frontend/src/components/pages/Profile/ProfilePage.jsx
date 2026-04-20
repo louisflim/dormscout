@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../context/AuthContext';
 import './ProfilePage.css';
-
-
 
 const COLORS = {
   light: {
@@ -33,8 +32,9 @@ const SAMPLE_BOARDING_HOUSES = [
 
 export default function ProfilePage({ role, darkMode, setDarkMode }) {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
-  const userRole   = role || 'tenant';
+  const userRole   = role || user?.userType || 'tenant';
   const isDark     = darkMode || false;
   const colors     = isDark ? COLORS.dark : COLORS.light;
   const isLandlord = userRole === 'landlord';
@@ -42,14 +42,36 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
   const [showDropdown,    setShowDropdown]    = useState(false);
   const [profilePicture,  setProfilePicture]  = useState('👤');
 
+  // Use real user data from localStorage
+  const displayName = user?.name || 'Guest User';
+  const userEmail = user?.email || '';
+  const userSchool = user?.school || '';
+
+  useEffect(() => {
+    // Load saved profile picture
+    const savedPicture = localStorage.getItem('profilePicture');
+    if (savedPicture) {
+      setProfilePicture(savedPicture);
+    }
+  }, []);
+
   const handleProfilePictureChange = () => {
     const emojis = ['👤', '👨', '👩', '🧑', '😊', '🎭'];
-    setProfilePicture(emojis[Math.floor(Math.random() * emojis.length)]);
+    const newPicture = emojis[Math.floor(Math.random() * emojis.length)];
+    setProfilePicture(newPicture);
+    localStorage.setItem('profilePicture', newPicture);
   };
 
-  const handleLogout = () => navigate('/');
+  const handleLogout = () => {
+    logout(); // Clears localStorage via AuthContext
+    localStorage.removeItem('userType');
+    navigate('/');
+  };
 
-  /* ── Render ── */
+  const bioText = isLandlord
+    ? 'Passionate about providing quality accommodation for students. Over 5 years of experience in the boarding house business.'
+    : 'College student looking for a comfortable place to stay near campus. Love meeting new people!';
+
   return (
     <div className="profile-page" style={{ background: colors.bg }}>
 
@@ -145,16 +167,26 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
             {profilePicture}
           </div>
 
-          {/* Name */}
+          {/* Name - Now uses real user data */}
           <h1 className="profile-card__name" style={{ color: isDark ? '#fff' : '#000' }}>
-            {isLandlord ? 'Maria Santos' : 'John Doe'}
+            {displayName}
           </h1>
+
+          {/* Email (NEW) */}
+          <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '8px' }}>
+            {userEmail}
+          </p>
+
+          {/* School for Tenants (NEW) */}
+          {isLandlord === false && userSchool && (
+            <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '8px' }}>
+              🎓 {userSchool}
+            </p>
+          )}
 
           {/* Bio */}
           <p className="profile-card__bio" style={{ color: colors.secondaryText }}>
-            {isLandlord
-              ? 'Passionate about providing quality accommodation for students. Over 5 years of experience in the boarding house business.'
-              : 'College student looking for a comfortable place to stay near campus. Love meeting new people!'}
+            {bioText}
           </p>
 
           {/* Stats */}

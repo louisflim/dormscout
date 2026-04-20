@@ -1,23 +1,65 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import dormpic1 from '../../../assets/images/dormpic1.jpg';
 import dormpic2 from '../../../assets/images/dormpic2.jpg';
 import dormpic3 from '../../../assets/images/dormpic3.webp';
+import { useAuth } from '../../../context/AuthContext';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
 
 export default function Login({ setUserType }) {
-  const [userType, setUserTypeLocal] = useState('tenant');
+  // Get userType from URL parameter
+  const [searchParams] = useSearchParams();
+  const urlUserType = searchParams.get('type') || 'tenant';
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const { login } = useAuth();
   const navigate = useNavigate();
 
+  // Handle login
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (setUserType) {
-      setUserType(userType);
+    setError('');
+    setLoading(true);
+
+    const result = login(email, password);
+
+    if (result.success) {
+      // Get the ACTUAL userType from the stored account
+      const users = JSON.parse(localStorage.getItem('dormScoutUsers')) || [];
+      const loggedInUser = users.find(u => u.email === email && u.password === password);
+
+      const realUserType = loggedInUser?.userType;
+
+      // Validate: Check if user is logging in with the correct type
+      if (realUserType !== urlUserType) {
+        setError(`This account is registered as ${realUserType}. Please use the ${realUserType} login page.`);
+        setLoading(false);
+        return;
+      }
+
+      // Save userType
+      localStorage.setItem('userType', realUserType);
+
+      if (setUserType) {
+        setUserType(realUserType);
+      }
+
+      navigate('/dashboard');
+    } else {
+      setError(result.message);
+      setLoading(false);
     }
-    navigate('/dashboard');
   };
+
+  // Get button label based on userType
+  const buttonLabel = urlUserType === 'landlord' ? 'Landlord' : 'Tenant';
+  const buttonColor = urlUserType === 'landlord' ? SECONDARY : PRIMARY;
 
   return (
     <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'row', background: 'linear-gradient(135deg, #f5d5c0 0%, #d4ece8 100%)' }}>
@@ -25,7 +67,7 @@ export default function Login({ setUserType }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px 60px', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
         <h1 style={{ fontSize: '56px', fontWeight: '800', position: 'absolute', top: '5px', left: '60px' }}><span style={{ color: PRIMARY }}>Dorm</span><span style={{ color: SECONDARY }}>Scout</span></h1>
 
-        {/* Photo Collage - center */}
+        {/* Photo Collage */}
         <div style={{ position: 'relative', width: '460px', height: '420px', margin: '0 auto' }}>
           <img src={dormpic1} alt="Dorm" style={{ position: 'absolute', top: '0', left: '10px', width: '220px', height: '260px', objectFit: 'cover', borderRadius: '16px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)', transform: 'rotate(-5deg)', zIndex: 2 }} />
           <img src={dormpic2} alt="Dorm" style={{ position: 'absolute', top: '0', right: '10px', width: '210px', height: '250px', objectFit: 'cover', borderRadius: '16px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)', transform: 'rotate(4deg)', zIndex: 3 }} />
@@ -42,40 +84,31 @@ export default function Login({ setUserType }) {
         <div style={{ maxWidth: '400px', width: '100%' }}>
           <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.1), 0 0 1px rgba(0,0,0,0.1)' }}>
             <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#1c1e21', textAlign: 'center' }}>
-              Log into <span style={{ color: PRIMARY }}>Dorm</span><span style={{ color: SECONDARY }}>Scout</span>
+              <span style={{ color: buttonColor }}>{buttonLabel}</span> Login
             </h2>
 
-            {/* User Type Toggle */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-              <button
-                type="button"
-                onClick={() => setUserTypeLocal('tenant')}
-                style={{
-                  flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px',
-                  border: userType === 'tenant' ? `2px solid ${PRIMARY}` : '1px solid #ddd',
-                  background: userType === 'tenant' ? `${PRIMARY}15` : '#fff',
-                  color: userType === 'tenant' ? PRIMARY : '#333',
-                }}
-              >                Tenant
-              </button>
-              <button
-                type="button"
-                onClick={() => setUserTypeLocal('landlord')}
-                style={{
-                  flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px',
-                  border: userType === 'landlord' ? `2px solid ${SECONDARY}` : '1px solid #ddd',
-                  background: userType === 'landlord' ? `${SECONDARY}15` : '#fff',
-                  color: userType === 'landlord' ? SECONDARY : '#333',
-                }}
-              >                Landlord
-              </button>
-            </div>
+            {error && (
+              <div style={{
+                padding: '10px',
+                backgroundColor: '#fee',
+                color: '#c00',
+                borderRadius: '6px',
+                marginBottom: '12px',
+                fontSize: '14px',
+                textAlign: 'center'
+              }}>
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit}>
               <input
                 name="email"
                 type="email"
                 placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
                 style={{
                   width: '100%', padding: '14px', marginBottom: '12px',
                   border: '1px solid #ddd', borderRadius: '6px', fontSize: '16px', fontFamily: 'inherit',
@@ -86,6 +119,9 @@ export default function Login({ setUserType }) {
                 name="password"
                 type="password"
                 placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
                 style={{
                   width: '100%', padding: '14px', marginBottom: '16px',
                   border: '1px solid #ddd', borderRadius: '6px', fontSize: '16px', fontFamily: 'inherit',
@@ -95,12 +131,14 @@ export default function Login({ setUserType }) {
 
               <button
                 type="submit"
+                disabled={loading}
                 style={{
-                  width: '100%', padding: '14px', backgroundColor: PRIMARY, color: '#fff',
-                  border: 'none', borderRadius: '6px', fontSize: '18px', fontWeight: '700', cursor: 'pointer',
+                  width: '100%', padding: '14px', backgroundColor: buttonColor, color: '#fff',
+                  border: 'none', borderRadius: '6px', fontSize: '18px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer',
+                  opacity: loading ? 0.7 : 1,
                 }}
               >
-                Log In
+                {loading ? 'Logging in...' : 'Log In'}
               </button>
             </form>
 
@@ -118,21 +156,18 @@ export default function Login({ setUserType }) {
 
             <div style={{ textAlign: 'center' }}>
               <button
-                onClick={() => navigate('/register')}
+                onClick={() => navigate(`/register?type=${urlUserType}`)}
                 style={{
-                  padding: '12px 24px', backgroundColor: SECONDARY, color: '#fff',
+                  padding: '12px 24px', backgroundColor: buttonColor, color: '#fff',
                   border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '700', cursor: 'pointer',
                 }}
               >
-                Create new account
+                Create new {buttonLabel} account
               </button>
             </div>
           </div>
         </div>
-
       </div>
     </main>
   );
 }
-
-

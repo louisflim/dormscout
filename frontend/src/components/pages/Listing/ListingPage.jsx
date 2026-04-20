@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useBooking } from '../../../context/BookingContext';
+import { useAuth } from '../../../context/AuthContext';
 import TenantManagement from './TenantManagement';
 import './ListingPage.css';
 
@@ -9,8 +10,6 @@ function getLandlordProfile() {
   try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
 }
 
-// eslint-disable-next-line no-unused-vars
-const PRIMARY    = '#E8622E'; // still needed for Leaflet map click handler (not JSX)
 const BLUE       = '#2563EB';
 const STORAGE_KEY = 'dormscout_listings';
 const CEBU_BOUNDS = { minLat: 10.25, maxLat: 10.45, minLng: 123.82, maxLng: 123.95 };
@@ -54,16 +53,16 @@ const UNIVERSITIES = [
   { name: 'University of the Visayas',                    abbr: 'UV',         coords: [10.298701521575332, 123.90136409833146] },
   { name: 'University of Cebu - Main',                    abbr: 'UC Main',    coords: [10.29859134168097,  123.89769041976133] },
   { name: 'University of San Carlos - Talamban',          abbr: 'USC-TC',     coords: [10.352530648303398, 123.91257785415208] },
-  { name: 'University of Cebu - Banilad',                 abbr: 'UC Banilad', coords: [10.338903100091237, 123.91192294436264] },
-  { name: 'University of Cebu - METC',                    abbr: 'UC METC',    coords: [10.287151042846553, 123.87788175785442] },
-  { name: 'University of San Jose-Recoletos - Main',      abbr: 'USJR Main',  coords: [10.294176444197102, 123.89750739647967] },
-  { name: 'University of San Jose-Recoletos - Basak',     abbr: 'USJR Basak', coords: [10.290123577674795, 123.8624596247838]  },
-  { name: 'Cebu Normal University',                       abbr: 'CNU',        coords: [10.301911563323149, 123.8962597988632]  },
+  { name: 'University of Cebu - Banilad',                  abbr: 'UC Banilad', coords: [10.338903100091237, 123.91192294436264] },
+  { name: 'University of Cebu - METC',                     abbr: 'UC METC',    coords: [10.287151042846553, 123.87788175785442] },
+  { name: 'University of San Jose-Recoletos - Main',       abbr: 'USJR Main',  coords: [10.294176444197102, 123.89750739647967] },
+  { name: 'University of San Jose-Recoletos - Basak',      abbr: 'USJR Basak', coords: [10.290123577674795, 123.8624596247838]  },
+  { name: 'Cebu Normal University',                         abbr: 'CNU',        coords: [10.301911563323149, 123.8962597988632]  },
   { name: 'University of the Philippines Cebu',           abbr: 'UP',         coords: [10.32250556542723,  123.89824335176846] },
-  { name: 'Southwestern University PHINMA',               abbr: 'SWU',        coords: [10.303344727301218, 123.89140215600317] },
-  { name: 'Cebu Technological University',                abbr: 'CTU',        coords: [10.297444457685753, 123.90659062522744] },
+  { name: 'Southwestern University PHINMA',                abbr: 'SWU',        coords: [10.303344727301218, 123.89140215600317] },
+  { name: 'Cebu Technological University',                 abbr: 'CTU',        coords: [10.297444457685753, 123.90659062522744] },
   { name: "Saint Theresa's College",                      abbr: 'STC',        coords: [10.3127944559912,   123.89601129648001] },
-  { name: 'Asian College of Technology',                  abbr: 'ACT',        coords: [10.298830349299022, 123.89590624741045] },
+  { name: 'Asian College of Technology',                   abbr: 'ACT',        coords: [10.298830349299022, 123.89590624741045] },
 ];
 
 function SmallMap({ lat, lng }) {
@@ -101,7 +100,11 @@ const EMPTY_FORM = {
 export default function ListingPage({ mode = 'board', darkMode = false, editListingData, onEditHandled }) {
   const [listings, setListings]           = useState([]);
   const [editingId, setEditingId]         = useState(null);
-  const { getPendingCount }               = useBooking();
+
+  // ✅ FIX: All hooks called at component top level (not inside helper functions)
+  const { getPendingCount, notifyListingChange } = useBooking();
+  const { user, addListing, updateListing, removeListing: authRemoveListing } = useAuth();
+
   const [form, setForm]                   = useState(EMPTY_FORM);
   const [imageFiles, setImageFiles]       = useState([]);
   const [previewUrls, setPreviewUrls]     = useState([]);
@@ -129,24 +132,43 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
 
   useEffect(() => {
     if (editListingData) { startEdit(editListingData); if (onEditHandled) onEditHandled(); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editListingData]);
 
+  // Load listings from AuthContext (real user data)
   useEffect(() => {
     mountedRef.current = true;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (mountedRef.current) setListings(parsed);
-      } else {
-        const seed = [{ id: Date.now(), title: 'Sunshine Boarding House', address: '123 Campus Rd', price: '3500', rooms: 'Single', availableRooms: '5', description: 'Near campus', tags: ['Wifi'], images: [], lat: 10.3157, lng: 123.8854, university: 'USC' }];
-        if (mountedRef.current) setListings(seed);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-      }
-    } catch (e) { console.error('Failed to load listings', e); }
+
+    if (user?.listings && user.listings.length > 0) {
+      if (mountedRef.current) setListings(user.listings);
+    } else {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (mountedRef.current) setListings(parsed);
+        } else {
+          const seed = [{
+            id: Date.now(),
+            title: 'Sunshine Boarding House',
+            address: '123 Campus Rd',
+            price: '3500',
+            rooms: 'Single',
+            availableRooms: '5',
+            description: 'Near campus',
+            tags: ['Wifi'],
+            images: [],
+            lat: 10.3157,
+            lng: 123.8854,
+            university: 'USC'
+          }];
+          if (mountedRef.current) setListings(seed);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+        }
+      } catch (e) { console.error('Failed to load listings', e); }
+    }
+
     return () => { mountedRef.current = false; previewUrls.forEach((u) => URL.revokeObjectURL(u)); };
-  }, [previewUrls]);
+  }, [user]);
 
   useEffect(() => {
     if (selectedId && !listings.find((l) => l.id === selectedId)) setSelectedId(null);
@@ -178,7 +200,6 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     });
     mapInstanceRef.current = map;
     return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; markerRef.current = null; } };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
 
   function resetForm() {
@@ -223,10 +244,13 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     setForm((f) => ({ ...f, images: imgs }));
   }
 
+  // ✅ FIX: saveToStorage is now a plain function — no hook calls inside
   const saveToStorage = (newListings) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newListings));
       window.dispatchEvent(new CustomEvent('dormscout:listingsUpdated', { detail: newListings }));
+      // notifyListingChange comes from the hook called at component level above
+      notifyListingChange?.();
     } catch (e) { console.error('Failed to save', e); }
   };
 
@@ -238,6 +262,22 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     }
     const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
     const newListing = { id: Date.now(), ...form, tags: tagsArray, images: finalImages };
+
+    addListing({
+      title: form.title,
+      address: form.address,
+      price: form.price,
+      rooms: form.rooms,
+      availableRooms: form.availableRooms,
+      description: form.description,
+      tags: tagsArray,
+      images: finalImages,
+      lat: form.lat,
+      lng: form.lng,
+      university: form.university,
+      genderPolicy: form.genderPolicy,
+    });
+
     const newListings = [newListing, ...listings];
     setListings(newListings); saveToStorage(newListings);
     resetForm(); setViewMode('board');
@@ -250,13 +290,20 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
       try { const dataUrls = await filesToDataUrls(imageFiles); finalImages = [...finalImages, ...dataUrls].slice(0, 3); } catch (err) { console.error('Failed to read images', err); }
     }
     const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
-    const newListings = listings.map((l) => l.id === editingId ? { ...l, ...form, tags: tagsArray, images: finalImages } : l);
+    const updates = { ...form, tags: tagsArray, images: finalImages };
+
+    updateListing(editingId, updates);
+
+    const newListings = listings.map((l) => l.id === editingId ? { ...l, ...updates } : l);
     setListings(newListings); saveToStorage(newListings);
     resetForm(); setViewMode('board');
   }
 
   function removeListing(id) {
     if (!window.confirm('Delete this listing?')) return;
+
+    authRemoveListing(id);
+
     const newListings = listings.filter((l) => l.id !== id);
     setListings(newListings); saveToStorage(newListings);
     if (selectedId === id) setSelectedId(null);
@@ -286,11 +333,14 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         <div className="listing-main">
           {viewMode === 'board' ? (
             <>
-              <h3 className="listing-section-title">Listings</h3>
-              <p className="listing-section-subtitle">Browse properties. Click a card to select.</p>
+              <h3 className="listing-section-title">My Listings</h3>
+              <p className="listing-section-subtitle">Manage your properties. Click a card to select.</p>
 
               {listings.length === 0 ? (
-                <div className="listing-empty">No listings yet.</div>
+                <div className="listing-empty">
+                  <p>No listings yet.</p>
+                  <p>Create your first listing to get started!</p>
+                </div>
               ) : (
                 <div className="listing-grid">
                   {listings.map((l) => {
@@ -521,7 +571,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         {/* Aside */}
         <aside className="listing-aside">
           <div className="listing-tips-card">
-            <h4 className="listing-tips-title">Listing Tips</h4>
+            <h4 className="listing-tips-card-title">Listing Tips</h4>
             <ul className="listing-tips-list">
               <li>Use a clear title.</li>
               <li>Include price/rooms.</li>
@@ -534,4 +584,3 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     </div>
   );
 }
-
