@@ -25,9 +25,6 @@ import {
   Sun,
   HelpCircle,
   Info,
-  Package,
-  CheckCircle,
-  XCircle,
   Search,
   Home,
   CreditCard,
@@ -116,11 +113,7 @@ const NAV_ICON = {
   reviews:       (c) => <Star            size={18} color={c} />,
 };
 
-const NOTIF_ICON = {
-  new_booking:      <Package     size={16} color="#E8622E" />,
-  booking_accepted: <CheckCircle size={16} color="#5BADA8" />,
-  booking_rejected: <XCircle     size={16} color="#dc3545" />,
-};
+
 
 const ACTIVITY_ICON = {
   message:      <MessageCircle size={15} color="#5BADA8" />,
@@ -128,7 +121,7 @@ const ACTIVITY_ICON = {
   review:       <Star          size={15} color="#F59E0B" />,
 };
 
-const getNotifIcon = (type) => NOTIF_ICON[type] || <MessageCircle size={16} color="#888" />;
+
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -137,23 +130,16 @@ function getGreeting() {
   return 'Good evening';
 }
 
-const getHeading = (activeNav, isLandlord) => {
-  if (activeNav === 'map')                    return <><span className="heading-primary">Map </span><span className="heading-secondary">View</span></>;
-  if (activeNav === 'listing' && isLandlord)  return <span className="heading-primary">Listings</span>;
-  if (activeNav === 'booking' && !isLandlord) return <><span className="heading-primary">My </span><span className="heading-secondary">Bookings</span></>;
-  if (activeNav === 'settings')               return <span className="heading-primary">Settings</span>;
-  if (activeNav === 'reviews')                return <span className="heading-primary">Reviews</span>;
-  if (activeNav === 'notifications')          return <span className="heading-primary">Notifications</span>;
-  if (activeNav === 'messages')               return <span className="heading-primary">Messages</span>;
-  return null; 
-};
+const getHeading = () => null;
 
 const SECTION_LABELS = {
-  map:           'Map',
-  settings:      'Settings',
-  reviews:       'Reviews',
-  booking:       'Booking',
-  notifications: 'Notifications',
+  map:           <><span style={{ color: '#E8622E' }}>Map </span><span style={{ color: '#5BADA8' }}>View</span></>,
+  settings:      <><span style={{ color: '#E8622E' }}>Settings </span><span style={{ color: '#5BADA8' }}>View</span></>,
+  reviews:       <><span style={{ color: '#E8622E' }}>Reviews </span><span style={{ color: '#5BADA8' }}>View</span></>,
+  booking:       <><span style={{ color: '#E8622E' }}>Booking </span><span style={{ color: '#5BADA8' }}>View</span></>,
+  notifications: <><span style={{ color: '#E8622E' }}>Notifications </span><span style={{ color: '#5BADA8' }}>View</span></>,
+  listing:       <><span style={{ color: '#E8622E' }}>Listing </span><span style={{ color: '#5BADA8' }}>View</span></>,
+  messages:      <><span style={{ color: '#E8622E' }}>Messages </span><span style={{ color: '#5BADA8' }}>View</span></>,
 };
 
 const SECTION_DESCRIPTIONS = {
@@ -163,6 +149,7 @@ const SECTION_DESCRIPTIONS = {
   booking:       'Manage and track all your boarding house booking requests.',
   notifications: 'Stay updated with booking requests, approvals, and messages.',
   messages:      'Chat with landlords and property managers about bookings.',
+  listing:       'Create and manage your property listings.',
 };
 
 // Shared UI Pieces 
@@ -546,7 +533,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
   const isLandlord = userType === 'landlord';
   const dropdownRef = useRef(null);
   const navigate    = useNavigate();
-  const { getUnreadCount, getNotifications, markNotificationRead } = useBooking();
+  const { getUnreadCount } = useBooking();
   const theme = darkMode ? 'dark' : 'light';
 
   useEffect(() => {
@@ -561,9 +548,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
   const isOverview  = activeNav === 'overview';
   const hideHeading = ['messages', 'reviews', 'notifications', 'overview'].includes(activeNav);
 
-  const subLabel = activeNav === 'messages'
-    ? 'Messages'
-    : SECTION_LABELS[activeNav] || 'Dashboard';
+  const subLabel = SECTION_LABELS[activeNav] || 'Dashboard';
 
   const subDesc = activeNav === 'messages'
     ? SECTION_DESCRIPTIONS.messages
@@ -665,7 +650,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
           )}
 
           {/* Sub-header */}
-          {!isOverview && activeNav !== 'listing' && (
+          {!isOverview && (
             <div className="dashboard-subheader">
               <h4>{subLabel}</h4>
               <p>{subDesc}</p>

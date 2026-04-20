@@ -92,8 +92,6 @@ export default function BookingPage({ darkMode = false }) {
 
   return (
     <div className={`booking-wrapper ${theme}`}>
-      <h3 className="booking-title">My Bookings</h3>
-
       {bookings.length === 0 ? (
         <div className="booking-empty">
           <p>You have no active bookings.</p>
