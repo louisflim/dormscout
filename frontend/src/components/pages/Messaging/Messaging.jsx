@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../context/AuthContext';
 import './Messaging.css';
 
 const PRIMARY = '#E8622E';
@@ -36,90 +38,13 @@ const Storage = {
 // INITIAL SHARED DATA
 // ═══════════════════════════════════════════════════════════
 const INITIAL_SHARED_CONVERSATIONS = {
-  tenant: {
-    1: { id: 1, name: 'Rosa Macaraeg', avatar: 'RM', online: true,  lastMessage: 'Thank you for your inquiry!',       timestamp: Date.now() - 86400000, unread: 0 },
-    2: { id: 2, name: 'Pedro Lim',     avatar: 'PL', online: false, lastMessage: 'December 1st should work.',         timestamp: Date.now() - 172800000, unread: 1 },
-    3: { id: 3, name: 'Carlo Reyes',   avatar: 'CR', online: true,  lastMessage: 'The deposit is 1 month advance',   timestamp: Date.now() - 259200000, unread: 0 },
-    4: { id: 4, name: 'Diana Santos',  avatar: 'DS', online: false, lastMessage: 'WiFi is included in the rent',     timestamp: Date.now() - 345600000, unread: 0 },
-    5: { id: 5, name: 'Marco Tan',     avatar: 'MT', online: true,  lastMessage: 'You can visit anytime this week',  timestamp: Date.now() - 432000000, unread: 0 },
-  },
-  landlord: {
-    1: { id: 1, name: 'Maria Santos',   avatar: 'MS', online: true,  lastMessage: 'Is the room still available?',    timestamp: Date.now() - 7200000, unread: 1 },
-    2: { id: 2, name: 'Juan Dela Cruz', avatar: 'JD', online: false, lastMessage: 'I will visit this Saturday',      timestamp: Date.now() - 18000000, unread: 0 },
-    3: { id: 3, name: 'Ana Reyes',      avatar: 'AR', online: true,  lastMessage: 'How much is the deposit?',        timestamp: Date.now() - 259200000, unread: 0 },
-    4: { id: 4, name: 'Bea Lim',        avatar: 'BL', online: false, lastMessage: 'Can I move in on December 1?',     timestamp: Date.now() - 345600000, unread: 1 },
-    5: { id: 5, name: 'Chris Gomez',    avatar: 'CG', online: true,  lastMessage: 'Is WiFi included?',              timestamp: Date.now() - 432000000, unread: 0 },
-  },
+  tenant: {},
+  landlord: {},
 };
 
 const INITIAL_SHARED_MESSAGES = {
-  tenant: {
-    1: [
-      { id: 1, sender: 'sent',     text: 'Hi, I saw your listing for the boarding house near USC. Is the room still available?', timestamp: Date.now() - 3600000, status: 'read' },
-      { id: 2, sender: 'received', text: 'Hi! Yes, the room is still available. Would you like to schedule a viewing?' },
-      { id: 3, sender: 'sent',     text: 'Yes please! Can I visit this Saturday?' },
-      { id: 4, sender: 'received', text: "Saturday works! Come at 2 PM. I'll be at the property." },
-      { id: 5, sender: 'sent',     text: 'Thank you! See you then.' },
-      { id: 6, sender: 'received', text: 'Thank you for your inquiry!', timestamp: Date.now() - 86400000, status: 'read' },
-    ],
-    2: [
-      { id: 1, sender: 'sent',     text: "Hello! I'm interested in the room near CIT-U.", timestamp: Date.now() - 172800000 },
-      { id: 2, sender: 'received', text: "Hi there! Great choice. It's a quiet neighborhood." },
-      { id: 3, sender: 'sent',     text: 'Can I move in on December 1?' },
-      { id: 4, sender: 'received', text: 'December 1st should work. Let me confirm and get back to you.', timestamp: Date.now() - 172800000, status: 'delivered' },
-    ],
-    3: [
-      { id: 1, sender: 'sent',     text: 'Hi, how much is the monthly rent?', timestamp: Date.now() - 259200000 },
-      { id: 2, sender: 'received', text: "It's ₱4,500 per month including water." },
-      { id: 3, sender: 'sent',     text: 'How much is the deposit?' },
-      { id: 4, sender: 'received', text: 'The deposit is 1 month advance and 1 month deposit.', timestamp: Date.now() - 259200000, status: 'read' },
-    ],
-    4: [
-      { id: 1, sender: 'sent',     text: 'Good day! Is WiFi included in the rent?', timestamp: Date.now() - 345600000 },
-      { id: 2, sender: 'received', text: 'Yes! WiFi is included. 50mbps fiber connection.' },
-      { id: 3, sender: 'sent',     text: "That's great! Are utilities separate?" },
-      { id: 4, sender: 'received', text: 'WiFi is included in the rent. Only electricity is separate.', timestamp: Date.now() - 345600000, status: 'read' },
-    ],
-    5: [
-      { id: 1, sender: 'sent',     text: 'Hi, is there still a room available near UP Cebu?', timestamp: Date.now() - 432000000 },
-      { id: 2, sender: 'received', text: "Yes! I have one room left. It's a single occupancy." },
-      { id: 3, sender: 'sent',     text: 'Can I come visit this week?' },
-      { id: 4, sender: 'received', text: 'You can visit anytime this week. Just message me before coming.', timestamp: Date.now() - 432000000, status: 'read' },
-    ],
-  },
-  landlord: {
-    1: [
-      { id: 1, sender: 'received', text: "Hi, I'm interested in your boarding house listing near USC", timestamp: Date.now() - 7200000 },
-      { id: 2, sender: 'received', text: 'Is the room still available?' },
-      { id: 3, sender: 'sent',     text: 'Hi Maria! Yes, the room is available. Would you like to schedule a viewing?' },
-      { id: 4, sender: 'received', text: 'Sure! Can we schedule it for this weekend?' },
-      { id: 5, sender: 'sent',     text: 'Of course! Saturday at 2 PM works for me. Does that suit you?', status: 'read' },
-    ],
-    2: [
-      { id: 1, sender: 'received', text: 'Hello! I saw your listing for the dorm', timestamp: Date.now() - 18000000 },
-      { id: 2, sender: 'sent',     text: 'Hi Juan! Thanks for reaching out. How can I help?' },
-      { id: 3, sender: 'received', text: 'I will visit this Saturday' },
-      { id: 4, sender: 'sent',     text: 'Great! Looking forward to seeing you. Come by at 10 AM.', status: 'read' },
-    ],
-    3: [
-      { id: 1, sender: 'received', text: 'How much is the deposit?', timestamp: Date.now() - 259200000 },
-      { id: 2, sender: 'sent',     text: 'The deposit is 1 month advance and 1 month deposit.', status: 'read' },
-      { id: 3, sender: 'received', text: 'That sounds reasonable. Can I reserve a room?' },
-      { id: 4, sender: 'sent',     text: "Sure! I'll hold the room for you. Just need a copy of your ID.", status: 'read' },
-    ],
-    4: [
-      { id: 1, sender: 'received', text: "Hello, I'm looking for a place to rent near campus", timestamp: Date.now() - 345600000 },
-      { id: 2, sender: 'sent',     text: 'Hi Bea! I have a great room available. ₱4,500/month.', status: 'read' },
-      { id: 3, sender: 'received', text: 'Can I move in on December 1?' },
-      { id: 4, sender: 'sent',     text: "December 1st should work. Let me prepare the contract.", status: 'read' },
-    ],
-    5: [
-      { id: 1, sender: 'received', text: 'Good day! Is WiFi included in the rent?', timestamp: Date.now() - 432000000 },
-      { id: 2, sender: 'sent',     text: 'Yes! WiFi is included. We have 50mbps fiber.', status: 'read' },
-      { id: 3, sender: 'received', text: 'Is WiFi included?' },
-      { id: 4, sender: 'sent',     text: "You're welcome to visit anytime. Just let me know ahead.", status: 'read' },
-    ],
-  },
+  tenant: {},
+  landlord: {},
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -132,6 +57,47 @@ function initializeStorage() {
   if (!Storage.get(STORAGE_KEYS.messages)) {
     Storage.set(STORAGE_KEYS.messages, INITIAL_SHARED_MESSAGES);
   }
+}
+
+// Clear placeholder conversations and deduplicate by landlordId
+function clearPlaceholderConversations() {
+  const convs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
+  const PLACEHOLDER_NAMES = ['Maria Santos', 'Juan dela Cruz', 'Rosa Macaraeg', 'Pedro Lim', 'Carlos Reyes'];
+  
+  const cleaned = { ...convs };
+  ['tenant', 'landlord'].forEach(role => {
+    if (!cleaned[role]) return;
+
+    // If there are way too many conversations (junk from old bug), wipe the role entirely
+    if (Object.keys(cleaned[role]).length > 100) {
+      cleaned[role] = {};
+      return;
+    }
+
+    // Remove placeholders
+    Object.keys(cleaned[role]).forEach(convId => {
+      if (PLACEHOLDER_NAMES.includes(cleaned[role][convId].name)) {
+        delete cleaned[role][convId];
+      }
+    });
+
+    // Deduplicate: group by landlordId first, then by name as fallback
+    const seen = {}; // groupKey -> {convId, timestamp}
+    Object.keys(cleaned[role]).forEach(convId => {
+      const conv = cleaned[role][convId];
+      // Use landlordId if valid, otherwise fall back to name
+      const lid = (conv.landlordId != null) ? String(conv.landlordId) : (conv.name || convId);
+      if (!seen[lid] || (conv.timestamp || 0) > seen[lid].timestamp) {
+        seen[lid] = { convId, timestamp: conv.timestamp || 0 };
+      }
+    });
+    const keepIds = new Set(Object.values(seen).map(s => s.convId));
+    Object.keys(cleaned[role]).forEach(convId => {
+      if (!keepIds.has(convId)) delete cleaned[role][convId];
+    });
+  });
+  
+  Storage.set(STORAGE_KEYS.conversations, cleaned);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -226,38 +192,132 @@ function StatusIndicator({ status, darkMode }) {
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
-export default function Messaging({ darkMode = false, userType = 'tenant' }) {
+export default function Messaging({ darkMode = false, userType = 'tenant', contactLandlord = null }) {
   const role = userType;
+  const otherRole = role === 'tenant' ? 'landlord' : 'tenant';
+  const contactHandledRef = useRef(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
-    initializeStorage();
     requestNotificationPermission();
   }, []);
 
-  // State from localStorage
-  const [conversations, setConversations] = useState(() =>
-    Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS
-  );
+  // State from localStorage — run cleanup synchronously in lazy initializer
+  const [conversations, setConversations] = useState(() => {
+    initializeStorage();
+    clearPlaceholderConversations();
+    return Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
+  });
   const [allMessages, setAllMessages] = useState(() =>
     Storage.get(STORAGE_KEYS.messages) || INITIAL_SHARED_MESSAGES
   );
 
   // UI State
-  const [selectedConvId, setSelectedConvId] = useState(1);
+  const [selectedConvId, setSelectedConvId] = useState(null);
+
+  // Handle contact landlord navigation — runs once per new contactLandlord prop
+  useEffect(() => {
+    contactHandledRef.current = false; // reset first so same landlord can be re-contacted
+    if (!contactLandlord) return;
+    contactHandledRef.current = true;
+
+    const landlord = { ...contactLandlord };
+    
+    // If name is still "Landlord", try to fetch the actual name from users database using landlordId
+    if ((landlord.name === 'Landlord' || !landlord.name) && landlord.id) {
+      try {
+        const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
+        const landlordUser = users.find(u => u.id === landlord.id);
+        if (landlordUser && landlordUser.name) {
+          landlord.name = landlordUser.name;
+          landlord.avatar = landlordUser.name.split(' ').map(n => n[0]).join('');
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    
+    let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
+    const roleConvs = currentConvs[role] || {};
+
+    // Strategy: Try to find existing conversation using:
+    // 1. landlord.id as exact key (most reliable)
+    // 2. landlordId field in conversation objects
+    // 3. Name matching (for backwards compatibility)
+    let convId = null;
+
+    // Step 1: Direct ID match
+    if (landlord.id && roleConvs[landlord.id]) {
+      convId = String(landlord.id);
+    }
+    
+    // Step 2: Search by landlordId field
+    if (!convId && landlord.id) {
+      convId = Object.keys(roleConvs).find(id => roleConvs[id].landlordId === landlord.id);
+    }
+    
+    // Step 3: Search by name (backwards compatibility)
+    if (!convId && landlord.name && landlord.name !== 'Landlord') {
+      convId = Object.keys(roleConvs).find(id => roleConvs[id].name === landlord.name);
+    }
+
+    if (!convId) {
+      // Create new conversation using landlord's ID as key
+      convId = landlord.id || (Math.max(...Object.keys(roleConvs).map(Number).filter(n => !isNaN(n)), 0) + 1);
+      const newConversations = { ...currentConvs };
+      newConversations[role] = {
+        ...roleConvs,
+        [convId]: {
+          id: convId,
+          landlordId: landlord.id || null,
+          name: landlord.name || 'Landlord',
+          avatar: landlord.avatar || (landlord.name || 'L').split(' ').map(n => n[0]).join(''),
+          online: true,
+          lastMessage: 'Start a conversation',
+          timestamp: Date.now(),
+          unread: 0,
+        }
+      };
+      setConversations(newConversations);
+      Storage.set(STORAGE_KEYS.conversations, newConversations);
+    } else {
+      // Update conversation name if it changed (e.g., from "Landlord" to actual name)
+      const existingConv = roleConvs[convId];
+      if (existingConv && landlord.name && existingConv.name !== landlord.name) {
+        const updatedConversations = { ...currentConvs };
+        updatedConversations[role] = {
+          ...roleConvs,
+          [convId]: {
+            ...existingConv,
+            name: landlord.name,
+            avatar: landlord.avatar || (landlord.name || 'L').split(' ').map(n => n[0]).join(''),
+            landlordId: landlord.id || existingConv.landlordId,
+          }
+        };
+        setConversations(updatedConversations);
+        Storage.set(STORAGE_KEYS.conversations, updatedConversations);
+      }
+    }
+    setSelectedConvId(convId);
+  }, [contactLandlord, role]);
+
+
   const [searchQuery, setSearchQuery] = useState('');
   const [messageInput, setMessageInput] = useState('');
   const [notificationEnabled, setNotificationEnabled] = useState(
     Notification.permission === 'granted'
   );
+  const [contextMenuOpen, setContextMenuOpen] = useState(null);
+  const [contextMenuPos, setContextMenuPos] = useState({ top: 0, left: 0 });
 
   // Refs
   const messagesEndRef = useRef(null);
-  const lastMessageIdRef = useRef(null);
 
   // Get role-specific data
   const roleConversations = conversations[role] || {};
-  const roleMessages = allMessages[role] || {};
-  const messages = roleMessages[selectedConvId] || [];
+  const roleMessages = useMemo(() => allMessages[role] || {}, [allMessages, role]);
+  const messages = useMemo(() => roleMessages[selectedConvId] || [], [roleMessages, selectedConvId]);
   const selectedConv = roleConversations[selectedConvId];
 
   // Auto-scroll to bottom
@@ -282,7 +342,6 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
 
         // Show notification for new messages from other tab
         if (notificationEnabled) {
-          const otherRole = role === 'tenant' ? 'landlord' : 'tenant';
           const newUnread = newConversations[role]?.[selectedConvId]?.unread || 0;
           const oldUnread = conversations[role]?.[selectedConvId]?.unread || 0;
 
@@ -290,7 +349,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
             const convName = newConversations[role]?.[selectedConvId]?.name;
             const lastMsg = newConversations[role]?.[selectedConvId]?.lastMessage;
             if (convName && lastMsg) {
-              showDesktopNotification(convName, lastMsg);
+              showDesktopNotification(`💬 New Message from ${convName}`, lastMsg);
             }
           }
         }
@@ -311,31 +370,89 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
   const sendMessage = useCallback(() => {
     if (!messageInput.trim() || !selectedConv) return;
 
+    const now = Date.now();
+
     // Create new message
     const newMessage = {
-      id: Date.now(),
+      id: now,
       sender: 'sent',
       text: messageInput,
-      timestamp: Date.now(),
+      timestamp: now,
       status: 'sent',
     };
 
-    // Update messages
+    // Update messages for current role
     const updatedMessages = [...messages, newMessage];
     const newAllMessages = { ...allMessages };
     newAllMessages[role] = { ...roleMessages, [selectedConvId]: updatedMessages };
+
+    // Also deliver message to the OTHER role's side
+    const senderName = user?.name || user?.firstName || (role === 'tenant' ? 'Tenant' : 'Landlord');
+    const senderAvatar = senderName.split(' ').map(n => n[0]).join('') || 'U';
+    const senderId = user?.id;
+    const otherConvs = conversations[otherRole] || {};
+    const updatedOtherConversations = { ...conversations };
+
+    // Find or create the mirrored conversation on the other side using sender's ID
+    let mirrorConvId = senderId 
+      ? (otherConvs[senderId] ? senderId : Object.keys(otherConvs).find(id => otherConvs[id].senderId === senderId || otherConvs[id].name === senderName))
+      : Object.keys(otherConvs).find(id => otherConvs[id].name === senderName);
+    
+    if (!mirrorConvId) {
+      // Use sender's ID if available, otherwise generate numeric ID
+      mirrorConvId = senderId || (Math.max(...Object.keys(otherConvs).map(id => {
+        const n = Number(id);
+        return isNaN(n) ? 0 : n;
+      }), 0) + 1);
+      
+      updatedOtherConversations[otherRole] = {
+        ...otherConvs,
+        [mirrorConvId]: {
+          id: mirrorConvId,
+          senderId: senderId || null,
+          name: senderName,
+          avatar: senderAvatar,
+          online: true,
+          lastMessage: messageInput,
+          timestamp: now,
+          unread: 1,
+        }
+      };
+    } else {
+      const prev = otherConvs[mirrorConvId];
+      updatedOtherConversations[otherRole] = {
+        ...otherConvs,
+        [mirrorConvId]: {
+          ...prev,
+          lastMessage: messageInput,
+          timestamp: now,
+          unread: (prev.unread || 0) + 1,
+        }
+      };
+    }
+
+    // Add as 'received' on the other side
+    const otherMessages = newAllMessages[otherRole] || {};
+    const otherConvMessages = otherMessages[mirrorConvId] || [];
+    newAllMessages[otherRole] = {
+      ...otherMessages,
+      [mirrorConvId]: [...otherConvMessages, { id: now + 1, sender: 'received', text: messageInput, timestamp: now }]
+    };
+
     setAllMessages(newAllMessages);
     Storage.set(STORAGE_KEYS.messages, newAllMessages);
 
-    // Update last message in conversation
-    const updatedConversations = { ...conversations };
-    updatedConversations[role][selectedConvId] = {
-      ...selectedConv,
-      lastMessage: messageInput,
-      timestamp: Date.now(),
+    // Update last message in conversation for current role
+    updatedOtherConversations[role] = {
+      ...(updatedOtherConversations[role] || {}),
+      [selectedConvId]: {
+        ...selectedConv,
+        lastMessage: messageInput,
+        timestamp: now,
+      }
     };
-    setConversations(updatedConversations);
-    Storage.set(STORAGE_KEYS.conversations, updatedConversations);
+    setConversations(updatedOtherConversations);
+    Storage.set(STORAGE_KEYS.conversations, updatedOtherConversations);
 
     // Clear input
     setMessageInput('');
@@ -347,30 +464,54 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
 
     // Mark as delivered after 1 second
     setTimeout(() => {
-      const deliveredMessages = [...updatedMessages];
-      const lastMsg = deliveredMessages[deliveredMessages.length - 1];
+      const latest = Storage.get(STORAGE_KEYS.messages) || newAllMessages;
+      const msgs = [...(latest[role]?.[selectedConvId] || [])];
+      const lastMsg = msgs.find(m => m.id === now);
       if (lastMsg) {
         lastMsg.status = 'delivered';
-        const finalAllMessages = { ...newAllMessages };
-        finalAllMessages[role] = { ...roleMessages, [selectedConvId]: deliveredMessages };
-        setAllMessages(finalAllMessages);
-        Storage.set(STORAGE_KEYS.messages, finalAllMessages);
+        latest[role] = { ...latest[role], [selectedConvId]: msgs };
+        setAllMessages({ ...latest });
+        Storage.set(STORAGE_KEYS.messages, latest);
       }
     }, 1000);
 
     // Mark as read after 2 seconds
     setTimeout(() => {
-      const readMessages = [...updatedMessages];
-      const lastMsg = readMessages[readMessages.length - 1];
+      const latest = Storage.get(STORAGE_KEYS.messages) || newAllMessages;
+      const msgs = [...(latest[role]?.[selectedConvId] || [])];
+      const lastMsg = msgs.find(m => m.id === now);
       if (lastMsg) {
         lastMsg.status = 'read';
-        const finalAllMessages = { ...newAllMessages };
-        finalAllMessages[role] = { ...roleMessages, [selectedConvId]: readMessages };
-        setAllMessages(finalAllMessages);
-        Storage.set(STORAGE_KEYS.messages, finalAllMessages);
+        latest[role] = { ...latest[role], [selectedConvId]: msgs };
+        setAllMessages({ ...latest });
+        Storage.set(STORAGE_KEYS.messages, latest);
       }
     }, 2000);
-  }, [messageInput, selectedConv, selectedConvId, role, messages, allMessages, roleMessages, notificationEnabled]);
+  }, [messageInput, selectedConv, selectedConvId, role, otherRole, messages, allMessages, roleMessages, conversations, notificationEnabled, user]);
+
+  // ═══════════════════════════════════════════════════════════
+  // DELETE MESSAGE
+  // ═══════════════════════════════════════════════════════════
+  const handleDeleteMessage = useCallback((msgId) => {
+    const updatedMessages = messages.filter(m => m.id !== msgId);
+    const newAllMessages = { ...allMessages };
+    newAllMessages[role] = { ...roleMessages, [selectedConvId]: updatedMessages };
+    setAllMessages(newAllMessages);
+    Storage.set(STORAGE_KEYS.messages, newAllMessages);
+
+    // Update last message in conversation
+    const lastMsg = updatedMessages[updatedMessages.length - 1];
+    const updatedConversations = { ...conversations };
+    if (updatedConversations[role]?.[selectedConvId]) {
+      updatedConversations[role][selectedConvId] = {
+        ...updatedConversations[role][selectedConvId],
+        lastMessage: lastMsg ? lastMsg.text : 'No messages',
+        timestamp: lastMsg ? lastMsg.timestamp : Date.now(),
+      };
+      setConversations(updatedConversations);
+      Storage.set(STORAGE_KEYS.conversations, updatedConversations);
+    }
+  }, [messages, allMessages, roleMessages, selectedConvId, role, conversations]);
 
   // ═══════════════════════════════════════════════════════════
   // MARK AS READ when switching conversations
@@ -390,6 +531,32 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
       });
     }
   }, [selectedConvId, selectedConv?.unread, role]);
+
+  // ═══════════════════════════════════════════════════════════
+  // DELETE CONVERSATION
+  // ═══════════════════════════════════════════════════════════
+  const handleDeleteConversation = useCallback((convId) => {
+    const key = String(convId);
+    const updatedConversations = { ...conversations };
+    const roleConvs = updatedConversations[role] || {};
+    const { [key]: deleted, ...remaining } = roleConvs;
+    updatedConversations[role] = remaining;
+    setConversations(updatedConversations);
+    Storage.set(STORAGE_KEYS.conversations, updatedConversations);
+
+    // Also delete associated messages
+    const updatedMessages = { ...allMessages };
+    const roleMsgs = updatedMessages[role] || {};
+    const { [key]: deletedMsgs, ...remainingMsgs } = roleMsgs;
+    updatedMessages[role] = remainingMsgs;
+    setAllMessages(updatedMessages);
+    Storage.set(STORAGE_KEYS.messages, updatedMessages);
+
+    // If the deleted conversation was selected, clear selection
+    if (String(selectedConvId) === key) {
+      setSelectedConvId(null);
+    }
+  }, [conversations, allMessages, selectedConvId, role]);
 
   // ═══════════════════════════════════════════════════════════
   // THEME TOKENS
@@ -427,7 +594,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
   // RENDER
   // ═══════════════════════════════════════════════════════════
   return (
-    <div className="messaging-wrapper" style={{ background: c.mainBg }}>
+    <div className="messaging-wrapper" style={{ background: c.mainBg }} onClick={() => setContextMenuOpen(null)}>
 
       {/* ── Sidebar ── */}
       <div className="messaging-sidebar" style={{ background: c.sidebarBg, borderRight: `1px solid ${c.border}` }}>
@@ -471,6 +638,9 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
                   style={{
                     background: isActive ? c.activeConv : 'transparent',
                     borderBottom: `1px solid ${c.border}`,
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
                   }}
                   onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = c.hoverBg; }}
                   onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
@@ -497,6 +667,33 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
                         </span>
                       )}
                     </div>
+                  </div>
+
+                  <div style={{ marginLeft: 'auto', paddingRight: '8px' }}>
+                    <button
+                      className="conv-menu-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (contextMenuOpen === conv.id) {
+                          setContextMenuOpen(null);
+                        } else {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setContextMenuPos({ top: rect.bottom + 4, left: rect.right - 220 });
+                          setContextMenuOpen(conv.id);
+                        }
+                      }}
+                      title="More options"
+                      style={{
+                        background: contextMenuOpen === conv.id ? c.hoverBg : 'transparent',
+                        border: 'none', cursor: 'pointer',
+                        color: contextMenuOpen === conv.id ? PRIMARY : c.secondaryText,
+                        fontSize: '20px', padding: '4px 8px',
+                        borderRadius: '4px', transition: 'all 0.2s ease',
+                        opacity: isActive || contextMenuOpen === conv.id ? 1 : 0.6,
+                      }}
+                    >
+                      ⋯
+                    </button>
                   </div>
                 </div>
               );
@@ -539,15 +736,35 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
                 )}
                 <div className={`msg-row msg-row--${isReceived ? 'received' : 'sent'}`}>
                   {isReceived && <Avatar initials={selectedConv?.avatar || 'XX'} size={32} />}
-                  <div className={`msg-bubble ${isReceived ? '' : 'msg-bubble--sent'}`} style={
-                    isReceived
-                      ? { background: c.receivedBubble, color: c.receivedText }
-                      : { background: c.sentBubble, color: c.sentText }
-                  }>
+                  <div
+                    className={`msg-bubble ${isReceived ? '' : 'msg-bubble--sent'}`}
+                    style={{
+                      ...(isReceived
+                        ? { background: c.receivedBubble, color: c.receivedText }
+                        : { background: c.sentBubble, color: c.sentText }),
+                      position: 'relative',
+                    }}
+                  >
                     {msg.text}
                     {!isReceived && msg.status && (
                       <StatusIndicator status={msg.status} darkMode={darkMode} />
                     )}
+                    <button
+                      className="msg-delete-btn"
+                      title="Delete message"
+                      onClick={() => handleDeleteMessage(msg.id)}
+                      style={{
+                        position: 'absolute', top: '-10px', right: '-10px',
+                        width: '24px', height: '24px', borderRadius: '50%',
+                        background: '#ef4444',
+                        border: 'none', cursor: 'pointer', fontSize: '13px',
+                        color: '#fff', fontWeight: 'bold',
+                        lineHeight: '1', padding: 0,
+                        display: 'none', zIndex: 10,
+                      }}
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               </div>
@@ -582,6 +799,82 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
           </button>
         </div>
       </div>
+
+      {/* ── Fixed Context Menu ── */}
+      {contextMenuOpen !== null && (
+        <div
+          className="conv-context-menu"
+          style={{
+            position: 'fixed',
+            top: contextMenuPos.top,
+            left: contextMenuPos.left,
+            zIndex: 9999,
+            background: darkMode ? '#1e2849' : '#ffffff',
+            border: `1px solid ${c.border}`,
+            borderRadius: '10px',
+            minWidth: '200px',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+            overflow: 'hidden',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              const convId = contextMenuOpen;
+              setContextMenuOpen(null);
+              navigate(`/profile/${convId}`);
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              width: '100%', padding: '12px 16px', border: 'none',
+              background: 'transparent', color: c.text, cursor: 'pointer',
+              textAlign: 'left', fontSize: '14px', fontWeight: '500',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = c.hoverBg}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <span style={{ fontSize: '16px' }}>👤</span> View profile
+          </button>
+          <button
+            onClick={() => {
+              const conv = roleConversations[contextMenuOpen];
+              setContextMenuOpen(null);
+              navigate('/report', { state: { reportedUser: conv?.name, conversationId: contextMenuOpen } });
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              width: '100%', padding: '12px 16px', border: 'none',
+              background: 'transparent', color: c.text, cursor: 'pointer',
+              textAlign: 'left', fontSize: '14px', fontWeight: '500',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = c.hoverBg}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <span style={{ fontSize: '16px' }}>🚩</span> Report
+          </button>
+          <button
+            onClick={() => {
+              const convId = contextMenuOpen;
+              const conv = roleConversations[convId];
+              setContextMenuOpen(null);
+              if (window.confirm(`Delete chat with ${conv?.name}?`)) {
+                handleDeleteConversation(convId);
+              }
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              width: '100%', padding: '12px 16px', border: 'none',
+              background: 'transparent', color: '#ef4444', cursor: 'pointer',
+              textAlign: 'left', fontSize: '14px', fontWeight: '500',
+              borderTop: `1px solid ${c.border}`,
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = c.hoverBg}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <span style={{ fontSize: '16px' }}>🗑️</span> Delete chat
+          </button>
+        </div>
+      )}
     </div>
   );
 }

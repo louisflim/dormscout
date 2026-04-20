@@ -1,6 +1,14 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AboutUs.css';
+import {
+  User,
+  LogOut,
+  Moon,
+  Sun,
+  HelpCircle,
+  Info,
+} from 'lucide-react';
 
 const FEATURES = [
   {
@@ -25,15 +33,30 @@ const FEATURES = [
   },
 ];
 
-export default function AboutUs({ darkMode = false, onBack, setScreen }) {
+export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScreen }) {
   const navigate = useNavigate();
   const theme = darkMode ? 'dark' : 'light';
+  const dropdownRef = useRef(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+        setShowDropdown(false);
+    };
+    if (showDropdown) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDropdown]);
+
+  const handleLogout = () => {
+    navigate('/');
+  };
 
   return (
     <div className={`about-wrapper ${theme}`}>
-      <nav className={`about-nav ${theme}`}>
+      <nav className="dashboard-nav" style={{ background: darkMode ? '#16213e' : '#fff' }}>
         <button
-          className="about-nav-title-btn"
+          className="dashboard-nav-title-btn"
           style={{
             background: 'none',
             border: 'none',
@@ -50,9 +73,40 @@ export default function AboutUs({ darkMode = false, onBack, setScreen }) {
         >
           DormScout
         </button>
-        <button className="about-back-btn" onClick={() => navigate(-1)}>
-          ← Back
-        </button>
+        <div ref={dropdownRef} className="dashboard-dropdown-wrap">
+          <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
+            <User size={20} color="#fff" />
+          </div>
+          {showDropdown && (
+            <div className="dashboard-dropdown">
+              <div className="dropdown-item dropdown-item-profile"
+                onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
+                <User size={15} /> My Profile
+              </div>
+              <div className="dropdown-item dropdown-item-default"
+                onClick={() => { navigate('/support'); setShowDropdown(false); }}>
+                <HelpCircle size={15} /> Help and Support
+              </div>
+              <div className="dropdown-item dropdown-item-default"
+                onClick={() => { navigate('/about'); setShowDropdown(false); }}>
+                <Info size={15} /> About Us
+              </div>
+              <div
+                className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
+                onClick={() => { setDarkMode(!darkMode); setShowDropdown(false); }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px', }}
+              >
+                {darkMode ? <Sun size={15} /> : <Moon size={15} />}
+                <span style={{ marginLeft: 8 }}>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+              </div>
+
+              <div className="dropdown-item dropdown-item-logout"
+                onClick={() => { setShowDropdown(false); handleLogout(); }}>
+                <LogOut size={15} /> Logout
+              </div>
+            </div>
+          )}
+        </div>
       </nav>
 
       <div className="about-content">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookingProvider } from './context/BookingContext';
@@ -124,10 +124,10 @@ function App() {
             } />
             <Route path="/support" element={
               <ProtectedRoute>
-                <Support darkMode={darkMode} />
+                <Support darkMode={darkMode} setDarkMode={setDarkMode} />
               </ProtectedRoute>
             } />
-            <Route path="/about" element={<AboutUs darkMode={darkMode} />} />
+            <Route path="/about" element={<AboutUs darkMode={darkMode} setDarkMode={setDarkMode} />} />
             <Route path="/settings" element={
               <ProtectedRoute>
                 <Settings userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
@@ -136,6 +136,11 @@ function App() {
             <Route path="/reviews" element={
               <ProtectedRoute>
                 <Reviews userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+              </ProtectedRoute>
+            } />
+            <Route path="/report" element={
+              <ProtectedRoute>
+                <Report userType={userType} darkMode={darkMode} />
               </ProtectedRoute>
             } />
             <Route path="*" element={<Navigate to="/" />} />

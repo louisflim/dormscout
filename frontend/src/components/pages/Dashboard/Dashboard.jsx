@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import Map from '../Map/Map';
 import ListingPage from '../Listing/ListingPage';
 import BookingPage from '../Booking/BookingPage';
@@ -28,10 +28,7 @@ import {
   Info,
   Search,
   Home,
-  CreditCard,
   ChevronRight,
-  Check,
-  X,
   TrendingUp,
   Clock,
   Plus,
@@ -368,7 +365,7 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
   const rowBg   = darkMode ? '#0f3460' : '#f9f9f9';
 
   const displayName = user?.name?.split(' ')[0] || 'Landlord';
-  const listings = user?.listings || [];
+  const listings = useMemo(() => user?.listings || [], [user?.listings]);
   const activities = user?.activities || [];
 
   // Calculate stats from real data
@@ -635,12 +632,18 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
   const [searchParams]    = useSearchParams();
   const sectionFromUrl    = searchParams.get('section') || 'overview';
   const [activeNav, setActiveNav]             = useState(sectionFromUrl);
+
+  // Sync activeNav when URL search params change (e.g. from Contact Landlord navigation)
+  useEffect(() => {
+    setActiveNav(sectionFromUrl);
+  }, [sectionFromUrl]);
   const [editListingData, setEditListingData] = useState(null);
   const [showDropdown, setShowDropdown]       = useState(false);
   const dropdownRef = useRef(null);
   const navigate    = useNavigate();
+  const location    = useLocation();
   const { getUnreadCount } = useBooking();
-  const { user, logout, addActivity } = useAuth();
+  const { user, logout } = useAuth();
 
   // Get userType from props or localStorage or default to 'tenant'
   const userType = propUserType || user?.userType || localStorage.getItem('userType') || 'tenant';
@@ -796,7 +799,7 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
             ) : activeNav === 'reviews' ? (
               <Reviews userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
             ) : activeNav === 'messages' ? (
-              <Messaging darkMode={darkMode} userType={userType} />
+              <Messaging darkMode={darkMode} userType={userType} contactLandlord={location.state?.contactLandlord} />
             ) : activeNav === 'settings' ? (
               <Settings darkMode={darkMode} setDarkMode={setDarkMode} userType={userType} />
             ) : (

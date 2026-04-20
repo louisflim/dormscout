@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Support.css';
+import {
+  User,
+  LogOut,
+  Moon,
+  Sun,
+  HelpCircle,
+  Info,
+} from 'lucide-react';
 
 const PRIMARY = '#E8622E';
 
@@ -47,13 +55,28 @@ const CONTACT_INFO = [
   { icon: '📍', label: 'Address', value: 'Cebu City, Philippines' },
 ];
 
-export default function Support({ darkMode = false }) {
+export default function Support({ darkMode = false, setDarkMode }) {
   const navigate = useNavigate();
   const colors   = darkMode ? COLORS.dark : COLORS.light;
+  const dropdownRef = useRef(null);
 
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [formData,      setFormData]      = useState({ name: '', email: '', subject: '', message: '' });
   const [submitted,     setSubmitted]     = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+        setShowDropdown(false);
+    };
+    if (showDropdown) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDropdown]);
+
+  const handleLogout = () => {
+    navigate('/');
+  };
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
@@ -79,12 +102,12 @@ export default function Support({ darkMode = false }) {
 
   /* ── Render ── */
   return (
-    <div className="support-page" style={{ background: colors.bg }}>
+    <div className={`support-page ${darkMode ? 'dark' : ''}`} style={{ background: colors.bg }}>
 
       {/* ── Navbar ── */}
-      <nav className="support-nav" style={{ background: darkMode ? '#16213e' : '#fff' }}>
+      <nav className="dashboard-nav" style={{ background: darkMode ? '#16213e' : '#fff' }}>
         <button
-          className="support-nav-title-btn"
+          className="dashboard-nav-title-btn"
           style={{
             background: 'none',
             border: 'none',
@@ -101,7 +124,40 @@ export default function Support({ darkMode = false }) {
         >
           DormScout
         </button>
-        <button className="support-nav__back-btn" onClick={() => navigate(-1)}>← Back</button>
+        <div ref={dropdownRef} className="dashboard-dropdown-wrap">
+          <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
+            <User size={20} color="#fff" />
+          </div>
+          {showDropdown && (
+            <div className="dashboard-dropdown">
+              <div className="dropdown-item dropdown-item-profile"
+                onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
+                <User size={15} /> My Profile
+              </div>
+              <div className="dropdown-item dropdown-item-default"
+                onClick={() => { navigate('/support'); setShowDropdown(false); }}>
+                <HelpCircle size={15} /> Help and Support
+              </div>
+              <div className="dropdown-item dropdown-item-default"
+                onClick={() => { navigate('/about'); setShowDropdown(false); }}>
+                <Info size={15} /> About Us
+              </div>
+              <div
+                className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
+                onClick={() => { setDarkMode(!darkMode); setShowDropdown(false); }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px', }}
+              >
+                {darkMode ? <Sun size={15} /> : <Moon size={15} />}
+                <span style={{ marginLeft: 8 }}>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+              </div>
+
+              <div className="dropdown-item dropdown-item-logout"
+                onClick={() => { setShowDropdown(false); handleLogout(); }}>
+                <LogOut size={15} /> Logout
+              </div>
+            </div>
+          )}
+        </div>
       </nav>
 
       <div className="support-content">

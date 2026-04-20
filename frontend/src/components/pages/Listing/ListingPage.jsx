@@ -132,7 +132,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
 
   useEffect(() => {
     if (editListingData) { startEdit(editListingData); if (onEditHandled) onEditHandled(); }
-  }, [editListingData]);
+  }, [editListingData, onEditHandled]);
 
   // Load listings from AuthContext (real user data)
   useEffect(() => {
@@ -168,7 +168,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     }
 
     return () => { mountedRef.current = false; previewUrls.forEach((u) => URL.revokeObjectURL(u)); };
-  }, [user]);
+  }, [user, previewUrls]);
 
   useEffect(() => {
     if (selectedId && !listings.find((l) => l.id === selectedId)) setSelectedId(null);
@@ -200,7 +200,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     });
     mapInstanceRef.current = map;
     return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; markerRef.current = null; } };
-  }, [viewMode]);
+  }, [viewMode, form.lat, form.lng]);
 
   function resetForm() {
     setForm(EMPTY_FORM);
@@ -261,7 +261,18 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
       try { const dataUrls = await filesToDataUrls(imageFiles); finalImages = [...finalImages, ...dataUrls].slice(0, 3); } catch (err) { console.error('Failed to read images', err); }
     }
     const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
-    const newListing = { id: Date.now(), ...form, tags: tagsArray, images: finalImages };
+    const getLandlordName = () => user?.name || landlordProfile.businessName || 'Landlord';
+    const newListing = { 
+      id: Date.now(), 
+      ...form, 
+      tags: tagsArray, 
+      images: finalImages,
+      landlordId: user?.id || 'unknown',
+      landlordName: getLandlordName(),
+      landlordEmail: user?.email,
+      landlordVerified: landlordProfile.isVerified || false,
+      landlordBusiness: landlordProfile.businessName || ''
+    };
 
     addListing({
       title: form.title,
@@ -290,7 +301,17 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
       try { const dataUrls = await filesToDataUrls(imageFiles); finalImages = [...finalImages, ...dataUrls].slice(0, 3); } catch (err) { console.error('Failed to read images', err); }
     }
     const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
-    const updates = { ...form, tags: tagsArray, images: finalImages };
+    const getLandlordName = () => user?.name || landlordProfile.businessName || 'Landlord';
+    const updates = { 
+      ...form, 
+      tags: tagsArray, 
+      images: finalImages,
+      landlordId: user?.id || 'unknown',
+      landlordName: getLandlordName(),
+      landlordEmail: user?.email,
+      landlordVerified: landlordProfile.isVerified || false,
+      landlordBusiness: landlordProfile.businessName || ''
+    };
 
     updateListing(editingId, updates);
 

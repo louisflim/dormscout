@@ -1,7 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import './ProfilePage.css';
+import {
+  User,
+  LogOut,
+  Moon,
+  Sun,
+  HelpCircle,
+  Info,
+} from 'lucide-react';
 
 const COLORS = {
   light: {
@@ -39,8 +47,9 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
   const colors     = isDark ? COLORS.dark : COLORS.light;
   const isLandlord = userRole === 'landlord';
 
-  const [showDropdown,    setShowDropdown]    = useState(false);
-  const [profilePicture,  setProfilePicture]  = useState('👤');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = React.useRef(null);
+  const [profilePicture, setProfilePicture] = useState('👤');
 
   // Use real user data from localStorage
   const displayName = user?.name || 'Guest User';
@@ -54,6 +63,16 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
       setProfilePicture(savedPicture);
     }
   }, []);
+
+  // Dashboard dropdown: close on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+        setShowDropdown(false);
+    };
+    if (showDropdown) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDropdown]);
 
   const handleProfilePictureChange = () => {
     const emojis = ['👤', '👨', '👩', '🧑', '😊', '🎭'];
@@ -73,22 +92,17 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
     : 'College student looking for a comfortable place to stay near campus. Love meeting new people!';
 
   return (
-    <div className="profile-page" style={{ background: colors.bg }}>
+    <div className={`profile-page ${isDark ? 'dark' : ''}`} style={{ background: colors.bg }}>
 
       {/* ── Navbar ── */}
-      <nav className="profile-nav" style={{ background: colors.navBg }}>
+
+      <nav className="dashboard-nav">
         <button
-          className="profile-nav-title-btn"
+          className="dashboard-nav-title-btn"
           style={{
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            margin: 0,
-            cursor: 'pointer',
-            fontSize: 24,
-            fontWeight: 700,
-            color: colors.text,
-            fontFamily: 'inherit',
+            background: 'none', border: 'none', padding: 0, margin: 0,
+            cursor: 'pointer', fontSize: 24, fontWeight: 700,
+            color: colors.text, fontFamily: 'inherit',
           }}
           aria-label="Go to Overview"
           onClick={() => navigate('/dashboard')}
@@ -96,54 +110,36 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
           DormScout
         </button>
 
-        <div className="profile-nav__actions">
-          <div
-            className="avatar-btn avatar-btn--nav"
-            onClick={() => setShowDropdown(!showDropdown)}
-          >
-            {profilePicture}
+        <div ref={dropdownRef} className="dashboard-dropdown-wrap">
+          <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
+            <User size={20} color="#fff" />
           </div>
-
           {showDropdown && (
-            <div
-              className="profile-dropdown"
-              style={{
-                background: colors.cardBg,
-                border: `1px solid ${colors.border}`,
-              }}
-            >
-              <div className="profile-dropdown__header">
-                {profilePicture} My Profile
+            <div className="dashboard-dropdown">
+              <div className="dropdown-item dropdown-item-profile"
+                onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
+                <User size={15} /> My Profile
+              </div>
+              <div className="dropdown-item dropdown-item-default"
+                onClick={() => { navigate('/support'); setShowDropdown(false); }}>
+                <HelpCircle size={15} /> Help and Support
+              </div>
+              <div className="dropdown-item dropdown-item-default"
+                onClick={() => { navigate('/about'); setShowDropdown(false); }}>
+                <Info size={15} /> About Us
+              </div>
+              <div
+                className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
+                onClick={() => { setDarkMode(!isDark); setShowDropdown(false); }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px', }}
+              >
+                {isDark ? <Sun size={15} /> : <Moon size={15} />}
+                <span style={{ marginLeft: 8 }}>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
               </div>
 
-              {[
-                { label: '⚙️ Profile Settings', path: '/settings' },
-                { label: '❓ Help and Support',  path: '/support' },
-                { label: 'ℹ️ About Us',           path: '/about' },
-              ].map(({ label, path }) => (
-                <div
-                  key={path}
-                  className="profile-dropdown__item"
-                  style={{ color: colors.text, borderBottom: `1px solid ${colors.border}` }}
-                  onClick={() => { navigate(path); setShowDropdown(false); }}
-                >
-                  {label}
-                </div>
-              ))}
-
-              <div
-                className="profile-dropdown__item"
-                style={{ color: colors.text, borderBottom: `1px solid ${colors.border}` }}
-                onClick={() => setDarkMode(!isDark)}
-              >
-                {isDark ? '☀️ Light Mode' : '🌙 Dark Mode'}
-              </div>
-
-              <div
-                className="profile-dropdown__item profile-dropdown__item--danger"
-                onClick={() => { setShowDropdown(false); handleLogout(); }}
-              >
-                🚪 Logout
+              <div className="dropdown-item dropdown-item-logout"
+                onClick={() => { setShowDropdown(false); handleLogout(); }}>
+                <LogOut size={15} /> Logout
               </div>
             </div>
           )}

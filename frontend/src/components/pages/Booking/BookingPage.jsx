@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useBooking } from '../../../context/BookingContext';
 import { useAuth } from '../../../context/AuthContext';
 import './BookingPage.css';
 
@@ -44,10 +44,10 @@ const getStatusLabel = (status) => {
 };
 
 export default function BookingPage({ darkMode = false }) {
+  const navigate = useNavigate();
   const [bookings, setBookings]             = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
-  const { bookings: contextBookings, cancelBooking: contextCancel } = useBooking();
-  const { user, cancelBooking: authCancelBooking, updateBookingStatus } = useAuth();
+  const { user, cancelBooking: authCancelBooking } = useAuth();
   const [cancelModal, setCancelModal]       = useState(false);
   const [cancelReason, setCancelReason]     = useState('');
   const [cancelMoveOutDate, setCancelMoveOutDate] = useState('');
@@ -244,7 +244,14 @@ export default function BookingPage({ darkMode = false }) {
                   <button className="btn-cancel-booking" onClick={() => setCancelModal(true)}>
                     Cancel Booking
                   </button>
-                  <button className="btn-contact-landlord" onClick={() => alert('Contact landlord functionality coming soon!')}>
+                  <button className="btn-contact-landlord" onClick={() => {
+                    const landlord = {
+                      id: selectedBooking.landlordId,
+                      name: selectedBooking.landlordName || 'Landlord',
+                      avatar: (selectedBooking.landlordName || 'L').split(' ').map(n => n[0]).join(''),
+                    };
+                    navigate('/dashboard?section=messages', { state: { contactLandlord: landlord } });
+                  }}>
                     Contact Landlord
                   </button>
                 </div>

@@ -88,6 +88,14 @@ function getNearestUniversity(lat, lng) {
   return nearest;
 }
 
+function getDistanceFromUserUniversity(lat, lng, userUniversity) {
+  if (!lat || !lng || !userUniversity) return null;
+  const userUni = UNIVERSITIES.find(uni => uni.name === userUniversity || uni.abbr === userUniversity);
+  if (!userUni) return null;
+  const distance = getDistanceFromLatLonInKm(lat, lng, userUni.coords[0], userUni.coords[1]);
+  return { ...userUni, distance };
+}
+
 const matchesSearch = (l, s) =>
   (l.title    && l.title.toLowerCase().includes(s))    ||
   (l.address  && l.address.toLowerCase().includes(s))  ||
@@ -137,13 +145,19 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [bookingStep, setBookingStep]     = useState('info');
   const [moveInDate, setMoveInDate]       = useState('');
   const [pendingCounts, setPendingCounts] = useState({});
+  const [maxDistance, setMaxDistance]       = useState(100);
+  const [maxPrice, setMaxPrice]             = useState(50000);
+  const [schoolFilter, setSchoolFilter]     = useState('all');
+  const [genderPolicyFilter, setGenderPolicyFilter] = useState('all');
+  const [showFilters, setShowFilters]       = useState(false);
   const [landlordProfile, setLandlordProfile] = useState(() => {
     try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
   });
 
   const { createBooking, getPendingCount, subscribeToBookings } = useBooking();
-  const { user, addBooking, addActivity } = useAuth();
+  const { user, addBooking } = useAuth();
   const navigate = useNavigate();
+  const isLandlord = user?.userType === 'landlord';
   const theme = darkMode ? 'dark' : 'light';
 
   // Real-time pending booking counts
@@ -183,7 +197,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
   useEffect(() => {
     if (!mapRef.current) return;
-    mapInstance.current = L.map(mapRef.current, { center: CENTER, zoom: 13, scrollWheelZoom: false });
+    mapInstance.current = L.map(mapRef.current, { center: CENTER, zoom: 13, scrollWheelZoom: true });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(mapInstance.current);
     uniMarkersRef.current = UNIVERSITIES.map((uni) => {
       const marker = L.marker(uni.coords, { icon: makeBlueLabel(uni.abbr) }).addTo(mapInstance.current);
@@ -200,9 +214,26 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     markersRef.current = [];
     const s = search.toLowerCase();
     const searchMatchesUniversity = search.trim() && UNIVERSITIES.some(u => matchesUni(u, s));
-    const finalFiltered = searchMatchesUniversity
+    const baseFiltered = searchMatchesUniversity
       ? listings.filter(l => l.university && l.university.toLowerCase().includes(s))
       : listings.filter(l => !search.trim() || matchesSearch(l, s));
+    const finalFiltered = baseFiltered.filter(l => {
+      if (Number(l.price) > maxPrice) return false;
+      if (isLandlord) {
+        if (l.landlordId && user?.id && l.landlordId !== user.id) return false;
+        if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
+      } else {
+        const dist = user?.school
+          ? getDistanceFromUserUniversity(l.lat, l.lng, user.school)
+          : getNearestUniversity(l.lat, l.lng);
+        if (dist && dist.distance > maxDistance) return false;
+        if (schoolFilter === 'myschool' && user?.school) {
+          const listingUni = getNearestUniversity(l.lat, l.lng);
+          if (listingUni?.name !== user.school) return false;
+        }
+      }
+      return true;
+    });
     markersRef.current = finalFiltered
       .filter(l => l.lat && l.lng)
       .map((listing) => {
@@ -210,7 +241,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         marker.on('click', () => setSelectedListing(listing));
         return marker;
       });
-  }, [listings, search]);
+  }, [listings, search, maxDistance, maxPrice, schoolFilter, genderPolicyFilter, user, isLandlord]);
 
   const handleUniversityClick = (uni) => {
     if (mapInstance.current && uni.coords) mapInstance.current.setView(uni.coords, 15);
@@ -224,6 +255,29 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
   const handleConfirmBooking = (listing) => {
     if (!moveInDate) { alert('Please select a move-in date.'); return; }
+
+    // Gender-based booking restriction
+    const userGender = user?.gender;
+    const policy = listing?.genderPolicy;
+    
+
+    
+    // Strict gender check - BLOCK if policy doesn't match gender
+    if (policy && policy !== 'Both') {
+      if (!userGender) {
+        alert('❌ Please update your profile with your gender information.');
+        return;
+      }
+      if (policy === 'Girls Only' && userGender === 'Male') {
+        alert('❌ This dorm is for GIRLS ONLY. You are a male and cannot book this property.');
+        return;
+      }
+      if (policy === 'Boys Only' && userGender === 'Female') {
+        alert('❌ This dorm is for BOYS ONLY. You are a female and cannot book this property.');
+        return;
+      }
+    }
+
     setBookingStep('confirming');
 
     setTimeout(() => {
@@ -263,26 +317,168 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   };
 
   const s = search.toLowerCase();
-  const filteredListings  = listings.filter(l => !search.trim() || matchesSearch(l, s));
+  const filteredListings = listings.filter(l => {
+    if (search.trim() && !matchesSearch(l, s)) return false;
+    const price = Number(l.price);
+    if (price > maxPrice) return false;
+    if (isLandlord) {
+      // Landlord: only show their own listings
+      if (l.landlordId && user?.id && l.landlordId !== user.id) return false;
+      if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
+    } else {
+      // Tenant: distance & school filters
+      const dist = user?.school
+        ? getDistanceFromUserUniversity(l.lat, l.lng, user.school)
+        : getNearestUniversity(l.lat, l.lng);
+      if (dist && dist.distance > maxDistance) return false;
+      if (schoolFilter === 'myschool' && user?.school) {
+        const listingUni = getNearestUniversity(l.lat, l.lng);
+        if (listingUni?.name !== user.school) return false;
+      }
+    }
+    return true;
+  });
   const filteredUnis      = search.trim() ? UNIVERSITIES.filter(u => matchesUni(u, s)) : [];
   const noResults         = filteredListings.length === 0 && filteredUnis.length === 0;
 
   const nearest = selectedListing
-    ? getNearestUniversity(selectedListing.lat, selectedListing.lng)
+    ? (user?.school ? getDistanceFromUserUniversity(selectedListing.lat, selectedListing.lng, user.school) : null) || getNearestUniversity(selectedListing.lat, selectedListing.lng)
     : null;
 
   return (
     <div className={`map-wrapper ${theme}`}>
 
-      {/* Search */}
-      <div className="map-search-wrap">
-        <input
-          type="search"
-          className="map-search-input"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, address, or university..."
-        />
+      {/* Search & Filters */}
+      <div className="map-search-wrap" style={{ alignItems: 'center', gap: '8px', position: 'relative' }}>
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center',
+          background: darkMode ? '#16213e' : '#fff',
+          border: `1.5px solid #5BADA8`,
+          borderRadius: '10px', padding: '0 12px', gap: '6px',
+        }}>
+          <span style={{ opacity: 0.45, fontSize: '0.85rem' }}>🔍</span>
+          <input
+            type="search"
+            className="map-search-input"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, address, or university..."
+            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', padding: '9px 0', fontSize: '13px', color: darkMode ? '#eaeaea' : '#333' }}
+          />
+        </div>
+
+        {/* Filter toggle button + floating dropdown */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            style={{
+              padding: '9px 14px',
+              background: showFilters ? '#E8622E' : (darkMode ? '#2d3748' : '#f0f4f8'),
+              color: showFilters ? '#fff' : (darkMode ? '#ccc' : '#555'),
+              border: `1.5px solid ${showFilters ? '#E8622E' : (darkMode ? '#3d4a5c' : '#dde3ec')}`,
+              borderRadius: '10px', cursor: 'pointer',
+              fontSize: '0.82rem', fontWeight: 700,
+              transition: 'all 0.2s', whiteSpace: 'nowrap',
+            }}
+          >
+            ⚙️ Filters {showFilters ? '▲' : '▼'}
+          </button>
+
+          {/* Floating dropdown card — like the profile menu */}
+          {showFilters && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 8px)',
+              right: 0,
+              zIndex: 9999,
+              width: '230px',
+              background: darkMode ? '#16213e' : '#fff',
+              border: `1px solid ${darkMode ? '#2d3748' : '#e2e8f0'}`,
+              borderRadius: '12px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+              overflow: 'hidden',
+            }}>
+              {/* Header */}
+              <div style={{
+                background: '#E8622E', color: '#fff',
+                padding: '10px 14px', fontWeight: 700, fontSize: '0.85rem',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}>
+                ⚙️ Filters
+              </div>
+
+              {/* Filter rows */}
+              <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+                {/* Price — both roles */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555', display: 'flex', alignItems: 'center', gap: '5px' }}>💰 Max Price</span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#E8622E', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>₱{maxPrice.toLocaleString()}</span>
+                  </div>
+                  <input type="range" min="0" max="50000" step="1000" value={maxPrice}
+                    onChange={(e) => setMaxPrice(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: '#E8622E', cursor: 'pointer' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', opacity: 0.4 }}>
+                    <span>₱0</span><span>₱50k</span>
+                  </div>
+                </div>
+
+                {/* TENANT-ONLY */}
+                {!isLandlord && (<>
+                  <div style={{ borderTop: `1px solid ${darkMode ? '#2d3748' : '#f0f0f0'}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555', display: 'flex', alignItems: 'center', gap: '5px' }}>📍 Distance</span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#E8622E', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>{maxDistance} km</span>
+                    </div>
+                    <input type="range" min="0" max="50" value={maxDistance}
+                      onChange={(e) => setMaxDistance(Number(e.target.value))}
+                      style={{ width: '100%', accentColor: '#E8622E', cursor: 'pointer' }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', opacity: 0.4 }}>
+                      <span>0 km</span><span>50 km</span>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: `1px solid ${darkMode ? '#2d3748' : '#f0f0f0'}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>🎓 School</span>
+                    <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}
+                      style={{
+                        padding: '6px 8px', borderRadius: '7px',
+                        border: `1.5px solid ${schoolFilter !== 'all' ? '#E8622E' : (darkMode ? '#3d4a5c' : '#dde3ec')}`,
+                        background: darkMode ? '#0f3460' : '#f8fafc',
+                        color: darkMode ? '#fff' : '#333',
+                        fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', outline: 'none', width: '100%',
+                      }}>
+                      <option value="all">All Schools</option>
+                      {user?.school && <option value="myschool">Near {user.school}</option>}
+                    </select>
+                  </div>
+                </>)}
+
+                {/* LANDLORD-ONLY */}
+                {isLandlord && (
+                  <div style={{ borderTop: `1px solid ${darkMode ? '#2d3748' : '#f0f0f0'}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>⚧ Gender Policy</span>
+                    <select value={genderPolicyFilter} onChange={(e) => setGenderPolicyFilter(e.target.value)}
+                      style={{
+                        padding: '6px 8px', borderRadius: '7px',
+                        border: `1.5px solid ${genderPolicyFilter !== 'all' ? '#E8622E' : (darkMode ? '#3d4a5c' : '#dde3ec')}`,
+                        background: darkMode ? '#0f3460' : '#f8fafc',
+                        color: darkMode ? '#fff' : '#333',
+                        fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', outline: 'none', width: '100%',
+                      }}>
+                      <option value="all">All Policies</option>
+                      <option value="Both">Both Genders</option>
+                      <option value="Female">Female Only</option>
+                      <option value="Male">Male Only</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Map */}
@@ -393,24 +589,34 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
               {/* Owner / Business Info */}
               {(() => {
-                const ownerName = [landlordProfile.firstName, landlordProfile.lastName].filter(Boolean).join(' ');
-                const biz       = landlordProfile.businessName;
-                const verified  = landlordProfile.isVerified;
+                const ownerName = selectedListing.landlordName || (landlordProfile.firstName ? `${landlordProfile.firstName} ${landlordProfile.lastName}`.trim() : '');
+                const biz       = selectedListing.landlordBusiness || landlordProfile.businessName;
+                const verified  = selectedListing.landlordVerified || landlordProfile.isVerified;
+                const policy    = selectedListing.genderPolicy;
                 if (!ownerName && !biz) return null;
                 return (
                   <div style={{ margin: '4px 0 10px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                    {ownerName && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontWeight: 600 }}>
-                        <span>👤 {ownerName}</span>
-                        {verified && <span title="Verified Landlord" style={{ color: '#16a34a', fontSize: '1rem' }}>✅</span>}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', justifyContent: 'space-between' }}>
+                      <div>
+                        {ownerName && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontWeight: 600 }}>
+                            <span>👤 {ownerName}</span>
+                            {verified && <span title="Verified Landlord" style={{ color: '#16a34a', fontSize: '1rem' }}>✅</span>}
+                          </div>
+                        )}
+                        {biz && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#666' }}>
+                            <span>🏢 {biz}</span>
+                            {verified && !ownerName && <span title="Verified Business" style={{ color: '#16a34a' }}>✅</span>}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {biz && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#666' }}>
-                        <span>🏢 {biz}</span>
-                        {verified && !ownerName && <span title="Verified Business" style={{ color: '#16a34a' }}>✅</span>}
-                      </div>
-                    )}
+                      {policy && policy !== 'Both' && (
+                        <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', marginTop: '2px' }}>
+                          ⚠️ {policy} Only
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })()}
@@ -431,7 +637,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                   <p className="map-modal-detail-value">{selectedListing.availableRooms || 'N/A'}</p>
                 </div>
                 <div className="map-modal-detail-full">
-                  <p className="map-modal-detail-label">Nearby University</p>
+                  <p className="map-modal-detail-label">{user?.school ? 'Distance From Your University' : 'Nearby University'}</p>
                   <p className="map-modal-detail-value">
                     {nearest
                       ? `${nearest.name} (${nearest.distance.toFixed(2)} km)`
@@ -452,7 +658,14 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                       <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
                         📅 Book This Property
                       </button>
-                      <button className="map-btn-contact" onClick={() => alert('Contact landlord functionality coming soon!')}>
+                      <button className="map-btn-contact" onClick={() => {
+                        const landlord = {
+                          id: selectedListing.landlordId,
+                          name: selectedListing.landlordName || 'Landlord',
+                          avatar: (selectedListing.landlordName || 'L').split(' ').map(n => n[0]).join(''),
+                        };
+                        navigate('/dashboard?section=messages', { state: { contactLandlord: landlord } });
+                      }}>
                         💬 Contact Landlord
                       </button>
                       <button className="map-btn-report" onClick={() => navigate('/report')}>
