@@ -145,20 +145,6 @@ export default function Register({ setUserType }) {
                 {error}
               </div>
             )}
-
-            {/* NO USER TYPE TOGGLE - It's locked from URL! */}
-            <div style={{
-              padding: '12px',
-              backgroundColor: buttonColor === PRIMARY ? '#f5d5c0' : '#d4ece8',
-              borderRadius: '8px',
-              marginBottom: '16px',
-              textAlign: 'center',
-              fontWeight: '600',
-              color: buttonColor,
-            }}>
-              {buttonIcon} You are registering as a {userType === 'landlord' ? 'LANDLORD' : 'TENANT'}
-            </div>
-
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {registerFields.map(({ name, placeholder, type }) => (
                 <input

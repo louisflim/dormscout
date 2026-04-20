@@ -4,28 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="388b320f-60eb-47da-829b-907b7b342485" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/context/AuthContext.jsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/node_modules/iconv-lite/.idea/iconv-lite.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Auth/Login.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Auth/Login.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Auth/Register.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Auth/Register.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Booking/BookingPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Booking/BookingPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Dashboard/Dashboard.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Dashboard/Dashboard.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Home/HomePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Home/HomePage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Listing/ListingPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Listing/ListingPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Listing/TenantManagement.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Listing/TenantManagement.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Map/Map.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Map/Map.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Map/Map.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Map/Map.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Messaging/Messaging.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Messaging/Messaging.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Messaging/Messaging.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Messaging/Messaging.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Notifications/Notifications.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Notifications/Notifications.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Profile/ProfilePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Profile/ProfilePage.jsx" afterDir="false" />
+    <list default="true" id="388b320f-60eb-47da-829b-907b7b342485" name="Changes" comment="fixedroutes,qualityoflife,real-time(HOMEPAGE,DASHBOARD,LISTING,etc..)">
       <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Settings/Settings.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Settings/Settings.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/context/BookingContext.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/context/BookingContext.jsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -98,6 +78,19 @@
       <option name="presentableId" value="Default" />
       <updated>1775559695285</updated>
     </task>
+    <task id="LOCAL-00001" summary="fixedroutes,qualityoflife,real-time(HOMEPAGE,DASHBOARD,LISTING,etc..)">
+      <option name="closed" value="true" />
+      <created>1776703926267</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1776703926267</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="fixedroutes,qualityoflife,real-time(HOMEPAGE,DASHBOARD,LISTING,etc..)" />
+    <option name="LAST_COMMIT_MESSAGE" value="fixedroutes,qualityoflife,real-time(HOMEPAGE,DASHBOARD,LISTING,etc..)" />
   </component>
 </project>
