@@ -10,8 +10,7 @@ import ForgotPassword from './components/pages/Auth/ForgotPassword.jsx';
 import Support from './components/pages/Support/Support.jsx';
 import AboutUs from './components/pages/About/AboutUs.jsx';
 import ProfilePage from './components/pages/Profile/ProfilePage.jsx';
-import Settings from './components/pages/Settings/Settings.jsx';
-import Reviews from './components/pages/Reviews/Reviews.jsx';
+import Report from './components/pages/Report/Report.jsx';
 
 function App() {
   const [userType, setUserType] = useState(null);
@@ -54,7 +53,11 @@ function App() {
     </header>
   );
 
-  const pagesWithOwnNav = ['/dashboard', '/profile', '/support', '/about', '/settings', '/reviews', '/', '/login', '/register', '/forgot-password'];
+  const pagesWithOwnNav = [
+    '/dashboard', '/map', '/listing', '/booking', '/notifications', '/messages',
+    '/profile', '/support', '/about', '/settings', '/reviews', '/report',
+    '/', '/login', '/register', '/forgot-password',
+  ];
   const hideGlobalHeader = pagesWithOwnNav.includes(location.pathname);
 
   return (
@@ -73,16 +76,22 @@ function App() {
             <Navigate to="/login" />
           )
         } />
+        {['/map', '/listing', '/booking', '/notifications', '/messages', '/settings', '/reviews'].map(path => (
+          <Route key={path} path={path} element={
+            userType ? (
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            ) : (
+              <Navigate to="/login" />
+            )
+          } />
+        ))}
         <Route path="/profile" element={
           <ProfilePage userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
         } />
         <Route path="/support" element={<Support darkMode={darkMode} />} />
         <Route path="/about" element={<AboutUs darkMode={darkMode} />} />
-        <Route path="/settings" element={
-          <Settings userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-        } />
-        <Route path="/reviews" element={
-          <Reviews userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+        <Route path="/report" element={
+          <Report userType={userType || 'tenant'} darkMode={darkMode} />
         } />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
@@ -92,3 +101,4 @@ function App() {
 }
 
 export default App;
+

@@ -46,7 +46,7 @@ export default function AboutUs({ darkMode = false, onBack, setScreen }) {
             fontFamily: 'inherit',
           }}
           aria-label="Go to Overview"
-          onClick={() => navigate('/dashboard?section=overview')}
+          onClick={() => navigate('/dashboard')}
         >
           DormScout
         </button>
@@ -115,3 +115,4 @@ export default function AboutUs({ darkMode = false, onBack, setScreen }) {
     </div>
   );
 }
+

@@ -267,3 +267,4 @@ export default function BookingPage({ darkMode = false }) {
     </div>
   );
 }
+

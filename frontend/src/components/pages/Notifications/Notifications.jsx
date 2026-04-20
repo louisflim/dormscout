@@ -130,3 +130,4 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
     </div>
   );
 }
+

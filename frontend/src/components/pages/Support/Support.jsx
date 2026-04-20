@@ -97,7 +97,7 @@ export default function Support({ darkMode = false }) {
             fontFamily: 'inherit',
           }}
           aria-label="Go to Overview"
-          onClick={() => navigate('/dashboard?section=overview')}
+          onClick={() => navigate('/dashboard')}
         >
           DormScout
         </button>
@@ -253,3 +253,4 @@ export default function Support({ darkMode = false }) {
     </div>
   );
 }
+

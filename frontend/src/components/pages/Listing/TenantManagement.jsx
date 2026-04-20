@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBooking } from '../../../context/BookingContext';
 
 const SECONDARY = '#5BADA8';
@@ -121,6 +122,7 @@ function TenantDetailView({ booking, onClose, onAccept, onReject, onMessage, dar
 // --- Main TenantManagement component ---
 export default function TenantManagement({ listingId, listingTitle, darkMode = false, onMessageTenant }) {
   const { getBookingsForListing, getTenantsForListing, acceptBooking, rejectBooking, removeTenant, deleteRejectedBooking } = useBooking();
+  const navigate = useNavigate();
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [removeModal, setRemoveModal] = useState(null);
   const [removeReason, setRemoveReason] = useState('');
@@ -179,6 +181,12 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
                   </span>
                   <button onClick={() => setRemoveModal(t)} style={{ padding: '5px 12px', background: 'transparent', border: '1px solid #dc3545', color: '#dc3545', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
                     Remove
+                  </button>
+                  <button
+                    onClick={() => navigate('/report', { state: { userType: 'landlord', subject: t.tenantName } })}
+                    style={{ padding: '5px 12px', background: 'transparent', border: '1px solid #E8622E', color: '#E8622E', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                  >
+                    🚩 Report
                   </button>
                 </div>
               </div>
@@ -298,3 +306,5 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
     </div>
   );
 }
+
+

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Map from '../Map/Map';
 import ListingPage from '../Listing/ListingPage';
 import BookingPage from '../Booking/BookingPage';
@@ -524,9 +524,14 @@ function LandlordOverview({ darkMode, onNavigate }) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard({ userType = 'tenant', darkMode = false, setDarkMode }) {
-  const [searchParams]    = useSearchParams();
-  const sectionFromUrl    = searchParams.get('section') || 'overview';
-  const [activeNav, setActiveNav]             = useState(sectionFromUrl);
+  const location   = useLocation();
+  const pathToSection = {
+    '/dashboard': 'overview', '/map': 'map', '/listing': 'listing',
+    '/booking': 'booking', '/notifications': 'notifications',
+    '/messages': 'messages', '/settings': 'settings', '/reviews': 'reviews',
+  };
+  const sectionFromPath = pathToSection[location.pathname] || 'overview';
+  const [activeNav, setActiveNav]             = useState(sectionFromPath);
   const [editListingData, setEditListingData] = useState(null);
   const [showDropdown, setShowDropdown]       = useState(false);
   const navItems   = NAV_ITEMS[userType] || NAV_ITEMS.tenant;
@@ -535,6 +540,11 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
   const navigate    = useNavigate();
   const { getUnreadCount } = useBooking();
   const theme = darkMode ? 'dark' : 'light';
+
+  // Sync activeNav when path changes (e.g. browser back/forward)
+  useEffect(() => {
+    setActiveNav(sectionFromPath);
+  }, [sectionFromPath]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -573,7 +583,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
             color: darkMode ? '#eaeaea' : '#333', fontFamily: 'inherit',
           }}
           aria-label="Go to Overview"
-          onClick={() => { setActiveNav('overview'); navigate('?section=overview'); }}
+          onClick={() => { setActiveNav('overview'); navigate('/dashboard'); }}
         >
           DormScout
         </button>
@@ -589,7 +599,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
                 <User size={15} /> My Profile
               </div>
               <div className="dropdown-item dropdown-item-default"
-                onClick={() => { setActiveNav('settings'); setShowDropdown(false); }}>
+                onClick={() => { setActiveNav('settings'); navigate('/settings'); setShowDropdown(false); }}>
                 <SettingsIcon size={15} /> Profile Settings
               </div>
               <div className="dropdown-item dropdown-item-default"
@@ -625,7 +635,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
               <button
                 key={item.id}
                 className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
-                onClick={() => setActiveNav(item.id)}
+                onClick={() => { setActiveNav(item.id); navigate(`/${item.id === 'overview' ? 'dashboard' : item.id}`); }}
               >
                 <span className="sidebar-nav-icon">
                   {NAV_ICON[item.id] ? NAV_ICON[item.id](iconColor) : <LayoutDashboard size={18} color={iconColor} />}
@@ -661,7 +671,7 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
           <div className="dashboard-main">
             {activeNav === 'map' ? (
               <Map darkMode={darkMode} userType={userType}
-                onEditListing={(listing) => { setEditListingData(listing); setActiveNav('listing'); }} />
+                onEditListing={(listing) => { setEditListingData(listing); setActiveNav('listing'); navigate('/listing'); }} />
             ) : activeNav === 'listing' && isLandlord ? (
               <ListingPage darkMode={darkMode} editListingData={editListingData} onEditHandled={() => setEditListingData(null)} />
             ) : activeNav === 'booking' && !isLandlord ? (
@@ -676,8 +686,8 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
               <Settings darkMode={darkMode} setDarkMode={setDarkMode} userType={userType} />
             ) : (
               isLandlord
-                ? <LandlordOverview darkMode={darkMode} onNavigate={setActiveNav} />
-                : <TenantOverview   darkMode={darkMode} onNavigate={setActiveNav} />
+                ? <LandlordOverview darkMode={darkMode} onNavigate={(id) => { setActiveNav(id); navigate(`/${id === 'overview' ? 'dashboard' : id}`); }} />
+                : <TenantOverview   darkMode={darkMode} onNavigate={(id) => { setActiveNav(id); navigate(`/${id === 'overview' ? 'dashboard' : id}`); }} />
             )}
           </div>
         </div>
@@ -685,3 +695,4 @@ export default function Dashboard({ userType = 'tenant', darkMode = false, setDa
     </div>
   );
 }
+

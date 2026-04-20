@@ -344,3 +344,4 @@ export default function Messaging({ darkMode = false, userType = 'tenant' }) {
     </div>
   );
 }
+

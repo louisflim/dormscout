@@ -253,6 +253,52 @@
 .listing-select { height: 44px; }
 .listing-textarea { height: 100px; resize: vertical; }
 
+/* Price input with ₱ symbol */
+.listing-price-wrap {
+  display: flex;
+  align-items: center;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  height: 44px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.listing-wrapper.dark .listing-price-wrap {
+  border-color: #2a2a4a;
+}
+
+.listing-price-symbol {
+  padding: 0 10px;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #E8622E;
+  background: rgba(232, 98, 46, 0.07);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid #ccc;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.listing-wrapper.dark .listing-price-symbol {
+  border-right-color: #2a2a4a;
+  background: rgba(232, 98, 46, 0.12);
+}
+
+.listing-price-input {
+  border: none !important;
+  border-radius: 0 !important;
+  height: 100% !important;
+  flex: 1;
+}
+
+.listing-price-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
 .listing-wrapper.light .listing-input,
 .listing-wrapper.light .listing-select,
 .listing-wrapper.light .listing-textarea {

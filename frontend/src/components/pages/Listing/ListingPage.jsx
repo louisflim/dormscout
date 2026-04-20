@@ -5,6 +5,10 @@ import { useBooking } from '../../../context/BookingContext';
 import TenantManagement from './TenantManagement';
 import './ListingPage.css';
 
+function getLandlordProfile() {
+  try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
+}
+
 // eslint-disable-next-line no-unused-vars
 const PRIMARY    = '#E8622E'; // still needed for Leaflet map click handler (not JSX)
 const BLUE       = '#2563EB';
@@ -104,6 +108,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
   const [errors, setErrors]               = useState({});
   const [viewMode, setViewMode]           = useState(mode);
   const [selectedId, setSelectedId]       = useState(null);
+  const [landlordProfile, setLandlordProfile] = useState(getLandlordProfile);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef  = useRef(null);
@@ -115,6 +120,12 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
   const setField = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   useEffect(() => { setViewMode(mode); }, [mode]);
+
+  useEffect(() => {
+    function onProfileUpdate() { setLandlordProfile(getLandlordProfile()); }
+    window.addEventListener('dormscout:profileUpdated', onProfileUpdate);
+    return () => window.removeEventListener('dormscout:profileUpdated', onProfileUpdate);
+  }, []);
 
   useEffect(() => {
     if (editListingData) { startEdit(editListingData); if (onEditHandled) onEditHandled(); }
@@ -179,8 +190,17 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
 
   function validateForm() {
     const next = {};
-    if (!form.title?.trim()) next.title = 'Title is required';
-    if (!form.price || isNaN(Number(form.price))) next.price = 'Enter a numeric price';
+    if (!form.title?.trim())           next.title          = 'Title is required.';
+    if (!form.address?.trim())         next.address        = 'Address is required.';
+    if (!form.lat || !form.lng)        next.location       = 'Please pin a location on the map.';
+    if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0)
+                                       next.price          = 'Enter a valid price.';
+    if (!form.rooms)                   next.rooms          = 'Select a room type.';
+    if (!form.availableRooms)          next.availableRooms = 'Select available rooms.';
+    if (!form.genderPolicy)            next.genderPolicy   = 'Select a gender policy.';
+    if (!form.description?.trim())     next.description    = 'Description is required.';
+    const totalImages = (form.images?.length || 0) + imageFiles.length;
+    if (totalImages === 0)             next.images         = 'At least one photo is required.';
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -301,7 +321,29 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                           )}
 
                           <div className="listing-card-body">
-                            <div className="listing-card-title">{l.title}</div>
+                            <div className="listing-card-title">
+                              {l.title}
+                              {landlordProfile.isVerified && (
+                                <span title="Verified Landlord" style={{ marginLeft: '6px', fontSize: '0.82rem', color: '#16a34a' }}>✅</span>
+                              )}
+                            </div>
+                            {(() => {
+                              const ownerName = [landlordProfile.firstName, landlordProfile.lastName].filter(Boolean).join(' ');
+                              const biz = landlordProfile.businessName;
+                              return (
+                                <>
+                                  {ownerName && (
+                                    <div style={{ fontSize: '0.78rem', color: '#888', marginBottom: '2px' }}>
+                                      👤 {ownerName}
+                                      {landlordProfile.isVerified && <span style={{ marginLeft: '4px', color: '#16a34a' }}>✅</span>}
+                                    </div>
+                                  )}
+                                  {biz && (
+                                    <div style={{ fontSize: '0.78rem', color: '#E8622E', marginBottom: '2px' }}>🏢 {biz}</div>
+                                  )}
+                                </>
+                              );
+                            })()}
                             <div className="listing-card-address">{l.address}</div>
                             {l.university && (
                               <div className="listing-university-badge">🎓 {l.university}</div>
@@ -311,7 +353,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                 {l.genderPolicy === 'Girls Only' ? '♀️' : l.genderPolicy === 'Boys Only' ? '♂️' : '⚥'} {l.genderPolicy}
                               </div>
                             )}
-                            <div className="listing-card-price">₱{l.price}</div>
+                            <div className="listing-card-price">₱{Number(l.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                             <div className="listing-card-tags">
                               {(l.tags || []).map((tag, i) => (
                                 <span key={i} className="listing-tag">{tag}</span>
@@ -360,13 +402,25 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                     {errors.title && <div className="form-error">{errors.title}</div>}
                   </div>
                   <div className="form-field">
-                    <input className="listing-input" value={form.price} onChange={setField('price')} placeholder="Price (e.g., 3500)" />
+                    <div className="listing-price-wrap">
+                      <span className="listing-price-symbol">₱</span>
+                      <input
+                        className="listing-input listing-price-input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.price}
+                        onChange={setField('price')}
+                        placeholder="0.00"
+                      />
+                    </div>
                     {errors.price && <div className="form-error">{errors.price}</div>}
                   </div>
                 </div>
 
                 <div className="form-mt">
                   <input className="listing-input" value={form.address} onChange={setField('address')} placeholder="Address / Location Name" />
+                  {errors.address && <div className="form-error">{errors.address}</div>}
                 </div>
 
                 <div className="listing-map-container">
@@ -377,6 +431,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                   <p className="listing-map-hint-text">Click on the map to pin the location.</p>
                   <span className="listing-cebu-badge">⚠️ Cebu City Only</span>
                 </div>
+                {errors.location && <div className="form-error">{errors.location}</div>}
 
                 <div className="form-row-2 form-mt">
                   <div>
@@ -389,6 +444,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                       <option value="Studio Room">Studio Room</option>
                       <option value="Loft Room">Loft Room</option>
                     </select>
+                    {errors.rooms && <div className="form-error">{errors.rooms}</div>}
                   </div>
                   <div>
                     <select className="listing-select" value={form.availableRooms} onChange={setField('availableRooms')}>
@@ -399,6 +455,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                       <option value="4">4 Rooms</option>
                       <option value="5">5 Rooms</option>
                     </select>
+                    {errors.availableRooms && <div className="form-error">{errors.availableRooms}</div>}
                   </div>
                 </div>
 
@@ -421,14 +478,17 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                       </button>
                     ))}
                   </div>
+                  {errors.genderPolicy && <div className="form-error">{errors.genderPolicy}</div>}
                 </div>
 
                 <textarea className="listing-textarea form-mt" value={form.description} onChange={setField('description')} placeholder="Short description" />
+                {errors.description && <div className="form-error">{errors.description}</div>}
 
                 <div className="form-mt">
-                  <label className="listing-upload-label">Upload images (max 3)</label>
+                  <label className="listing-upload-label">Upload images (max 3) <span style={{ color: '#e53e3e' }}>*</span></label>
                   <input className="listing-input" value={form.tags} onChange={setField('tags')} placeholder="Tags (comma separated)" style={{ marginBottom: 12 }} />
                   <input type="file" accept="image/*" multiple onChange={handleFileChange} />
+                  {errors.images && <div className="form-error" style={{ marginTop: 6 }}>{errors.images}</div>}
                   <div className="listing-image-previews">
                     {previewUrls.map((url, idx) => (
                       <div key={`preview-${idx}`} className="listing-image-thumb">
@@ -474,3 +534,4 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     </div>
   );
 }
+

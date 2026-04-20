@@ -23,3 +23,5 @@ export default function AuthCard({ title, userType, fields, buttonText }) {
     </main>
   );
 }
+
+

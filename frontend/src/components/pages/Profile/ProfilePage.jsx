@@ -69,7 +69,7 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
             fontFamily: 'inherit',
           }}
           aria-label="Go to Overview"
-          onClick={() => navigate('/dashboard?section=overview')}
+          onClick={() => navigate('/dashboard')}
         >
           DormScout
         </button>
@@ -95,7 +95,7 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
               </div>
 
               {[
-                { label: '⚙️ Profile Settings', path: '/dashboard?section=settings' },
+                { label: '⚙️ Profile Settings', path: '/settings' },
                 { label: '❓ Help and Support',  path: '/support' },
                 { label: 'ℹ️ About Us',           path: '/about' },
               ].map(({ label, path }) => (
@@ -240,3 +240,4 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
     </div>
   );
 }
+

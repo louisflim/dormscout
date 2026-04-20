@@ -521,3 +521,4 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
     </main>
   );
 }
+

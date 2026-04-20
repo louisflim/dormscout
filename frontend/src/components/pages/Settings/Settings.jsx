@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import './Settings.css';
 
 const PRIMARY = '#E8622E';
@@ -65,7 +64,6 @@ const InputField = ({ label, type = 'text', value, onChange, placeholder, colors
 
 /* ─────────────────────────── Settings ───────────────────────── */
 export default function Settings({ userType = 'tenant', darkMode = false, setDarkMode }) {
-  const [searchParams] = useSearchParams();
   const dk = darkMode;
 
   const colors = {
@@ -79,14 +77,18 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
 
   const isLandlord = userType === 'landlord';
 
-  const tabFromUrl = searchParams.get('tab') || 'profile';
-  const [activeSettingTab, setActiveSettingTab] = useState(tabFromUrl);
+  const [activeSettingTab, setActiveSettingTab] = useState('profile');
+
+  // Load saved profile from localStorage on mount
+  const savedProfile = (() => {
+    try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
+  })();
 
   // Profile fields
-  const [firstName,       setFirstName]       = useState('');
-  const [lastName,        setLastName]         = useState('');
-  const [email,           setEmail]            = useState('');
-  const [phoneNumber,     setPhoneNumber]      = useState('');
+  const [firstName,       setFirstName]       = useState(savedProfile.firstName       || '');
+  const [lastName,        setLastName]         = useState(savedProfile.lastName        || '');
+  const [email,           setEmail]            = useState(savedProfile.email           || '');
+  const [phoneNumber,     setPhoneNumber]      = useState(savedProfile.phoneNumber     || '');
   const [university,      setUniversity]       = useState('');
   const [course,          setCourse]           = useState('');
   const [yearLevel,       setYearLevel]        = useState('');
@@ -94,8 +96,9 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
   const [currentPassword, setCurrentPassword]  = useState('');
   const [newPassword,     setNewPassword]      = useState('');
   const [confirmPassword, setConfirmPassword]  = useState('');
-  const [businessName,    setBusinessName]     = useState('');
-  const [businessPermit,  setBusinessPermit]   = useState('');
+  const [businessName,    setBusinessName]     = useState(savedProfile.businessName    || '');
+  const [businessPermit,  setBusinessPermit]   = useState(savedProfile.businessPermit  || '');
+  const [isVerified,      setIsVerified]       = useState(savedProfile.isVerified      || false);
 
   // App settings
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -107,6 +110,21 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
     background: activeSettingTab === tab ? PRIMARY : colors.tabBg,
     color:      activeSettingTab === tab ? '#fff'  : colors.text,
   });
+
+  function saveLandlordProfile(extra = {}) {
+    const profile = { firstName, lastName, email, phoneNumber, businessName, businessPermit, isVerified, ...extra };
+    try { localStorage.setItem('dormscout_landlord_profile', JSON.stringify(profile)); } catch (_) {}
+    window.dispatchEvent(new Event('dormscout:profileUpdated'));
+  }
+
+  function handleVerify() {
+    if (!businessName.trim() || !businessPermit.trim()) {
+      alert('Please fill in both Business Name and Business Permit Number before verifying.'); return;
+    }
+    setIsVerified(true);
+    saveLandlordProfile({ isVerified: true });
+    alert('Business verified successfully! ✓');
+  }
 
   const UNIVERSITIES = [
     'Cebu Institute of Technology - University',
@@ -174,12 +192,18 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
               <InputField label="Email"        type="email" value={email}        onChange={(e) => setEmail(e.target.value)}        placeholder="john@example.com"   colors={colors} />
               <InputField label="Phone Number" type="tel"   value={phoneNumber}  onChange={(e) => setPhoneNumber(e.target.value)}  placeholder="+63 9XX XXX XXXX"   colors={colors} />
             </div>
-            <button className="btn-primary btn-primary--mt">Save Changes</button>
+            <button className="btn-primary btn-primary--mt" onClick={() => saveLandlordProfile()}>Save Changes</button>
           </SettingSection>
 
           {/* Landlord: Business Information */}
           {isLandlord && (
             <SettingSection title="Business Information" colors={colors}>
+              {isVerified && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '8px 12px', background: 'rgba(34,197,94,0.1)', borderRadius: '8px', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  <span style={{ fontSize: '1.1rem' }}>✅</span>
+                  <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.9rem' }}>Verified Business</span>
+                </div>
+              )}
               <div className="settings-grid-2 settings-grid-2--mb">
                 <InputField label="Business Name"          value={businessName}   onChange={(e) => setBusinessName(e.target.value)}   placeholder="Enter business name"   colors={colors} />
                 <InputField label="Business Permit Number" value={businessPermit} onChange={(e) => setBusinessPermit(e.target.value)} placeholder="Enter permit number"    colors={colors} />
@@ -187,7 +211,9 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
               <p className="settings-verify-hint" style={{ color: colors.secondaryText }}>
                 Fill in your business details to be verified as a legitimate landlord
               </p>
-              <button className="btn-primary btn-primary--mt">Verify</button>
+              <button className="btn-primary btn-primary--mt" onClick={handleVerify}>
+                {isVerified ? '✓ Verified' : 'Verify'}
+              </button>
             </SettingSection>
           )}
 
@@ -274,3 +300,4 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
     </div>
   );
 }
+

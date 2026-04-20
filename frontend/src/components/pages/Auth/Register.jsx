@@ -110,3 +110,4 @@ export default function Register({ setUserType }) {
     </main>
   );
 }
+

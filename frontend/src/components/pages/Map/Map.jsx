@@ -1,5 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useBooking } from '../../../context/BookingContext';
@@ -96,6 +97,34 @@ const matchesUni = (u, s) =>
   (u.name && u.name.toLowerCase().includes(s)) ||
   (u.abbr && u.abbr.toLowerCase().includes(s));
 
+function getReviewStats(listingId) {
+  try {
+    const all = JSON.parse(localStorage.getItem('dormscout_listing_reviews') || '{}');
+    const reviews = all[listingId] || [];
+    if (!reviews.length) return { avg: 0, count: 0 };
+    const avg = reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length;
+    return { avg, count: reviews.length };
+  } catch (_) { return { avg: 0, count: 0 }; }
+}
+
+function StarDisplay({ rating, count }) {
+  const full  = Math.floor(rating);
+  const half  = rating - full >= 0.5;
+  const empty = 5 - full - (half ? 1 : 0);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+      <span style={{ color: '#f59e0b', fontSize: '1rem', letterSpacing: '1px' }}>
+        {'★'.repeat(full)}
+        {half ? '½' : ''}
+        {'☆'.repeat(empty < 0 ? 0 : empty)}
+      </span>
+      <span style={{ fontSize: '0.82rem', color: '#888' }}>
+        {count > 0 ? `${rating.toFixed(1)} (${count} review${count !== 1 ? 's' : ''})` : 'No reviews yet'}
+      </span>
+    </div>
+  );
+}
+
 export default function Map({ darkMode = false, userType = 'tenant', onEditListing }) {
   const mapRef        = useRef(null);
   const mapInstance   = useRef(null);
@@ -107,9 +136,22 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [search, setSearch]               = useState('');
   const [bookingStep, setBookingStep]     = useState('info');
   const [moveInDate, setMoveInDate]       = useState('');
+  const [landlordProfile, setLandlordProfile] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
+  });
 
   const { createBooking } = useBooking();
+  const navigate = useNavigate();
   const theme = darkMode ? 'dark' : 'light';
+
+  // Reload landlord profile when it updates
+  useEffect(() => {
+    function onProfileUpdate() {
+      try { setLandlordProfile(JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}')); } catch (_) {}
+    }
+    window.addEventListener('dormscout:profileUpdated', onProfileUpdate);
+    return () => window.removeEventListener('dormscout:profileUpdated', onProfileUpdate);
+  }, []);
 
   useEffect(() => {
     function loadListings() {
@@ -256,8 +298,28 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                   mapInstance.current.setView([listing.lat, listing.lng], 15);
               }}
             >
-              <div className="map-listing-card-title">{listing.title}</div>
+              <div className="map-listing-card-title">
+                {listing.title}
+                {landlordProfile.isVerified && (
+                  <span title="Verified Landlord" style={{ marginLeft: '6px', color: '#16a34a', fontSize: '0.85rem' }}>✅</span>
+                )}
+              </div>
+              {landlordProfile.businessName && (
+                <div style={{ fontSize: '0.78rem', color: '#E8622E', fontWeight: 600, marginBottom: '2px' }}>
+                  🏢 {landlordProfile.businessName}
+                </div>
+              )}
               <div className="map-listing-card-address">{listing.address}</div>
+              {(() => {
+                const { avg, count } = getReviewStats(listing.id);
+                if (!count) return null;
+                return (
+                  <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginTop: '2px' }}>
+                    {'★'.repeat(Math.floor(avg))}{'☆'.repeat(5 - Math.floor(avg))}{' '}
+                    <span style={{ color: '#888' }}>({count})</span>
+                  </div>
+                );
+              })()}
             </button>
           ))
         )}
@@ -281,10 +343,40 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
               <h2 className="map-modal-title">{selectedListing.title}</h2>
               <p className="map-modal-address">{selectedListing.address}</p>
 
+              {/* Owner / Business Info */}
+              {(() => {
+                const ownerName = [landlordProfile.firstName, landlordProfile.lastName].filter(Boolean).join(' ');
+                const biz       = landlordProfile.businessName;
+                const verified  = landlordProfile.isVerified;
+                if (!ownerName && !biz) return null;
+                return (
+                  <div style={{ margin: '4px 0 10px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    {ownerName && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontWeight: 600 }}>
+                        <span>👤 {ownerName}</span>
+                        {verified && <span title="Verified Landlord" style={{ color: '#16a34a', fontSize: '1rem' }}>✅</span>}
+                      </div>
+                    )}
+                    {biz && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#666' }}>
+                        <span>🏢 {biz}</span>
+                        {verified && !ownerName && <span title="Verified Business" style={{ color: '#16a34a' }}>✅</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Stars & Reviews */}
+              {(() => {
+                const { avg, count } = getReviewStats(selectedListing.id);
+                return <div style={{ marginBottom: '12px' }}><StarDisplay rating={avg} count={count} /></div>;
+              })()}
+
               <div className="map-modal-details-grid">
                 <div>
                   <p className="map-modal-detail-label">Price</p>
-                  <p className="map-modal-detail-value price">₱{selectedListing.price}</p>
+                  <p className="map-modal-detail-value price">₱{Number(selectedListing.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div>
                   <p className="map-modal-detail-label">Rooms</p>
@@ -315,8 +407,8 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                       <button className="map-btn-contact" onClick={() => alert('Contact landlord functionality coming soon!')}>
                         💬 Contact Landlord
                       </button>
-                      <button className="map-btn-report" onClick={() => alert('Report functionality coming soon!')}>
-                        Report Listing
+                      <button className="map-btn-report" onClick={() => navigate('/report')}>
+                        🚩 Report Listing
                       </button>
                     </>
                   )}
@@ -393,3 +485,4 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     </div>
   );
 }
+
