@@ -10,7 +10,81 @@ const DORMS = [
 
 const STORAGE_KEY = 'dormscout_reviews';
 
-const PLACEHOLDER_REVIEWS = [];
+//once backend is ready, this will be replaced with API call and set back to []
+const PLACEHOLDER_REVIEWS = [
+  {
+    id: 101,
+    dormId: 1,
+    author: 'Anna Reyes',
+    avatar: 'AR',
+    date: 'March 10, 2025',
+    rating: 5,
+    tags: ['Clean', 'Safe', 'Fast WiFi'],
+    body: 'Really great place to stay. Management is very responsive and the rooms are always clean. Highly recommend for students near USC.',
+    helpful: 12,
+    userMarkedHelpful: false,
+  },
+  {
+    id: 102,
+    dormId: 1,
+    author: 'Carlo Mendoza',
+    avatar: 'CM',
+    date: 'February 22, 2025',
+    rating: 4,
+    tags: ['Affordable', 'Quiet'],
+    body: 'Good value for money. A bit far from the main road but overall a peaceful place to study. No major issues during my stay.',
+    helpful: 7,
+    userMarkedHelpful: false,
+  },
+  {
+    id: 103,
+    dormId: 1,
+    author: 'Girlie Tupa',
+    avatar: 'GT',
+    date: 'January 15, 2025',
+    rating: 3,
+    tags: ['Average', 'Noisy at Night'],
+    body: 'The room itself is fine but the common area gets noisy late at night. Management could enforce curfew rules more strictly. Decent price for the area though.',
+    helpful: 5,
+    userMarkedHelpful: false,
+  },
+  {
+    id: 104,
+    dormId: 2,
+    author: 'Angel Beats',
+    avatar: 'AB',
+    date: 'February 28, 2025',
+    rating: 4,
+    tags: ['Affordable', 'Quiet'],
+    body: 'Green Leaf is a hidden gem. Very quiet environment perfect for reviewing. The landlord is accommodating and repairs are done quickly.',
+    helpful: 9,
+    userMarkedHelpful: false,
+  },
+  {
+    id: 105,
+    dormId: 2,
+    author: 'Bea Santos',
+    avatar: 'BS',
+    date: 'January 5, 2025',
+    rating: 3,
+    tags: ['Average'],
+    body: 'Decent place but WiFi could be better. Location is convenient being near Gorordo Ave. Would stay again if the internet improves.',
+    helpful: 3,
+    userMarkedHelpful: false,
+  },
+  {
+    id: 106,
+    dormId: 3,
+    author: 'Marco Villanueva',
+    avatar: 'MV',
+    date: 'March 18, 2025',
+    rating: 5,
+    tags: ['Modern', 'Secure', 'Great Location'],
+    body: 'BlueSky is by far the best dorm I have stayed in. Modern facilities, 24/7 security, and the location along Salinas Drive is very convenient.',
+    helpful: 20,
+    userMarkedHelpful: false,
+  },
+];
 
 // Storage helper
 const Storage = {
@@ -38,6 +112,7 @@ function initializeReviewsStorage() {
     Storage.set(STORAGE_KEY, PLACEHOLDER_REVIEWS);
   }
 }
+
 
 const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 const BADGE_CLASSES = ['', 'poor', 'fair', 'good', 'very-good', 'excellent'];
@@ -316,7 +391,7 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
 
   // Get actual dorms from listings (landlord) or from bookings (tenant)
   const getAvailableDorms = () => {
-    if (userType === 'landlord' && user?.listings) {
+    if (userType === 'landlord' && user?.listings?.length > 0) {
       return user.listings.map((listing, idx) => ({
         id: listing.id || idx,
         name: listing.name,
@@ -340,6 +415,14 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
   };
 
   const availableDorms = getAvailableDorms();
+
+  const canWriteReview = () => {
+    if (!user || userType !== 'tenant') return false;
+    if (!user?.bookings?.length) return false;
+    return user.bookings.some(
+      b => b.listingId === selectedDorm || b.dormName === selectedDorm
+    );
+  };
 
   const [reviews, setReviews] = useState(() => Storage.get(STORAGE_KEY) || PLACEHOLDER_REVIEWS);
   const [selectedDorm, setSelectedDorm] = useState(availableDorms.length > 0 ? availableDorms[0].id : DORMS[0].id);
@@ -423,131 +506,138 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
 
   return (
     <main className="reviews-page" style={{ background: colors.bg, color: colors.text }}>
-      {/* Show message if no dorms available */}
-      {availableDorms.length === 0 ? (
-        <div style={{ padding: '40px 20px', textAlign: 'center', color: colors.secondaryText }}>
-          <p>No dorms to review. {userType === 'landlord' ? 'Create a listing' : 'Book a dorm'} to start reviewing.</p>
+
+      <div className="dorm-selector" style={{ background: colors.cardBg, borderColor: colors.border }}>
+        <label className="dorm-selector-label" style={{ color: colors.secondaryText }}>Select Dorm</label>
+        <div className="dorm-selector-list">
+          {availableDorms.map(dorm => (
+            <button
+              key={dorm.id}
+              className={`dorm-btn ${selectedDorm === dorm.id ? 'active' : ''}`}
+              onClick={() => { setSelectedDorm(dorm.id); setFilterRating(0); }}
+              style={{
+                background: darkMode ? '#0f3460' : '#fafafa',
+                borderColor: darkMode ? '#2a2a4a' : '#e5e5e5',
+                color: colors.text,
+              }}
+            >
+              <div className="dorm-btn-name" style={{ color: selectedDorm === dorm.id ? '#e8622e' : colors.text }}>{dorm.name}</div>
+              <div className="dorm-btn-address" style={{ color: colors.secondaryText }}>{dorm.address}</div>
+            </button>
+          ))}
         </div>
-      ) : (
-        <>
-          <div className="dorm-selector" style={{ background: colors.cardBg, borderColor: colors.border }}>
-            <label className="dorm-selector-label" style={{ color: colors.secondaryText }}>Select Dorm</label>
-            <div className="dorm-selector-list">
-              {availableDorms.map(dorm => (
-                <button
-                  key={dorm.id}
-                  className={`dorm-btn ${selectedDorm === dorm.id ? 'active' : ''}`}
-                  onClick={() => { setSelectedDorm(dorm.id); setFilterRating(0); }}
-                  style={{
-                    background: darkMode ? '#0f3460' : '#fafafa',
-                    borderColor: darkMode ? '#2a2a4a' : '#e5e5e5',
-                    color: colors.text,
-                  }}
-                >
-                  <div className="dorm-btn-name" style={{ color: selectedDorm === dorm.id ? '#e8622e' : colors.text }}>{dorm.name}</div>
-                  <div className="dorm-btn-address" style={{ color: colors.secondaryText }}>{dorm.address}</div>
-                </button>
-              ))}
-            </div>
+      </div>
+
+      {/* Rating Summary + Write Review */}
+      <div className="rating-summary" style={{ background: colors.cardBg, borderColor: colors.border }}>
+        <div className="rating-score">
+          <div className="rating-score-number" style={{ color: colors.text }}>{avgRating}</div>
+          <StarRating value={Math.round(avgRating)} size={18} readonly />
+          <div className="rating-score-count" style={{ color: colors.secondaryText }}>
+            {dormReviews.length} review{dormReviews.length !== 1 ? 's' : ''}
           </div>
+        </div>
 
-          {/* Rating Summary + Write Review */}
-          <div className="rating-summary" style={{ background: colors.cardBg, borderColor: colors.border }}>
-            <div className="rating-score">
-              <div className="rating-score-number" style={{ color: colors.text }}>{avgRating}</div>
-              <StarRating value={Math.round(avgRating)} size={18} readonly />
-              <div className="rating-score-count" style={{ color: colors.secondaryText }}>
-                {dormReviews.length} review{dormReviews.length !== 1 ? 's' : ''}
-              </div>
-            </div>
+        <div className="rating-bars">
+          {ratingCounts.map(({ star, count }) => (
+            <RatingBar key={star} label={star} count={count} total={dormReviews.length} darkMode={darkMode} />
+          ))}
+        </div>
 
-            <div className="rating-bars">
-              {ratingCounts.map(({ star, count }) => (
-                <RatingBar key={star} label={star} count={count} total={dormReviews.length} darkMode={darkMode} />
-              ))}
-            </div>
-
-            {userType === 'tenant' && (
-              <button className="write-review-btn" onClick={() => setShowModal(true)}>
+        {userType === 'tenant' && (
+          canWriteReview() ? (
+            <button className="write-review-btn" onClick={() => setShowModal(true)}>
+              ✏️ Write a<br />Review
+            </button>
+          ) : (
+            <div style={{ textAlign: 'center', maxWidth: 100 }}>
+              <button
+                className="write-review-btn"
+                style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                onClick={() => {}}
+                title="Book this dorm first to write a review"
+              >
                 ✏️ Write a<br />Review
               </button>
-            )}
-          </div>
-
-          {/* Filters & Sort */}
-          <div className="reviews-controls">
-            <span className="filter-label" style={{ color: colors.secondaryText }}>Filter:</span>
-            {[0, 5, 4, 3, 2, 1].map(n => (
-              <button
-                key={n}
-                className={`filter-btn ${filterRating === n ? 'active' : ''}`}
-                onClick={() => setFilterRating(n)}
-                style={{
-                  background: darkMode ? '#0f3460' : '#fff',
-                  borderColor: darkMode ? '#2a2a4a' : '#ddd',
-                  color: darkMode ? '#ffffff' : '#666',
-                }}
-              >
-                {n === 0 ? 'All' : `${n}★`}
-              </button>
-            ))}
-
-            <div className="sort-wrapper">
-              <span className="sort-label" style={{ color: colors.secondaryText }}>Sort:</span>
-              <select
-                className="sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                style={{
-                  background: darkMode ? '#0f3460' : '#fff',
-                  borderColor: darkMode ? '#2a2a4a' : '#ddd',
-                  color: darkMode ? '#ffffff' : '#555',
-                }}
-              >
-                <option value="newest">Newest</option>
-                <option value="highest">Highest Rated</option>
-                <option value="lowest">Lowest Rated</option>
-                <option value="helpful">Most Helpful</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Review List */}
-          {displayed.length > 0 ? (
-            <div className="review-list">
-              {displayed.map(review => (
-                <ReviewCard key={review.id} review={review} onHelpful={handleHelpful} darkMode={darkMode} colors={colors} />
-              ))}
-            </div>
-          ) : (
-            <div className="reviews-empty" style={{ background: colors.cardBg, borderColor: colors.border }}>
-              <div className="reviews-empty-icon">💬</div>
-              <h3 style={{ color: colors.text }}>No reviews yet</h3>
-              <p style={{ color: colors.secondaryText }}>
-                {filterRating !== 0
-                  ? 'No reviews match this filter.'
-                  : 'Be the first to review this dorm!'}
+              <p style={{ color: colors.secondaryText, fontSize: 11, marginTop: 6 }}>
+                Book this dorm first
               </p>
-              {userType === 'tenant' && filterRating === 0 && (
-                <button className="reviews-empty-btn" onClick={() => setShowModal(true)}>
-                  Write the First Review
-                </button>
-              )}
             </div>
-          )}
+          )
+        )}
+      </div>
 
-          {/* Modal */}
-          {showModal && (
-            <WriteReviewModal
-              dormName={currentDorm.name}
-              onClose={() => setShowModal(false)}
-              onSubmit={handleSubmitReview}
-              darkMode={darkMode}
-            />
+      {/* Filters & Sort */}
+      <div className="reviews-controls">
+        <span className="filter-label" style={{ color: colors.secondaryText }}>Filter:</span>
+        {[0, 5, 4, 3, 2, 1].map(n => (
+          <button
+            key={n}
+            className={`filter-btn ${filterRating === n ? 'active' : ''}`}
+            onClick={() => setFilterRating(n)}
+            style={{
+              background: darkMode ? '#0f3460' : '#fff',
+              borderColor: darkMode ? '#2a2a4a' : '#ddd',
+              color: darkMode ? '#ffffff' : '#666',
+            }}
+          >
+            {n === 0 ? 'All' : `${n}★`}
+          </button>
+        ))}
+
+        <div className="sort-wrapper">
+          <span className="sort-label" style={{ color: colors.secondaryText }}>Sort:</span>
+          <select
+            className="sort-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            style={{
+              background: darkMode ? '#0f3460' : '#fff',
+              borderColor: darkMode ? '#2a2a4a' : '#ddd',
+              color: darkMode ? '#ffffff' : '#555',
+            }}
+          >
+            <option value="newest">Newest</option>
+            <option value="highest">Highest Rated</option>
+            <option value="lowest">Lowest Rated</option>
+            <option value="helpful">Most Helpful</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Review List */}
+      {displayed.length > 0 ? (
+        <div className="review-list">
+          {displayed.map(review => (
+            <ReviewCard key={review.id} review={review} onHelpful={handleHelpful} darkMode={darkMode} colors={colors} />
+          ))}
+        </div>
+      ) : (
+        <div className="reviews-empty" style={{ background: colors.cardBg, borderColor: colors.border }}>
+          <div className="reviews-empty-icon">💬</div>
+          <h3 style={{ color: colors.text }}>No reviews yet</h3>
+          <p style={{ color: colors.secondaryText }}>
+            {filterRating !== 0
+              ? 'No reviews match this filter.'
+              : 'Be the first to share your experience!'}
+          </p>
+          {canWriteReview() && filterRating === 0 && (
+            <button className="reviews-empty-btn" onClick={() => setShowModal(true)}>
+              Write the First Review
+            </button>
           )}
-        </>
+        </div>
+      )}
+
+      {/* Modal */}
+      {showModal && (
+        <WriteReviewModal
+          dormName={currentDorm.name}
+          onClose={() => setShowModal(false)}
+          onSubmit={handleSubmitReview}
+          darkMode={darkMode}
+        />
       )}
     </main>
   );
 }
-
