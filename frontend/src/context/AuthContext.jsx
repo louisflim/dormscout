@@ -211,7 +211,7 @@ export const AuthProvider = ({ children }) => {
     if (!user || user.userType !== 'tenant') return;
 
     const newBooking = {
-      id: Date.now(),
+      id: booking.id || Date.now(),
       ...booking,
       status: 'pending',
       bookedAt: new Date().toISOString(),

@@ -137,6 +137,67 @@ export function BookingProvider({ children }) {
     } catch (_) { /* ignore */ }
   }
 
+  function _removeBookingFromDormScoutUsers(booking) {
+    if (!booking) return;
+    try {
+      const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
+      let changed = false;
+
+      const updatedUsers = users.map(u => {
+        const sameUser =
+          (booking.tenantId && String(u.id) === String(booking.tenantId)) ||
+          (booking.tenantEmail && u.email === booking.tenantEmail);
+        if (!sameUser) return u;
+
+        const nextBookings = (u.bookings || []).filter(b => {
+          const sameById = booking.id && String(b.id) === String(booking.id);
+          const sameByListingId = booking.listingId && String(b.listingId) === String(booking.listingId);
+          const sameByTitle = booking.listingTitle && (b.dormName || b.title) === booking.listingTitle;
+          return !(sameById || sameByListingId || sameByTitle);
+        });
+
+        if (nextBookings.length !== (u.bookings || []).length) changed = true;
+        return { ...u, bookings: nextBookings };
+      });
+
+      if (changed) {
+        localStorage.setItem('dormScoutUsers', JSON.stringify(updatedUsers));
+
+        const sessionUser = JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
+        if (sessionUser) {
+          const updated = updatedUsers.find(u => u.id === sessionUser.id);
+          if (updated) {
+            localStorage.setItem('dormScoutUser', JSON.stringify(updated));
+            window.dispatchEvent(new StorageEvent('storage', {
+              key: 'dormScoutUser',
+              newValue: JSON.stringify(updated),
+              storageArea: localStorage,
+            }));
+          }
+        }
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  function _removeFromSharedBookings(booking) {
+    if (!booking) return;
+    try {
+      const sharedBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+      const filtered = sharedBookings.filter(b => {
+        const sameById = booking.id && String(b.id) === String(booking.id);
+        const sameByTenant =
+          (booking.tenantId && String(b.tenantId) === String(booking.tenantId)) ||
+          (booking.tenantEmail && b.tenantEmail === booking.tenantEmail);
+        const sameByListing =
+          (booking.listingId && String(b.listingId) === String(booking.listingId)) ||
+          (booking.listingTitle && (b.listingName || b.listingTitle) === booking.listingTitle);
+
+        return !(sameById || (sameByTenant && sameByListing));
+      });
+      localStorage.setItem('bookings', JSON.stringify(filtered));
+    } catch (_) { /* ignore */ }
+  }
+
   // --- ADD NOTIFICATION ---
   function addNotification(notif) {
     setNotifications(prev => [{
@@ -321,6 +382,9 @@ export function BookingProvider({ children }) {
         listingId: booking.listingId,
         forRole:   'tenant',
       });
+
+      _removeFromSharedBookings(booking);
+      _removeBookingFromDormScoutUsers(booking);
     }
   }
 
@@ -330,6 +394,7 @@ export function BookingProvider({ children }) {
     setTenants(prev => prev.filter(t => t.id !== tenantRecordId));
 
     if (tenantRecord) {
+      const booking = bookings.find(b => b.id === tenantRecord.bookingId);
       setBookings(prev => prev.filter(b => b.id !== tenantRecord.bookingId));
 
       const reasonSuffix  = reason     ? ` Reason: ${reason}`               : '';
@@ -347,6 +412,9 @@ export function BookingProvider({ children }) {
         message: `You removed ${tenantRecord.tenantName} from the listing.${reasonSuffix}${moveOutSuffix}`,
         forRole: 'landlord',
       });
+
+      _removeFromSharedBookings(booking);
+      _removeBookingFromDormScoutUsers(booking);
     }
   }
 

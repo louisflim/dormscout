@@ -304,7 +304,7 @@ export default function BookingPage({ darkMode = false }) {
                 </button>
                 {selectedBooking.landlordId && (
                   <button className="btn-contact-landlord" onClick={() => {
-                    navigate('/dashboard?section=messages', {
+                    navigate('/messages', {
                       state: {
                         contactLandlord: {
                           id:     selectedBooking.landlordId,

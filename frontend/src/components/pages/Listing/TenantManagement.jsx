@@ -208,7 +208,7 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
                     Remove
                   </button>
                   <button
-                    onClick={() => navigate('/dashboard?section=messages', { state: { contactTenant: { id: t.tenantId, name: t.tenantName, avatar: t.tenantAvatar || (t.tenantName || 'T').charAt(0) } } })}
+                    onClick={() => navigate('/messages', { state: { contactTenant: { id: t.tenantId, name: t.tenantName, avatar: t.tenantAvatar || (t.tenantName || 'T').charAt(0) } } })}
                     style={{ padding: '5px 12px', background: '#5BADA8', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
                   >
                     💬 Message

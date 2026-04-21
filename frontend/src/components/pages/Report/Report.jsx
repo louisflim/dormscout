@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { User, Settings as SettingsIcon, HelpCircle, Info, Moon, Sun, LogOut } from 'lucide-react';
+import { User, HelpCircle, Info, Moon, Sun, LogOut } from 'lucide-react';
 import './Report.css';
 
 const TENANT_REPORT_TYPES = ['Listing', 'Landlord'];
@@ -14,23 +14,42 @@ const REASONS_MAP = {
 
 const STORAGE_KEY = 'dormscout_reports';
 
-export default function Report({ userType = 'tenant', darkMode = false }) {
+const COLORS = {
+  light: {
+    bg:            'linear-gradient(120deg, #d7ebe9 0%, #e8d8c8 55%, #f6dfc9 100%)',
+    navBg:         '#fff',
+    text:          '#333',
+    secondaryText: '#666',
+    border:        '#f0f0f0',
+    inputBg:       '#fff',
+    cardBg:        '#fff',
+  },
+  dark: {
+    bg:            '#1a1a2e',
+    navBg:         '#16213e',
+    text:          '#eaeaea',
+    secondaryText: '#a0a0b0',
+    border:        '#2a2a4a',
+    inputBg:       '#0f3460',
+    cardBg:        '#16213e',
+  },
+};
+
+export default function Report({ userType = 'tenant', darkMode = false, setDarkMode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const stateUserType = location.state?.userType;
   const stateSubject  = location.state?.subject || '';
 
   const resolvedUserType = stateUserType || userType;
-  const dk = darkMode;
-  const colors = {
-    bg:            dk ? '#1a1a2e' : 'linear-gradient(120deg, #d7ebe9 0%, #e8d8c8 55%, #f6dfc9 100%)',
-    navBg:         dk ? '#16213e' : '#fff',
-    text:          dk ? '#eaeaea' : '#1a1a2e',
-    secondaryText: dk ? '#a0a0b0' : '#555',
-    border:        dk ? '#2a2a4a' : '#e0e0e0',
-    inputBg:       dk ? '#0f3460' : '#fff',
-    cardBg:        dk ? '#16213e' : '#fff',
-  };
+  const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
+
+  useEffect(() => {
+    setLocalDarkMode(Boolean(darkMode));
+  }, [darkMode]);
+
+  const dk = typeof setDarkMode === 'function' ? Boolean(darkMode) : localDarkMode;
+  const colors = dk ? COLORS.dark : COLORS.light;
 
   const availableTypes = resolvedUserType === 'landlord' ? LANDLORD_REPORT_TYPES : TENANT_REPORT_TYPES;
 
@@ -101,7 +120,7 @@ export default function Report({ userType = 'tenant', darkMode = false }) {
     reader.onload = () => {
       const report = {
         id:          Date.now(),
-        reporterType: userType,
+        reporterType: resolvedUserType,
         reportType,
         subject:     subject.trim(),
         reason,
@@ -129,13 +148,29 @@ export default function Report({ userType = 'tenant', darkMode = false }) {
     setReportType(availableTypes[0]);
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('dormScoutUser');
+    localStorage.removeItem('userType');
+    navigate('/');
+  };
+
+  const toggleDarkMode = () => {
+    const nextMode = !dk;
+    if (typeof setDarkMode === 'function') {
+      setDarkMode(nextMode);
+    } else {
+      setLocalDarkMode(nextMode);
+    }
+    setShowDropdown(false);
+  };
+
   if (submitted) {
     return (
-      <div className="report-page" style={{ background: colors.bg }}>
-        <nav className="report-nav" style={{ background: colors.navBg }}>
+      <div className={`report-page ${dk ? 'dark' : ''}`} style={{ background: colors.bg }}>
+        <nav className="dashboard-nav" style={{ background: colors.navBg }}>
           <button
-            className="report-nav-logo"
-            onClick={() => navigate('/dashboard')}
+            className="dashboard-nav-title-btn"
+            onClick={() => navigate('/overview')}
             style={{
               background: 'none', border: 'none', padding: 0, margin: 0,
               cursor: 'pointer', fontSize: 24, fontWeight: 700,
@@ -144,19 +179,15 @@ export default function Report({ userType = 'tenant', darkMode = false }) {
           >
             DormScout
           </button>
-          <div ref={dropdownRef} className="report-dropdown-wrap">
-            <div className="report-avatar" onClick={() => setShowDropdown(!showDropdown)}>
+          <div ref={dropdownRef} className="dashboard-dropdown-wrap">
+            <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
               <User size={20} color="#fff" />
             </div>
             {showDropdown && (
-              <div className="report-dropdown" style={{ background: colors.cardBg, borderColor: colors.border }}>
+              <div className="dashboard-dropdown" style={{ background: colors.cardBg, borderColor: colors.border }}>
                 <div className="dropdown-item dropdown-item-profile"
                   onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
                   <User size={15} /> My Profile
-                </div>
-                <div className="dropdown-item dropdown-item-default" style={{ color: colors.text, borderColor: colors.border }}
-                  onClick={() => { navigate('/settings'); setShowDropdown(false); }}>
-                  <SettingsIcon size={15} /> Profile Settings
                 </div>
                 <div className="dropdown-item dropdown-item-default" style={{ color: colors.text, borderColor: colors.border }}
                   onClick={() => { navigate('/support'); setShowDropdown(false); }}>
@@ -167,11 +198,11 @@ export default function Report({ userType = 'tenant', darkMode = false }) {
                   <Info size={15} /> About Us
                 </div>
                 <div className="dropdown-item dropdown-item-default dropdown-item-dark-toggle" style={{ color: colors.text, borderColor: colors.border }}
-                  onClick={() => {}}>
+                  onClick={toggleDarkMode}>
                   {dk ? <><Sun size={15} /> Light Mode</> : <><Moon size={15} /> Dark Mode</>}
                 </div>
                 <div className="dropdown-item dropdown-item-logout"
-                  onClick={() => { setShowDropdown(false); navigate('/'); }}>
+                  onClick={() => { setShowDropdown(false); handleLogout(); }}>
                   <LogOut size={15} /> Logout
                 </div>
               </div>
@@ -195,13 +226,13 @@ export default function Report({ userType = 'tenant', darkMode = false }) {
   }
 
   return (
-    <div className="report-page" style={{ background: colors.bg }}>
+    <div className={`report-page ${dk ? 'dark' : ''}`} style={{ background: colors.bg }}>
 
       {/* Nav */}
-      <nav className="report-nav" style={{ background: colors.navBg }}>
+      <nav className="dashboard-nav" style={{ background: colors.navBg }}>
         <button
-          className="report-nav-logo"
-          onClick={() => navigate('/dashboard')}
+          className="dashboard-nav-title-btn"
+          onClick={() => navigate('/overview')}
           style={{
             background: 'none', border: 'none', padding: 0, margin: 0,
             cursor: 'pointer', fontSize: 24, fontWeight: 700,
@@ -210,19 +241,15 @@ export default function Report({ userType = 'tenant', darkMode = false }) {
         >
           DormScout
         </button>
-        <div ref={dropdownRef} className="report-dropdown-wrap">
-          <div className="report-avatar" onClick={() => setShowDropdown(!showDropdown)}>
+        <div ref={dropdownRef} className="dashboard-dropdown-wrap">
+          <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
             <User size={20} color="#fff" />
           </div>
           {showDropdown && (
-            <div className="report-dropdown" style={{ background: colors.cardBg, borderColor: colors.border }}>
+            <div className="dashboard-dropdown" style={{ background: colors.cardBg, borderColor: colors.border }}>
               <div className="dropdown-item dropdown-item-profile"
                 onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
                 <User size={15} /> My Profile
-              </div>
-              <div className="dropdown-item dropdown-item-default" style={{ color: colors.text, borderColor: colors.border }}
-                onClick={() => { navigate('/settings'); setShowDropdown(false); }}>
-                <SettingsIcon size={15} /> Profile Settings
               </div>
               <div className="dropdown-item dropdown-item-default" style={{ color: colors.text, borderColor: colors.border }}
                 onClick={() => { navigate('/support'); setShowDropdown(false); }}>
@@ -233,11 +260,11 @@ export default function Report({ userType = 'tenant', darkMode = false }) {
                 <Info size={15} /> About Us
               </div>
               <div className="dropdown-item dropdown-item-default dropdown-item-dark-toggle" style={{ color: colors.text, borderColor: colors.border }}
-                onClick={() => {}}>
+                onClick={toggleDarkMode}>
                 {dk ? <><Sun size={15} /> Light Mode</> : <><Moon size={15} /> Dark Mode</>}
               </div>
               <div className="dropdown-item dropdown-item-logout"
-                onClick={() => { setShowDropdown(false); navigate('/'); }}>
+                onClick={() => { setShowDropdown(false); handleLogout(); }}>
                 <LogOut size={15} /> Logout
               </div>
             </div>
@@ -246,12 +273,12 @@ export default function Report({ userType = 'tenant', darkMode = false }) {
       </nav>
 
       <div className="report-wrapper">
-      <div className="report-container">
+  <div className="report-container" style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}>
 
         {/* Header */}
         <div className="report-header">
           <h2 className="report-title" style={{ color: colors.text }}>
-            🚩 Submit a Report
+            <span style={{ color: '#E8622E' }}>Submit</span> a Report
           </h2>
           <p className="report-subtitle" style={{ color: colors.secondaryText }}>
             {resolvedUserType === 'landlord'

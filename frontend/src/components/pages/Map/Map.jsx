@@ -154,7 +154,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
   });
 
-  const { createBooking, getPendingCount, subscribeToBookings } = useBooking();
+  const { createBooking, getPendingCount, subscribeToBookings, bookings } = useBooking();
   const { user, addBooking } = useAuth();
   const navigate = useNavigate();
   const isLandlord = user?.userType === 'landlord';
@@ -258,23 +258,17 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
     // Check if tenant already has an active/pending booking
     if (user?.userType === 'tenant') {
-      const existingBookings = user?.bookings || [];
-      const activeBooking = existingBookings.find(b => 
-        (b.status === 'pending' || b.status === 'confirmed' || b.status === 'accepted')
-      );
+      const activeStatuses = new Set(['pending', 'confirmed', 'accepted', 'active']);
+      const activeBooking = (bookings || []).find(b => {
+        const status = String(b.status || '').toLowerCase();
+        const sameTenantById = user?.id && String(b.tenantId) === String(user.id);
+        const sameTenantByEmail = user?.email && b.tenantEmail === user.email;
+        return activeStatuses.has(status) && (sameTenantById || sameTenantByEmail);
+      });
       if (activeBooking) {
         alert('❌ You already have an active booking. Please cancel it before booking another dorm.');
         return;
       }
-      // Also check the shared 'bookings' key
-      try {
-        const sharedBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-        const confirmedBooking = sharedBookings.find(b => b.tenantId === user.id && b.status === 'Confirmed');
-        if (confirmedBooking) {
-          alert('❌ You have a confirmed booking. Please cancel it before booking another dorm.');
-          return;
-        }
-      } catch (_) {}
     }
 
     // Gender-based booking restriction
@@ -303,7 +297,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
     setTimeout(() => {
       // 1. Save to old storage (for backwards compatibility)
-      createBooking(listing, moveInDate, user ? {
+      const createdBooking = createBooking(listing, moveInDate, user ? {
         id: user.id,
         name: user.name,
         email: user.email,
@@ -322,6 +316,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       // 2. ✅ Save to AuthContext (for Overview dashboard)
       if (user) {
         addBooking({
+          id: createdBooking?.id,
           dormName: listing.title,
           address: listing.address,
           price: listing.price,
@@ -694,7 +689,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                           name: selectedListing.landlordName || 'Landlord',
                           avatar: (selectedListing.landlordName || 'L').split(' ').map(n => n[0]).join(''),
                         };
-                        navigate('/dashboard?section=messages', { state: { contactLandlord: landlord } });
+                        navigate('/messages', { state: { contactLandlord: landlord } });
                       }}>
                         💬 Contact Landlord
                       </button>
