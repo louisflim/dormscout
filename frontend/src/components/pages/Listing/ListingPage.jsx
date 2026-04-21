@@ -150,23 +150,6 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         if (mountedRef.current) setListings(filtered.length > 0 ? filtered : (user?.listings || []));
       } else if (user?.listings && user.listings.length > 0) {
         if (mountedRef.current) setListings(user.listings);
-      } else {
-        const seed = [{
-          id: Date.now(),
-          title: 'Sunshine Boarding House',
-          address: '123 Campus Rd',
-          price: '3500',
-          rooms: 'Single',
-          availableRooms: '5',
-          description: 'Near campus',
-          tags: ['Wifi'],
-          images: [],
-          lat: 10.3157,
-          lng: 123.8854,
-          university: 'USC'
-        }];
-        if (mountedRef.current) setListings(seed);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
       }
     } catch (e) { console.error('Failed to load listings', e); }
 

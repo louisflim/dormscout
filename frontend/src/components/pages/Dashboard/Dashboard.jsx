@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Map from '../Map/Map';
 import ListingPage from '../Listing/ListingPage';
 import BookingPage from '../Booking/BookingPage';
@@ -652,7 +652,9 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
         {/* Content */}
         <div className="dashboard-content">
           {!hideHeading && (
-            <h2 className={`dashboard-heading ${activeNav === 'listing' ? 'has-bottom-margin-sm' : 'has-bottom-margin-lg'}`} />
+            <h2 className={`dashboard-heading ${activeNav === 'listing' ? 'has-bottom-margin-sm' : 'has-bottom-margin-lg'}`}>
+              {subLabel}
+            </h2>
           )}
 
           {!isOverview && (

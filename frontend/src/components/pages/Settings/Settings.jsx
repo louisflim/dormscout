@@ -111,14 +111,17 @@ export default function Settings({ userType: propUserType, darkMode = false, set
 
   // Sync dark mode to user settings
   useEffect(() => {
-    if (user) {
-      updateUser({
-        settings: {
-          ...(user.settings || {}),
-          darkMode,
-        }
-      });
-    }
+    if (!user) return;
+
+    // Avoid redundant context updates that can cause rerender loops.
+    if (user.settings?.darkMode === darkMode) return;
+
+    updateUser({
+      settings: {
+        ...(user.settings || {}),
+        darkMode,
+      }
+    });
   }, [darkMode, updateUser, user]);
 
   /* ── Helpers ── */
