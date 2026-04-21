@@ -75,6 +75,8 @@ export default function Support({ darkMode = false, setDarkMode }) {
   }, [showDropdown]);
 
   const handleLogout = () => {
+    localStorage.removeItem('dormScoutUser');
+    localStorage.removeItem('userType');
     navigate('/');
   };
 
@@ -120,7 +122,7 @@ export default function Support({ darkMode = false, setDarkMode }) {
             fontFamily: 'inherit',
           }}
           aria-label="Go to Overview"
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate('/overview')}
         >
           DormScout
         </button>

@@ -424,7 +424,7 @@ export function BookingProvider({ children }) {
 
   // --- HELPERS ---
   function getBookingsForListing(listingId) {
-    return bookings.filter(b => b.listingId === listingId);
+    return bookings.filter(b => String(b.listingId) === String(listingId));
   }
   function getPendingCount(listingId) {
     return bookings.filter(b => b.listingId === listingId && b.status === 'pending').length;

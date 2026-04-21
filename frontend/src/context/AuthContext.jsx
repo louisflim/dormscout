@@ -172,7 +172,7 @@ export const AuthProvider = ({ children }) => {
     if (!user || user.userType !== 'landlord') return;
 
     const newListing = {
-      id: Date.now(),
+      id: listing.id || Date.now(),
       ...listing,
       status: 'Active',
       createdAt: new Date().toISOString(),

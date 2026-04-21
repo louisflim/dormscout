@@ -138,34 +138,37 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
   useEffect(() => {
     mountedRef.current = true;
 
-    if (user?.listings && user.listings.length > 0) {
-      if (mountedRef.current) setListings(user.listings);
-    } else {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (mountedRef.current) setListings(parsed);
-        } else {
-          const seed = [{
-            id: Date.now(),
-            title: 'Sunshine Boarding House',
-            address: '123 Campus Rd',
-            price: '3500',
-            rooms: 'Single',
-            availableRooms: '5',
-            description: 'Near campus',
-            tags: ['Wifi'],
-            images: [],
-            lat: 10.3157,
-            lng: 123.8854,
-            university: 'USC'
-          }];
-          if (mountedRef.current) setListings(seed);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-        }
-      } catch (e) { console.error('Failed to load listings', e); }
-    }
+    // Always prefer dormscout_listings (the source tenants book from) to ensure IDs match
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // If logged in as landlord, only show their own listings
+        const filtered = user?.id
+          ? parsed.filter(l => !l.landlordId || String(l.landlordId) === String(user.id))
+          : parsed;
+        if (mountedRef.current) setListings(filtered.length > 0 ? filtered : (user?.listings || []));
+      } else if (user?.listings && user.listings.length > 0) {
+        if (mountedRef.current) setListings(user.listings);
+      } else {
+        const seed = [{
+          id: Date.now(),
+          title: 'Sunshine Boarding House',
+          address: '123 Campus Rd',
+          price: '3500',
+          rooms: 'Single',
+          availableRooms: '5',
+          description: 'Near campus',
+          tags: ['Wifi'],
+          images: [],
+          lat: 10.3157,
+          lng: 123.8854,
+          university: 'USC'
+        }];
+        if (mountedRef.current) setListings(seed);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+      }
+    } catch (e) { console.error('Failed to load listings', e); }
 
     return () => { mountedRef.current = false; previewUrls.forEach((u) => URL.revokeObjectURL(u)); };
   }, [user, previewUrls]);
@@ -262,8 +265,9 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     }
     const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
     const getLandlordName = () => user?.name || landlordProfile.businessName || 'Landlord';
+    const sharedId = Date.now();
     const newListing = { 
-      id: Date.now(), 
+      id: sharedId, 
       ...form, 
       tags: tagsArray, 
       images: finalImages,
@@ -275,6 +279,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     };
 
     addListing({
+      id: sharedId,
       title: form.title,
       address: form.address,
       price: form.price,
