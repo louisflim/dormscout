@@ -192,7 +192,7 @@ function StatusIndicator({ status, darkMode }) {
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
-export default function Messaging({ darkMode = false, userType = 'tenant', contactLandlord = null }) {
+export default function Messaging({ darkMode = false, userType = 'tenant', contactLandlord = null, contactTenant = null }) {
   const role = userType;
   const otherRole = role === 'tenant' ? 'landlord' : 'tenant';
   const contactHandledRef = useRef(false);
@@ -301,6 +301,90 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     }
     setSelectedConvId(convId);
   }, [contactLandlord, role]);
+
+  // Handle contact TENANT navigation (landlord side)
+  useEffect(() => {
+    if (!contactTenant || role !== 'landlord') return;
+
+    const tenant = { ...contactTenant };
+    if ((tenant.name === 'Tenant' || !tenant.name) && tenant.id) {
+      try {
+        const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
+        const tenantUser = users.find(u => u.id === tenant.id);
+        if (tenantUser?.name) {
+          tenant.name = tenantUser.name;
+          tenant.avatar = tenantUser.name.split(' ').map(n => n[0]).join('');
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
+    const roleConvs = currentConvs['landlord'] || {};
+
+    let convId = null;
+    if (tenant.id && roleConvs[tenant.id]) convId = String(tenant.id);
+    if (!convId && tenant.id) convId = Object.keys(roleConvs).find(id => roleConvs[id].tenantId === tenant.id);
+    if (!convId && tenant.name && tenant.name !== 'Tenant') convId = Object.keys(roleConvs).find(id => roleConvs[id].name === tenant.name);
+
+    if (!convId) {
+      convId = tenant.id || (Math.max(...Object.keys(roleConvs).map(Number).filter(n => !isNaN(n)), 0) + 1);
+      const newConversations = { ...currentConvs };
+      newConversations['landlord'] = {
+        ...roleConvs,
+        [convId]: {
+          id: convId,
+          tenantId: tenant.id || null,
+          name: tenant.name || 'Tenant',
+          avatar: tenant.avatar || (tenant.name || 'T').split(' ').map(n => n[0]).join(''),
+          online: true,
+          lastMessage: 'Start a conversation',
+          timestamp: Date.now(),
+          unread: 0,
+        }
+      };
+      setConversations(newConversations);
+      Storage.set(STORAGE_KEYS.conversations, newConversations);
+    }
+    setSelectedConvId(convId);
+  }, [contactTenant, role]);
+
+  // Seed landlord's conversation list from bookings
+  useEffect(() => {
+    if (role !== 'landlord' || !user) return;
+    try {
+      const allBookings = JSON.parse(localStorage.getItem('dormscout_bookings') || '[]');
+      const myListingIds = new Set((user.listings || []).map(l => String(l.id)));
+      const myBookings = allBookings.filter(b => myListingIds.has(String(b.listingId)));
+      if (myBookings.length === 0) return;
+
+      let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
+      const landlordConvs = { ...(currentConvs['landlord'] || {}) };
+      let hasChanges = false;
+
+      myBookings.forEach(booking => {
+        const key = String(booking.tenantId);
+        if (!landlordConvs[key]) {
+          landlordConvs[key] = {
+            id: key,
+            tenantId: booking.tenantId,
+            name: booking.tenantName,
+            avatar: booking.tenantAvatar || (booking.tenantName || 'T').charAt(0),
+            online: false,
+            lastMessage: `Booking for ${booking.listingTitle}`,
+            timestamp: new Date(booking.createdAt).getTime() || Date.now(),
+            unread: 0,
+          };
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges) {
+        currentConvs = { ...currentConvs, landlord: landlordConvs };
+        setConversations(currentConvs);
+        Storage.set(STORAGE_KEYS.conversations, currentConvs);
+      }
+    } catch (e) { /* ignore */ }
+  }, [role, user]);
 
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -711,7 +795,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
             <h3 style={{ color: c.text }}>
               {selectedConv?.name}
               <span className="messaging-chat__header-role" style={{ color: c.secondaryText }}>
-                {role === 'tenant' ? '(Landlord)' : '(Tenant)'}
+                {role === 'tenant' ? '· Landlord' : '· Tenant'}
               </span>
             </h3>
             <p className="messaging-chat__header-status" style={{ color: c.secondaryText }}>

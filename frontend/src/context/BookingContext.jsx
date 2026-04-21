@@ -91,8 +91,48 @@ export function BookingProvider({ children }) {
     saveJSON(TENANTS_KEY, tenants);
   }, [tenants]);
 
+  // --- HELPER: sync booking status into tenant's dormScoutUsers record ---
+  function _syncStatusToDormScoutUsers(booking, status) {
+    try {
+      const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
+      let changed = false;
+      const updatedUsers = users.map(u => {
+        if (u.id !== booking.tenantId && u.email !== booking.tenantEmail) return u;
+        const updatedBookings = (u.bookings || []).map(b => {
+          if (
+            (booking.listingId && String(b.listingId) === String(booking.listingId)) ||
+            (booking.listingTitle && (b.dormName || b.title) === booking.listingTitle)
+          ) {
+            changed = true;
+            return { ...b, status };
+          }
+          return b;
+        });
+        return { ...u, bookings: updatedBookings };
+      });
+      if (changed) {
+        localStorage.setItem('dormScoutUsers', JSON.stringify(updatedUsers));
+        // Update current session if this tenant is logged in right now
+        const currentUser = JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
+        if (currentUser) {
+          const updatedCurrentUser = updatedUsers.find(u => u.id === currentUser.id);
+          if (updatedCurrentUser) {
+            localStorage.setItem('dormScoutUser', JSON.stringify(updatedCurrentUser));
+            // Dispatch storage event so BookingPage re-reads
+            window.dispatchEvent(new StorageEvent('storage', {
+              key: 'dormScoutUser',
+              newValue: JSON.stringify(updatedCurrentUser),
+              storageArea: localStorage,
+            }));
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   // --- CREATE BOOKING (tenant action) ---
-  function createBooking(listing, moveInDate) {
+  function createBooking(listing, moveInDate, tenantUser = null) {
+    const tenantInfo = tenantUser || MOCK_TENANT;
     const newBooking = {
       id: `booking-${Date.now()}`,
       listingId: listing.id,
@@ -106,11 +146,12 @@ export function BookingProvider({ children }) {
       listingUniversity: listing.university,
       listingRooms: listing.availableRooms,
       listingTags: listing.tags || [],
-      tenantId: MOCK_TENANT.id,
-      tenantName: MOCK_TENANT.name,
-      tenantEmail: MOCK_TENANT.email,
-      tenantPhone: MOCK_TENANT.phone,
-      tenantAvatar: MOCK_TENANT.avatar,
+      landlordId: listing.landlordId || null,
+      tenantId: tenantInfo.id,
+      tenantName: tenantInfo.name,
+      tenantEmail: tenantInfo.email,
+      tenantPhone: tenantInfo.phone || MOCK_TENANT.phone,
+      tenantAvatar: tenantInfo.avatar || (tenantInfo.name || 'T').charAt(0),
       moveInDate,
       status: 'pending', // pending | accepted | rejected
       createdAt: new Date().toISOString(),
@@ -160,6 +201,37 @@ export function BookingProvider({ children }) {
         listingId: booking.listingId,
         forRole: 'tenant',
       });
+
+      // Sync accepted status into tenant's AuthContext user record
+      _syncStatusToDormScoutUsers(booking, 'accepted');
+
+      // ── Write to the shared 'bookings' key so BookingPage always sees it ──
+      try {
+        const landlordUser = JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
+        const sharedBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+        // Remove any existing entry for this bookingId to avoid duplicates
+        const filtered = sharedBookings.filter(b => b.id !== bookingId);
+        filtered.push({
+          id: bookingId,
+          tenantId: booking.tenantId,
+          tenantName: booking.tenantName,
+          listingName: booking.listingTitle,
+          listingAddress: booking.listingAddress,
+          price: booking.listingPrice,
+          status: 'Confirmed',
+          bookedOn: booking.createdAt || new Date().toISOString(),
+          moveInDate: booking.moveInDate,
+          landlordId: booking.landlordId || (landlordUser?.id || null),
+          landlordName: landlordUser?.name || 'Landlord',
+          lat: booking.listingLat,
+          lng: booking.listingLng,
+          university: booking.listingUniversity,
+          tags: booking.listingTags || [],
+          description: booking.listingDescription || '',
+          listingImages: booking.listingImages || [],
+        });
+        localStorage.setItem('bookings', JSON.stringify(filtered));
+      } catch (_) { /* ignore */ }
 
       if (window.__dormscoutSyncCallback) {
         window.__dormscoutSyncCallback('acceptBooking', bookingId);
@@ -245,6 +317,19 @@ export function BookingProvider({ children }) {
         listingId: booking.listingId,
         forRole: 'tenant',
       });
+
+      // Sync rejected status into tenant's AuthContext user record
+      _syncStatusToDormScoutUsers(booking, 'rejected');
+
+      // ── Update the shared 'bookings' key status to Rejected ──
+      try {
+        const sharedBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+        const idx = sharedBookings.findIndex(b => b.id === bookingId);
+        if (idx !== -1) {
+          sharedBookings[idx] = { ...sharedBookings[idx], status: 'Rejected' };
+          localStorage.setItem('bookings', JSON.stringify(sharedBookings));
+        }
+      } catch (_) { /* ignore */ }
 
       if (window.__dormscoutSyncCallback) {
         window.__dormscoutSyncCallback('rejectBooking', bookingId);

@@ -256,6 +256,27 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const handleConfirmBooking = (listing) => {
     if (!moveInDate) { alert('Please select a move-in date.'); return; }
 
+    // Check if tenant already has an active/pending booking
+    if (user?.userType === 'tenant') {
+      const existingBookings = user?.bookings || [];
+      const activeBooking = existingBookings.find(b => 
+        (b.status === 'pending' || b.status === 'confirmed' || b.status === 'accepted')
+      );
+      if (activeBooking) {
+        alert('❌ You already have an active booking. Please cancel it before booking another dorm.');
+        return;
+      }
+      // Also check the shared 'bookings' key
+      try {
+        const sharedBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+        const confirmedBooking = sharedBookings.find(b => b.tenantId === user.id && b.status === 'Confirmed');
+        if (confirmedBooking) {
+          alert('❌ You have a confirmed booking. Please cancel it before booking another dorm.');
+          return;
+        }
+      } catch (_) {}
+    }
+
     // Gender-based booking restriction
     const userGender = user?.gender;
     const policy = listing?.genderPolicy;
@@ -282,7 +303,13 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
     setTimeout(() => {
       // 1. Save to old storage (for backwards compatibility)
-      createBooking(listing, moveInDate);
+      createBooking(listing, moveInDate, user ? {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        avatar: (user.name || 'T').split(' ').map(n => n[0]).join(''),
+      } : null);
       const raw = localStorage.getItem(BOOKING_KEY);
       const current = raw ? JSON.parse(raw) : [];
       if (!current.find(b => b.id === listing.id)) {
@@ -309,6 +336,9 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
           images: listing.images,
           description: listing.description,
           status: 'pending',
+          listingId: listing.id,
+          landlordId: listing.landlordId || null,
+          landlordName: listing.landlordName || landlordProfile.businessName || landlordProfile.firstName || 'Landlord',
         });
       }
 

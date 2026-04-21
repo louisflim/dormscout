@@ -1,19 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../context/AuthContext';
+import { useBooking } from '../../../context/BookingContext';
 import './BookingPage.css';
 
-const STORAGE_KEY_LISTINGS = 'dormscout_listings';
-const STORAGE_KEY_BOOKINGS  = 'dormscout_my_bookings';
+const STORAGE_KEY_SHARED = 'bookings'; // written by BookingContext.acceptBooking
 
 const defaultIcon = L.icon({
-  iconUrl:        'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl:  'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl:      'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize:   [25, 41],
-  iconAnchor: [12, 41],
+  iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize:  [25, 41],
+  iconAnchor:[12, 41],
 });
 
 function SmallMap({ lat, lng }) {
@@ -31,276 +31,323 @@ function SmallMap({ lat, lng }) {
   return <div ref={mapRef} style={{ width: '100%', height: '100%' }} />;
 }
 
-const getStatusClass = (status) => {
-  if (status === 'accepted' || status === 'Active') return 'status-accepted';
-  if (status === 'rejected') return 'status-rejected';
-  return 'status-pending';
-};
-
-const getStatusLabel = (status) => {
-  if (status === 'accepted' || status === 'Active') return 'Active';
-  if (status === 'rejected') return 'Rejected';
-  return 'Pending';
-};
+function statusStyle(status) {
+  const s = (status || '').toLowerCase();
+  if (s === 'confirmed' || s === 'accepted' || s === 'active') {
+    return { label: 'Confirmed', bg: '#d1fae5', color: '#065f46' };
+  }
+  if (s === 'rejected') {
+    return { label: 'Rejected', bg: '#fee2e2', color: '#991b1b' };
+  }
+  return { label: 'Pending', bg: '#fef9c3', color: '#92400e' };
+}
 
 export default function BookingPage({ darkMode = false }) {
   const navigate = useNavigate();
-  const [bookings, setBookings]             = useState([]);
-  const [selectedBooking, setSelectedBooking] = useState(null);
   const { user, cancelBooking: authCancelBooking } = useAuth();
-  const [cancelModal, setCancelModal]       = useState(false);
-  const [cancelReason, setCancelReason]     = useState('');
+  const { cancelBooking: contextCancelBooking } = useBooking();
+  const [bookings, setBookings] = useState([]);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [cancelModal, setCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const [cancelMoveOutDate, setCancelMoveOutDate] = useState('');
 
-  const theme = darkMode ? 'dark' : 'light';
+  const dk = darkMode;
+  const theme      = dk ? 'dark' : 'light';
+  const cardBg     = dk ? '#16213e' : '#fff';
+  const text       = dk ? '#eaeaea' : '#1a1a1a';
+  const subText    = dk ? '#a0a0b0' : '#65676b';
+  const borderColor= dk ? '#2a2a4a' : '#e4e6eb';
+  const inputBg    = dk ? '#0f3460' : '#f7f7f7';
 
-  // Load bookings from AuthContext (real user data)
-  useEffect(() => {
-    if (user?.bookings) {
-      setBookings(user.bookings);
-    } else {
-      // Fallback to old storage for backwards compatibility
-      loadBookings();
-    }
+  // ── Merge confirmed/rejected from 'bookings' key + pending from user.bookings ──
+  const loadMerged = useCallback(() => {
+    let sharedRaw = [];
+    try { sharedRaw = JSON.parse(localStorage.getItem(STORAGE_KEY_SHARED) || '[]'); } catch (_) {}
+
+    const myId    = user?.id;
+    const myEmail = user?.email;
+
+    const shared = sharedRaw.filter(b =>
+      (myId    && (b.tenantId    === myId    || String(b.tenantId)    === String(myId))) ||
+      (myEmail && (b.tenantEmail === myEmail))
+    );
+    const sharedIds = new Set(shared.map(b => String(b.id)));
+
+    const pending = (user?.bookings || [])
+      .filter(b => {
+        const s = (b.status || '').toLowerCase();
+        return s === 'pending' && !sharedIds.has(String(b.id));
+      })
+      .map(b => ({
+        id:           b.id,
+        tenantId:     myId,
+        listingName:  b.dormName || b.title,
+        listingAddress: b.address || '',
+        price:        b.price,
+        status:       'Pending',
+        bookedOn:     b.bookedAt || b.createdAt,
+        moveInDate:   b.moveInDate,
+        landlordId:   b.landlordId || null,
+        landlordName: b.landlordName || b.landlord || 'Landlord',
+        lat:          b.lat,
+        lng:          b.lng,
+        university:   b.university,
+        tags:         b.tags || [],
+        description:  b.description || '',
+      }));
+
+    const merged = [
+      ...shared.map(b => ({ ...b, listingName: b.listingName || b.dormName || b.title })),
+      ...pending,
+    ].sort((a, b) => new Date(b.bookedOn || 0) - new Date(a.bookedOn || 0));
+
+    setBookings(merged);
   }, [user]);
 
-  function loadBookings() {
-    const rawBookingData = localStorage.getItem(STORAGE_KEY_BOOKINGS);
-    const bookingData    = rawBookingData ? JSON.parse(rawBookingData) : [];
-    const rawListings    = localStorage.getItem(STORAGE_KEY_LISTINGS);
-    const allListings    = rawListings ? JSON.parse(rawListings) : [];
-    const myBookings = bookingData
-      .map(booking => ({
-        ...allListings.find(l => l.id === booking.id),
-        bookedAt: booking.bookedAt,
-      }))
-      .filter(b => b.title);
-    setBookings(myBookings);
-  }
+  useEffect(() => { loadMerged(); }, [loadMerged]);
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === STORAGE_KEY_SHARED || e.key === 'dormScoutUser' || e.key === 'dormscout_bookings') {
+        loadMerged();
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, [loadMerged]);
+
+  // ── Cancel ─────────────────────────────────────────────────────────────────
   const handleCancelBooking = () => {
     if (!selectedBooking) return;
 
-    // Update AuthContext
-    authCancelBooking(selectedBooking.id);
+    try {
+      const shared = JSON.parse(localStorage.getItem(STORAGE_KEY_SHARED) || '[]');
+      localStorage.setItem(STORAGE_KEY_SHARED, JSON.stringify(
+        shared.filter(b => String(b.id) !== String(selectedBooking.id))
+      ));
+    } catch (_) {}
 
-    // Also update old storage for backwards compatibility
-    const rawBookingData = localStorage.getItem(STORAGE_KEY_BOOKINGS);
-    let bookingData = rawBookingData ? JSON.parse(rawBookingData) : [];
-    bookingData = bookingData.filter(b => b.id !== selectedBooking.id);
-    localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookingData));
+    authCancelBooking(selectedBooking.id);
+    contextCancelBooking(selectedBooking.id, cancelReason, cancelMoveOutDate);
+
+    try {
+      const raw = localStorage.getItem('dormscout_my_bookings');
+      if (raw) {
+        const arr = JSON.parse(raw).filter(b => String(b.id) !== String(selectedBooking.id));
+        localStorage.setItem('dormscout_my_bookings', JSON.stringify(arr));
+      }
+    } catch (_) {}
 
     setCancelModal(false);
     setCancelReason('');
     setCancelMoveOutDate('');
     setSelectedBooking(null);
-
-    // Reload bookings
-    if (user?.bookings) {
-      setBookings(user.bookings.filter(b => b.id !== selectedBooking.id));
-    }
+    setBookings(prev => prev.filter(b => String(b.id) !== String(selectedBooking.id)));
   };
 
-  const formatDate = (isoString) => {
-    if (!isoString) return 'N/A';
-    return new Date(isoString).toLocaleDateString('en-US', {
-      year: 'numeric', month: 'long', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
+  const formatDate = (iso) => {
+    if (!iso) return 'N/A';
+    return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
+  // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <div className={`booking-wrapper ${theme}`}>
+
       {bookings.length === 0 ? (
         <div className="booking-empty">
           <p>You have no active bookings.</p>
-          <p>Go to Map View to book a property!</p>
+          <p>Go to Map View or Listing to book a property!</p>
         </div>
       ) : (
         <div className="bookings-grid">
-          {bookings.map((b) => (
-            <div key={b.id} className="booking-card" onClick={() => setSelectedBooking(b)}>
-              {b.lat && b.lng ? (
-                <div className="booking-map-preview">
-                  <SmallMap lat={b.lat} lng={b.lng} />
-                </div>
-              ) : (
-                <div className="booking-map-placeholder">No Location</div>
-              )}
-
-              <div className="booking-card-body">
-                <h4 className="booking-card-title">{b.dormName || b.title}</h4>
-                <p className="booking-card-address">{b.address}</p>
-                {b.university && (
-                  <div className="booking-university-badge">🎓 {b.university}</div>
+          {bookings.map((b) => {
+            const st = statusStyle(b.status);
+            return (
+              <div
+                key={b.id}
+                className="booking-card"
+                style={{ background: cardBg, border: `1px solid ${borderColor}`, cursor: 'pointer', position: 'relative' }}
+                onClick={() => setSelectedBooking(b)}
+              >
+                {b.listingImages && b.listingImages.length > 0 ? (
+                  <div className="booking-map-preview" style={{ background: inputBg, overflow: 'hidden', height: '180px' }}>
+                    <img src={b.listingImages[0]} alt={b.listingName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                ) : b.lat && b.lng ? (
+                  <div className="booking-map-preview">
+                    <SmallMap lat={b.lat} lng={b.lng} />
+                  </div>
+                ) : (
+                  <div className="booking-map-placeholder" style={{ background: inputBg, color: subText }}>
+                    No Image or Location
+                  </div>
                 )}
-                <div className="booking-card-price">₱{b.price}</div>
-                <div className="booking-tags">
-                  {(b.tags || []).map((tag, i) => (
-                    <span key={i} className="booking-tag">{tag}</span>
-                  ))}
-                </div>
 
-                {/* Status Badge - NEW */}
-                <div style={{ marginTop: '8px' }}>
-                  <span className={getStatusClass(b.status)} style={{
-                    padding: '4px 12px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    textTransform: 'capitalize'
+                <div className="booking-card-body">
+                  <span style={{
+                    display: 'inline-block', padding: '3px 12px', borderRadius: '20px',
+                    fontSize: '11px', fontWeight: '700', marginBottom: '8px',
+                    background: st.bg, color: st.color,
                   }}>
-                    {getStatusLabel(b.status)}
+                    {st.label}
                   </span>
-                </div>
 
-                <div className="booking-card-hint">Click to view booking details</div>
+                  <h4 className="booking-card-title" style={{ color: text }}>
+                    {b.listingName || '(No listing name)'}
+                  </h4>
+                  <p className="booking-card-address" style={{ color: subText }}>
+                    {b.listingAddress}
+                  </p>
+                  {b.university && (
+                    <div className="booking-university-badge">🎓 {b.university}</div>
+                  )}
+                  <p style={{ margin: '6px 0 2px 0', fontSize: '13px', color: subText }}>
+                    <strong style={{ color: text }}>Landlord:</strong> {b.landlordName || 'N/A'}
+                  </p>
+                  <div className="booking-card-price" style={{ color: '#E8622E' }}>
+                    ₱{b.price}
+                  </div>
+                  {b.moveInDate && (
+                    <p style={{ margin: '4px 0', fontSize: '12px', color: subText }}>
+                      📅 Move-in: <strong style={{ color: text }}>{b.moveInDate}</strong>
+                    </p>
+                  )}
+                  <p style={{ margin: '4px 0 10px 0', fontSize: '12px', color: subText }}>
+                    Booked: {formatDate(b.bookedOn)}
+                  </p>
+                  {b.tags && b.tags.length > 0 && (
+                    <div className="booking-tags" style={{ marginBottom: '10px' }}>
+                      {b.tags.map((tag, i) => (
+                        <span key={i} className="booking-tag">{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSelectedBooking(b); setCancelModal(true); }}
+                    style={{
+                      width: '100%', padding: '8px', marginTop: '4px',
+                      background: 'transparent', border: '1px solid #dc3545',
+                      color: '#dc3545', borderRadius: '8px',
+                      fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                    }}
+                  >
+                    Cancel Booking
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* ===== Detail Modal ===== */}
-      {selectedBooking && (
+      {/* Detail Modal */}
+      {selectedBooking && !cancelModal && (
         <div className="booking-overlay">
           <div className="booking-modal detail-modal">
-            <button className="booking-modal-close" onClick={() => setSelectedBooking(null)}>
-              &times;
-            </button>
+            <button className="booking-modal-close" onClick={() => setSelectedBooking(null)}>&times;</button>
             <div className="detail-modal-body">
-              <h2 className="detail-modal-title">{selectedBooking.dormName || selectedBooking.title}</h2>
-              <p className="detail-modal-address">{selectedBooking.address}</p>
+              <h2 className="detail-modal-title" style={{ color: text }}>{selectedBooking.listingName}</h2>
+              <p className="detail-modal-address" style={{ color: subText }}>{selectedBooking.listingAddress}</p>
 
-              {/* Booking Details Box */}
-              <div className="booking-details-box">
-                <h4>Booking Details</h4>
+              <div className="booking-details-box" style={{ background: inputBg }}>
+                <h4 style={{ color: text }}>Booking Details</h4>
                 {(() => {
-                  const status = selectedBooking.status || 'pending';
+                  const st = statusStyle(selectedBooking.status);
                   return (
                     <>
-                      <p className="booking-details-row">
+                      <p className="booking-details-row" style={{ color: text }}>
                         <strong>Status:</strong>{' '}
-                        <span className={getStatusClass(status)}>{getStatusLabel(status)}</span>
+                        <span style={{ padding: '2px 10px', borderRadius: '20px', background: st.bg, color: st.color, fontSize: '12px', fontWeight: '600' }}>
+                          {st.label}
+                        </span>
                       </p>
-                      {status === 'rejected' && (
-                        <p className="booking-rejected-notice">
-                          ❌ Your booking has been rejected by the landlord.
-                        </p>
+                      {(selectedBooking.status || '').toLowerCase() === 'rejected' && (
+                        <p className="booking-rejected-notice">❌ Your booking has been rejected by the landlord.</p>
                       )}
                       {selectedBooking.moveInDate && (
-                        <p className="booking-details-row">
+                        <p className="booking-details-row" style={{ color: text }}>
                           <strong>Move-in Date:</strong> {selectedBooking.moveInDate}
                         </p>
                       )}
+                      <p className="booking-details-row" style={{ color: text }}>
+                        <strong>Landlord:</strong> {selectedBooking.landlordName || 'N/A'}
+                      </p>
+                      <p className="booking-details-row" style={{ color: text }}>
+                        <strong>Price:</strong> ₱{selectedBooking.price}
+                      </p>
+                      <p className="booking-details-row" style={{ color: text }}>
+                        <strong>Booked On:</strong> {formatDate(selectedBooking.bookedOn)}
+                      </p>
                     </>
                   );
                 })()}
-                <p className="booking-details-row">
-                  <strong>Booked On:</strong> {formatDate(selectedBooking.bookedAt || selectedBooking.createdAt)}
-                </p>
               </div>
 
-              {/* Listing Details Grid */}
-              <div className="listing-details-grid">
-                <div>
-                  <p className="listing-detail-label">Price</p>
-                  <p className="listing-detail-value price">₱{selectedBooking.price}</p>
-                </div>
-                <div>
-                  <p className="listing-detail-label">Rooms Available</p>
-                  <p className="listing-detail-value">{selectedBooking.availableRooms || 'N/A'}</p>
-                </div>
-                <div className="listing-detail-full">
-                  <p className="listing-detail-label">Nearby University</p>
-                  <p className="listing-detail-value">{selectedBooking.university || 'Not specified'}</p>
-                </div>
-              </div>
+              {selectedBooking.description && (
+                <>
+                  <p className="detail-description-label" style={{ color: subText }}>Description</p>
+                  <p className="detail-description-text" style={{ color: text }}>{selectedBooking.description}</p>
+                </>
+              )}
 
-              {/* Amenities */}
-              <p className="listing-detail-label">Amenities/Tags</p>
-              <div className="amenity-tags">
-                {(selectedBooking.tags || []).map((tag, i) => (
-                  <span key={i} className="amenity-tag">{tag}</span>
-                ))}
-              </div>
-
-              {/* Map */}
               {selectedBooking.lat && selectedBooking.lng && (
                 <div className="detail-modal-map">
                   <SmallMap lat={selectedBooking.lat} lng={selectedBooking.lng} />
                 </div>
               )}
 
-              {/* Description */}
-              <p className="detail-description-label">Description</p>
-              <p className="detail-description-text">
-                {selectedBooking.description || 'No description provided.'}
-              </p>
-
-              {/* Actions - only show cancel if booking is pending/active */}
-              {(selectedBooking.status === 'pending' || selectedBooking.status === 'Active') && (
-                <div className="modal-actions">
-                  <button className="btn-cancel-booking" onClick={() => setCancelModal(true)}>
-                    Cancel Booking
-                  </button>
+              <div className="modal-actions">
+                <button className="btn-cancel-booking" onClick={() => setCancelModal(true)}>
+                  Cancel Booking
+                </button>
+                {selectedBooking.landlordId && (
                   <button className="btn-contact-landlord" onClick={() => {
-                    const landlord = {
-                      id: selectedBooking.landlordId,
-                      name: selectedBooking.landlordName || 'Landlord',
-                      avatar: (selectedBooking.landlordName || 'L').split(' ').map(n => n[0]).join(''),
-                    };
-                    navigate('/dashboard?section=messages', { state: { contactLandlord: landlord } });
+                    navigate('/dashboard?section=messages', {
+                      state: {
+                        contactLandlord: {
+                          id:     selectedBooking.landlordId,
+                          name:   selectedBooking.landlordName || 'Landlord',
+                          avatar: (selectedBooking.landlordName || 'L').split(' ').map(n => n[0]).join(''),
+                        },
+                      },
+                    });
                   }}>
                     Contact Landlord
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ===== Cancel Modal ===== */}
+      {/* Cancel Modal */}
       {cancelModal && selectedBooking && (
         <div className="booking-overlay" style={{ zIndex: 2000 }}>
           <div className="booking-modal cancel-modal">
-            <button className="booking-modal-close" onClick={() => setCancelModal(false)}>
-              &times;
-            </button>
+            <button className="booking-modal-close" onClick={() => setCancelModal(false)}>&times;</button>
             <h3 className="cancel-modal-title">Cancel Booking</h3>
             <p className="cancel-modal-subtitle">
               You are cancelling your booking for{' '}
-              <strong style={{ color: darkMode ? '#eaeaea' : '#333' }}>{selectedBooking.dormName || selectedBooking.title}</strong>.
+              <strong style={{ color: text }}>{selectedBooking.listingName}</strong>.
             </p>
 
             <div className="cancel-field">
               <label className="cancel-label">Move-out Date</label>
-              <input
-                type="date"
-                className="cancel-input"
-                value={cancelMoveOutDate}
-                onChange={e => setCancelMoveOutDate(e.target.value)}
-              />
+              <input type="date" className="cancel-input" value={cancelMoveOutDate}
+                onChange={e => setCancelMoveOutDate(e.target.value)} />
             </div>
             <div className="cancel-field">
               <label className="cancel-label">Reason for Cancellation</label>
-              <textarea
-                rows={3}
-                placeholder="Enter reason..."
-                className="cancel-textarea"
-                value={cancelReason}
-                onChange={e => setCancelReason(e.target.value)}
-              />
+              <textarea rows={3} placeholder="Enter reason..." className="cancel-textarea"
+                value={cancelReason} onChange={e => setCancelReason(e.target.value)} />
             </div>
 
             <div className="cancel-actions">
-              <button className="btn-keep-booking" onClick={() => setCancelModal(false)}>
-                Keep Booking
-              </button>
-              <button className="btn-confirm-cancel" onClick={handleCancelBooking}>
-                Confirm Cancel
-              </button>
+              <button className="btn-keep-booking" onClick={() => setCancelModal(false)}>Keep Booking</button>
+              <button className="btn-confirm-cancel" onClick={handleCancelBooking}>Confirm Cancel</button>
             </div>
           </div>
         </div>

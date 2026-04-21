@@ -123,7 +123,7 @@ function TenantDetailView({ booking, onClose, onAccept, onReject, onMessage, dar
 // --- Main TenantManagement component ---
 export default function TenantManagement({ listingId, listingTitle, darkMode = false, onMessageTenant }) {
   const { getBookingsForListing, getTenantsForListing, acceptBooking, rejectBooking, removeTenant, deleteRejectedBooking } = useBooking();
-  const { user, updateBookingStatus, addActivity } = useAuth();
+  const {updateBookingStatus, addActivity } = useAuth();
   const navigate = useNavigate();
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [removeModal, setRemoveModal] = useState(null);
@@ -206,6 +206,12 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
                   </span>
                   <button onClick={() => setRemoveModal(t)} style={{ padding: '5px 12px', background: 'transparent', border: '1px solid #dc3545', color: '#dc3545', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
                     Remove
+                  </button>
+                  <button
+                    onClick={() => navigate('/dashboard?section=messages', { state: { contactTenant: { id: t.tenantId, name: t.tenantName, avatar: t.tenantAvatar || (t.tenantName || 'T').charAt(0) } } })}
+                    style={{ padding: '5px 12px', background: '#5BADA8', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                  >
+                    💬 Message
                   </button>
                   <button
                     onClick={() => navigate('/report', { state: { userType: 'landlord', subject: t.tenantName } })}

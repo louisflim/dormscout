@@ -799,7 +799,7 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
             ) : activeNav === 'reviews' ? (
               <Reviews userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
             ) : activeNav === 'messages' ? (
-              <Messaging darkMode={darkMode} userType={userType} contactLandlord={location.state?.contactLandlord} />
+              <Messaging darkMode={darkMode} userType={userType} contactLandlord={location.state?.contactLandlord} contactTenant={location.state?.contactTenant} />
             ) : activeNav === 'settings' ? (
               <Settings darkMode={darkMode} setDarkMode={setDarkMode} userType={userType} />
             ) : (
