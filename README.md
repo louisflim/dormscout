@@ -77,6 +77,20 @@ npm install
 npm start
 ```
 
+---
+
+## 📄 Notes
+
+If the project fails to load and says **"Could not read package.json: Error: ENOENT: no such file or directory"**, open '\GitHub\dormscout\package.json" manually make a package.json copy through the repository.
+
+1. Make a package.json file inside your GitHub\dormscout
+
+2. Copy the package.json contents in the repository to automatically install all the dependencies at https://github.com/louisflim/dormscout/blob/main/frontend/package.json
+
+3. Go inside the repository and install the dependencies. 
+```bash
+  npm install
+```
 
 ---
 
