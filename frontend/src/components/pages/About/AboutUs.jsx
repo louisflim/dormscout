@@ -35,9 +35,15 @@ const FEATURES = [
 
 export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScreen }) {
   const navigate = useNavigate();
-  const theme = darkMode ? 'dark' : 'light';
+  const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
+  const isDark = typeof setDarkMode === 'function' ? Boolean(darkMode) : localDarkMode;
+  const theme = isDark ? 'dark' : 'light';
   const dropdownRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => {
+    setLocalDarkMode(Boolean(darkMode));
+  }, [darkMode]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -54,9 +60,22 @@ export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScre
     navigate('/');
   };
 
+  const toggleTheme = () => {
+    const nextMode = !isDark;
+    if (typeof setDarkMode === 'function') {
+      setDarkMode(nextMode);
+    } else {
+      setLocalDarkMode(nextMode);
+      try {
+        localStorage.setItem('darkMode', nextMode ? 'true' : 'false');
+      } catch (_) {}
+    }
+    setShowDropdown(false);
+  };
+
   return (
     <div className={`about-wrapper ${theme}`}>
-      <nav className="dashboard-nav" style={{ background: darkMode ? '#16213e' : '#fff' }}>
+      <nav className="dashboard-nav" style={{ background: isDark ? '#16213e' : '#fff' }}>
         <button
           className="dashboard-nav-title-btn"
           style={{
@@ -95,11 +114,11 @@ export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScre
               </div>
               <div
                 className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
-                onClick={() => { setDarkMode(!darkMode); setShowDropdown(false); }}
+                onClick={toggleTheme}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px', }}
               >
-                {darkMode ? <Sun size={15} /> : <Moon size={15} />}
-                <span style={{ marginLeft: 8 }}>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                {isDark ? <Sun size={15} /> : <Moon size={15} />}
+                <span style={{ marginLeft: 8 }}>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
               </div>
 
               <div className="dropdown-item dropdown-item-logout"

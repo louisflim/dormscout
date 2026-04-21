@@ -42,7 +42,13 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
   const stateSubject  = location.state?.subject || '';
 
   const resolvedUserType = stateUserType || userType;
-  const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
+  const [localDarkMode, setLocalDarkMode] = useState(() => {
+    try {
+      return typeof darkMode === 'boolean' ? darkMode : localStorage.getItem('darkMode') === 'true';
+    } catch (_) {
+      return Boolean(darkMode);
+    }
+  });
 
   useEffect(() => {
     setLocalDarkMode(Boolean(darkMode));
@@ -160,6 +166,9 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
       setDarkMode(nextMode);
     } else {
       setLocalDarkMode(nextMode);
+      try {
+        localStorage.setItem('darkMode', nextMode ? 'true' : 'false');
+      } catch (_) {}
     }
     setShowDropdown(false);
   };

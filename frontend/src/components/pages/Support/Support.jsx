@@ -57,13 +57,19 @@ const CONTACT_INFO = [
 
 export default function Support({ darkMode = false, setDarkMode }) {
   const navigate = useNavigate();
-  const colors   = darkMode ? COLORS.dark : COLORS.light;
+  const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
+  const isDark = typeof setDarkMode === 'function' ? Boolean(darkMode) : localDarkMode;
+  const colors   = isDark ? COLORS.dark : COLORS.light;
   const dropdownRef = useRef(null);
 
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [formData,      setFormData]      = useState({ name: '', email: '', subject: '', message: '' });
   const [submitted,     setSubmitted]     = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => {
+    setLocalDarkMode(Boolean(darkMode));
+  }, [darkMode]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -92,10 +98,23 @@ export default function Support({ darkMode = false, setDarkMode }) {
     setTimeout(() => setSubmitted(false), 3000);
   };
 
+  const toggleTheme = () => {
+    const nextMode = !isDark;
+    if (typeof setDarkMode === 'function') {
+      setDarkMode(nextMode);
+    } else {
+      setLocalDarkMode(nextMode);
+      try {
+        localStorage.setItem('darkMode', nextMode ? 'true' : 'false');
+      } catch (_) {}
+    }
+    setShowDropdown(false);
+  };
+
   /* ── shared input style (dynamic parts only) ── */
   const inputStyle = {
     border:     `1px solid ${colors.border}`,
-    background: darkMode ? '#0f3460' : '#f9f9f9',
+    background: isDark ? '#0f3460' : '#f9f9f9',
     color:      colors.text,
   };
 
@@ -104,10 +123,10 @@ export default function Support({ darkMode = false, setDarkMode }) {
 
   /* ── Render ── */
   return (
-    <div className={`support-page ${darkMode ? 'dark' : ''}`} style={{ background: colors.bg }}>
+    <div className={`support-page ${isDark ? 'dark' : ''}`} style={{ background: colors.bg }}>
 
       {/* ── Navbar ── */}
-      <nav className="dashboard-nav" style={{ background: darkMode ? '#16213e' : '#fff' }}>
+      <nav className="dashboard-nav" style={{ background: isDark ? '#16213e' : '#fff' }}>
         <button
           className="dashboard-nav-title-btn"
           style={{
@@ -146,11 +165,11 @@ export default function Support({ darkMode = false, setDarkMode }) {
               </div>
               <div
                 className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
-                onClick={() => { setDarkMode(!darkMode); setShowDropdown(false); }}
+                onClick={toggleTheme}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px', }}
               >
-                {darkMode ? <Sun size={15} /> : <Moon size={15} />}
-                <span style={{ marginLeft: 8 }}>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                {isDark ? <Sun size={15} /> : <Moon size={15} />}
+                <span style={{ marginLeft: 8 }}>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
               </div>
 
               <div className="dropdown-item dropdown-item-logout"

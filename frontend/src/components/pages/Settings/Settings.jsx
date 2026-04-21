@@ -119,7 +119,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
         }
       });
     }
-  }, [darkMode]);
+  }, [darkMode, updateUser, user]);
 
   /* ── Helpers ── */
   const tabStyle = (tab) => ({

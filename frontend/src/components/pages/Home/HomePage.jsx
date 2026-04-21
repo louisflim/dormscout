@@ -10,7 +10,7 @@ const SECONDARY = '#5BADA8';
 
 export default function Homepage() {
   const navigate = useNavigate();
-  const { login, user} = useAuth();
+  const { login } = useAuth();
 
   // State to track which type is selected (default to 'tenant')
   const [selectedType, setSelectedType] = useState('tenant');
@@ -212,22 +212,23 @@ export default function Homepage() {
             <div style={{ textAlign: 'center' }}>
               <span style={{ fontSize: '14px', color: '#666' }}>Don't have an account? </span>
               <br/>
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate(`/register?type=${selectedType}`);
-                }}
+              <button
+                type="button"
+                onClick={() => navigate(`/register?type=${selectedType}`)}
                 style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
                   color: SECONDARY,
                   textDecoration: 'none',
                   fontWeight: '600',
                   fontSize: '14px',
                   cursor: 'pointer',
+                  fontFamily: 'inherit',
                 }}
               >
                 Create new account (as {selectedType === 'landlord' ? 'Landlord' : 'Tenant'})
-              </a>
+              </button>
             </div>
           </div>
         </div>

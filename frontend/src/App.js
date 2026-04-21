@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookingProvider } from './context/BookingContext';
@@ -12,8 +12,6 @@ import Support from './components/pages/Support/Support.jsx';
 import AboutUs from './components/pages/About/AboutUs.jsx';
 import ProfilePage from './components/pages/Profile/ProfilePage.jsx';
 import Report from './components/pages/Report/Report.jsx';
-import Reviews from './components/pages/Reviews/Reviews.jsx';
-import Settings from './components/pages/Settings/Settings.jsx';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -53,7 +51,6 @@ function App() {
     return localStorage.getItem('userType') || null;
   });
 
-  const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
@@ -130,7 +127,7 @@ function App() {
           
             <Route path="/report" element={
               <ProtectedRoute>
-                <Report userType={userType} darkMode={darkMode} />
+                <Report userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
               </ProtectedRoute>
             } />
             <Route path="*" element={<Navigate to="/" />} />

@@ -1,15 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import './ProfilePage.css';
-import {
-  User,
-  LogOut,
-  Moon,
-  Sun,
-  HelpCircle,
-  Info,
-} from 'lucide-react';
+import { User, HelpCircle, Info, Moon, Sun, LogOut } from 'lucide-react';
 
 const COLORS = {
   light: {
@@ -32,124 +25,143 @@ const COLORS = {
   },
 };
 
-const AVATAR_OPTIONS = ['👤', '👨', '👩', '🧑', '😊', '🎭', '🧔', '👱'];
+const SAMPLE_BOARDING_HOUSES = [
+  { id: 1, title: 'Sunshine Boarding House', price: '₱5,500/month', rooms: '15 rooms', availableRooms: '3 available', address: 'Cebu City, Cebu',  image: '🏠' },
+  { id: 2, title: 'Cozy Dorm',               price: '₱4,200/month', rooms: '12 rooms', availableRooms: '5 available', address: 'Mandaue, Cebu',    image: '🏢' },
+  { id: 3, title: 'Campus Haven',             price: '₱6,000/month', rooms: '20 rooms', availableRooms: '2 available', address: 'Cebu City, Cebu',  image: '🏛️' },
+];
 
-export default function ProfilePage({ darkMode, setDarkMode }) {
-  const navigate   = useNavigate();
+export default function ProfilePage({ role, darkMode, setDarkMode }) {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  // Derive everything from the real AuthContext user
-  const userRole   = user?.userType || 'tenant';
-  const isLandlord = userRole === 'landlord';
-  const isDark     = darkMode || false;
+  const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
+  const isDark = typeof setDarkMode === 'function' ? Boolean(darkMode) : localDarkMode;
+
+  const userRole   = role || user?.userType || 'tenant';
   const colors     = isDark ? COLORS.dark : COLORS.light;
-
-  const displayName  = user?.name  || 'Guest User';
-  const userEmail    = user?.email || '';
-  const userPhone    = user?.phone || '';
-  const userSchool   = user?.school || '';
-  const userGender   = user?.gender || '';
-
-  // Real stats from user data
-  const listings     = user?.listings  || [];
-  const bookings     = user?.bookings  || [];
-  const activeListings = listings.filter(l => l.status === 'Active').length;
-  const activeBookings = bookings.filter(b => b.status === 'accepted').length;
+  const isLandlord = userRole === 'landlord';
 
   const [showDropdown,    setShowDropdown]    = useState(false);
   const [profilePicture,  setProfilePicture]  = useState('👤');
-  const dropdownRef = useRef(null);
 
-  // Load saved profile picture on mount
+  // Use real user data from localStorage
+  const displayName = user?.name || 'Guest User';
+  const userEmail = user?.email || '';
+  const userSchool = user?.school || '';
+
   useEffect(() => {
-    const saved = localStorage.getItem('profilePicture');
-    if (saved) setProfilePicture(saved);
+    // Load saved profile picture
+    const savedPicture = localStorage.getItem('profilePicture');
+    if (savedPicture) {
+      setProfilePicture(savedPicture);
+    }
   }, []);
 
-  // Close dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
-        setShowDropdown(false);
-    };
-    if (showDropdown) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showDropdown]);
+    setLocalDarkMode(Boolean(darkMode));
+  }, [darkMode]);
 
   const handleProfilePictureChange = () => {
-    const current = AVATAR_OPTIONS.indexOf(profilePicture);
-    const next    = AVATAR_OPTIONS[(current + 1) % AVATAR_OPTIONS.length];
-    setProfilePicture(next);
-    localStorage.setItem('profilePicture', next);
+    const emojis = ['👤', '👨', '👩', '🧑', '😊', '🎭'];
+    const newPicture = emojis[Math.floor(Math.random() * emojis.length)];
+    setProfilePicture(newPicture);
+    localStorage.setItem('profilePicture', newPicture);
   };
 
   const handleLogout = () => {
-    logout();
+    logout(); // Clears localStorage via AuthContext
     localStorage.removeItem('userType');
-    window.location.href = '/';
+    navigate('/');
   };
 
-  // ✅ FIX: safe toggle — only call setDarkMode if it was actually passed in
-  const handleDarkModeToggle = () => {
-    if (typeof setDarkMode === 'function') setDarkMode(!isDark);
+  const toggleTheme = () => {
+    const nextMode = !isDark;
+    if (typeof setDarkMode === 'function') {
+      setDarkMode(nextMode);
+    } else {
+      setLocalDarkMode(nextMode);
+      try {
+        localStorage.setItem('darkMode', nextMode ? 'true' : 'false');
+      } catch (_) {}
+    }
+    setShowDropdown(false);
   };
 
-  // Stat rows differ by role
-  const stats = isLandlord
-    ? [
-        { value: activeListings || listings.length, label: 'Listings' },
-        { value: user?.activities?.length || 0,     label: 'Activities' },
-        { value: '4.8',                              label: 'Rating' },
-      ]
-    : [
-        { value: bookings.length,  label: 'Bookings'  },
-        { value: activeBookings,   label: 'Active'     },
-        { value: '4.5',            label: 'Rating'     },
-      ];
+  const bioText = isLandlord
+    ? 'Passionate about providing quality accommodation for students. Over 5 years of experience in the boarding house business.'
+    : 'College student looking for a comfortable place to stay near campus. Love meeting new people!';
 
   return (
-    <div className={`profile-page ${isDark ? 'dark' : ''}`} style={{ background: colors.bg }}>
+    <div className="profile-page" style={{ background: colors.bg }}>
 
       {/* ── Navbar ── */}
-      <nav className="dashboard-nav">
+      <nav className="profile-nav" style={{ background: colors.navBg }}>
         <button
-          className="dashboard-nav-title-btn"
-          style={{ background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer', fontSize: 24, fontWeight: 700, color: colors.text, fontFamily: 'inherit' }}
+          className="profile-nav-title-btn"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            cursor: 'pointer',
+            fontSize: 24,
+            fontWeight: 700,
+            color: colors.text,
+            fontFamily: 'inherit',
+          }}
           aria-label="Go to Overview"
-          onClick={() => navigate('/overview')}  // ✅ FIX: was /dashboard which doesn't exist
+          onClick={() => navigate('/overview')}
         >
           DormScout
         </button>
 
-        <div ref={dropdownRef} className="dashboard-dropdown-wrap">
-          <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
-            <User size={20} color="#fff" />
+        <div className="profile-nav__actions">
+          <div
+            className="avatar-btn avatar-btn--nav"
+            onClick={() => setShowDropdown(!showDropdown)}
+          >
+            {profilePicture}
           </div>
+
           {showDropdown && (
-            <div className="dashboard-dropdown">
-              <div className="dropdown-item dropdown-item-profile"
-                onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
-                <User size={15} /> My Profile
+            <div
+              className="profile-dropdown"
+              style={{
+                background: colors.cardBg,
+                border: `1px solid ${colors.border}`,
+              }}
+            >
+              <div className="profile-dropdown__header">
+                <User className="profile-dropdown__icon" size={15} style={{marginRight: 8}} /> My Profile
               </div>
-              <div className="dropdown-item dropdown-item-default"
-                onClick={() => { navigate('/support'); setShowDropdown(false); }}>
-                <HelpCircle size={15} /> Help and Support
-              </div>
-              <div className="dropdown-item dropdown-item-default"
-                onClick={() => { navigate('/about'); setShowDropdown(false); }}>
-                <Info size={15} /> About Us
+
+              <div
+                className="profile-dropdown__item"
+                style={{ color: colors.text }}
+                onClick={() => { navigate('/support'); setShowDropdown(false); }}
+              >
+                <HelpCircle className="profile-dropdown__icon" size={15} style={{marginRight: 8}} /> Help and Support
               </div>
               <div
-                className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
-                onClick={() => { handleDarkModeToggle(); setShowDropdown(false); }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px' }}
+                className="profile-dropdown__item"
+                style={{ color: colors.text }}
+                onClick={() => { navigate('/about'); setShowDropdown(false); }}
               >
-                {isDark ? <Sun size={15} /> : <Moon size={15} />}
-                <span style={{ marginLeft: 8 }}>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+                <Info className="profile-dropdown__icon" size={15} style={{marginRight: 8}} /> About Us
               </div>
-              <div className="dropdown-item dropdown-item-logout"
-                onClick={() => { setShowDropdown(false); handleLogout(); }}>
-                <LogOut size={15} /> Logout
+              <div
+                className="profile-dropdown__item"
+                style={{ color: colors.text }}
+                onClick={toggleTheme}
+              >
+                {isDark ? <Sun className="profile-dropdown__icon" size={15} style={{marginRight: 8}} /> : <Moon className="profile-dropdown__icon" size={15} style={{marginRight: 8}} />} {isDark ? 'Light Mode' : 'Dark Mode'}
+              </div>
+              <div
+                className="profile-dropdown__item profile-dropdown__item--danger"
+                onClick={() => { setShowDropdown(false); handleLogout(); }}
+              >
+                <LogOut className="profile-dropdown__icon" size={15} style={{marginRight: 8}} /> Logout
               </div>
             </div>
           )}
@@ -160,55 +172,48 @@ export default function ProfilePage({ darkMode, setDarkMode }) {
       <div className="profile-content">
 
         {/* ── Profile Card ── */}
-        <div className="profile-card" style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}>
-
-          {/* Avatar — cycles through emoji options on click */}
+        <div
+          className="profile-card"
+          style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}
+        >
+          {/* Avatar */}
           <div
             className="avatar-btn avatar-btn--profile"
             onClick={handleProfilePictureChange}
-            title="Click to change avatar"
+            title="Click to change profile picture"
           >
             {profilePicture}
           </div>
 
-          {/* Name */}
+          {/* Name - Now uses real user data */}
           <h1 className="profile-card__name" style={{ color: isDark ? '#fff' : '#000' }}>
             {displayName}
           </h1>
 
-          {/* Role badge */}
-          <span style={{
-            display: 'inline-block',
-            padding: '3px 12px',
-            borderRadius: 99,
-            fontSize: 12,
-            fontWeight: 700,
-            marginBottom: 8,
-            background: isLandlord ? 'rgba(91,173,168,0.15)' : 'rgba(232,98,46,0.12)',
-            color:      isLandlord ? '#5BADA8'               : '#E8622E',
-          }}>
-            {isLandlord ? '🏠 Landlord' : '🎓 Tenant'}
-          </span>
+          {/* Email (NEW) */}
+          <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '8px' }}>
+            {userEmail}
+          </p>
 
-          {/* Contact info */}
-          <p style={{ color: colors.secondaryText, fontSize: 14, marginBottom: 4 }}>{userEmail}</p>
-          {userPhone && (
-            <p style={{ color: colors.secondaryText, fontSize: 14, marginBottom: 4 }}>📞 {userPhone}</p>
-          )}
-          {userGender && (
-            <p style={{ color: colors.secondaryText, fontSize: 14, marginBottom: 4 }}>
-              {userGender === 'Male' ? '♂️' : '♀️'} {userGender}
-            </p>
-          )}
-          {!isLandlord && userSchool && (
-            <p style={{ color: colors.secondaryText, fontSize: 14, marginBottom: 8 }}>
+          {/* School for Tenants (NEW) */}
+          {isLandlord === false && userSchool && (
+            <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '8px' }}>
               🎓 {userSchool}
             </p>
           )}
 
-          {/* Stats — real data */}
+          {/* Bio */}
+          <p className="profile-card__bio" style={{ color: colors.secondaryText }}>
+            {bioText}
+          </p>
+
+          {/* Stats */}
           <div className="profile-stats">
-            {stats.map(({ value, label }) => (
+            {[
+              { value: isLandlord ? '3' : '0',   label: isLandlord ? 'Listings' : 'Bookings' },
+              { value: '245',                     label: 'Followers' },
+              { value: isLandlord ? '4.8' : '4.5', label: 'Rating' },
+            ].map(({ value, label }) => (
               <div key={label} className="profile-stats__item">
                 <p className="profile-stats__value">{value}</p>
                 <p className="profile-stats__label" style={{ color: colors.secondaryText }}>{label}</p>
@@ -216,52 +221,58 @@ export default function ProfilePage({ darkMode, setDarkMode }) {
             ))}
           </div>
 
-          {/* Action buttons */}
+          {/* Action Buttons */}
           <div className="profile-actions">
-            <button className="btn btn--follow" onClick={() => navigate('/overview')}>
-              ← Dashboard
+            <button className="btn btn--follow">+ Follow</button>
+            <button className="btn btn--followers">
+              {isLandlord ? '245' : '0'} Followers
             </button>
-            <button className="btn btn--message" onClick={() => navigate('/messages')}>
-              Messages
-            </button>
+            <button className="btn btn--message">Message</button>
           </div>
         </div>
 
-        {/* ── Landlord: real listings ── */}
-        {isLandlord && listings.length > 0 && (
+        {/* ── Landlord Listings ── */}
+        {isLandlord && (
           <div>
             <h2 className="listings-section__title" style={{ color: colors.text }}>
               <span className="listings-section__title-accent">My</span> Listings
             </h2>
+
             <div className="listings-grid">
-              {listings.map((house) => (
+              {SAMPLE_BOARDING_HOUSES.map((house) => (
                 <div
                   key={house.id}
                   className="listing-card"
                   style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}
                 >
-                  <div className="listing-card__image">
-                    {house.images?.[0]
-                      ? <img src={house.images[0]} alt={house.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : '🏠'}
-                  </div>
+                  <div className="listing-card__image">{house.image}</div>
+
                   <div className="listing-card__body">
-                    <h3 className="listing-card__title" style={{ color: colors.text }}>{house.title}</h3>
-                    <p className="listing-card__address" style={{ color: colors.secondaryText }}>{house.address}</p>
+                    <h3 className="listing-card__title" style={{ color: colors.text }}>
+                      {house.title}
+                    </h3>
+                    <p className="listing-card__address" style={{ color: colors.secondaryText }}>
+                      {house.address}
+                    </p>
+
                     <div className="listing-card__meta">
-                      {[
-                        `${house.availableRooms ?? '?'} available`,
-                        house.status || 'Active',
-                      ].map((label) => (
-                        <div key={label} className="listing-card__meta-badge"
-                          style={{ background: isDark ? '#1a1a4a' : '#f5f5f5', color: colors.secondaryText }}>
+                      {[house.rooms, house.availableRooms].map((label) => (
+                        <div
+                          key={label}
+                          className="listing-card__meta-badge"
+                          style={{
+                            background: isDark ? '#1a1a4a' : '#f5f5f5',
+                            color: colors.secondaryText,
+                          }}
+                        >
                           {label}
                         </div>
                       ))}
                     </div>
+
                     <div className="listing-card__footer">
-                      <p className="listing-card__price">₱{house.price}/month</p>
-                      <button className="btn--view" onClick={() => navigate('/listing')}>View</button>
+                      <p className="listing-card__price">{house.price}</p>
+                      <button className="btn--view">View</button>
                     </div>
                   </div>
                 </div>
@@ -270,66 +281,13 @@ export default function ProfilePage({ darkMode, setDarkMode }) {
           </div>
         )}
 
-        {/* ── Landlord: no listings yet ── */}
-        {isLandlord && listings.length === 0 && (
-          <div className="profile-empty" style={{ color: colors.secondaryText, textAlign: 'center', padding: '40px 0' }}>
-            <p style={{ fontSize: 16, marginBottom: 12 }}>You haven't added any listings yet.</p>
-            <button
-              onClick={() => navigate('/listing')}
-              style={{ padding: '10px 24px', background: '#E8622E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
-            >
-              + Add Your First Listing
-            </button>
-          </div>
-        )}
-
-        {/* ── Tenant: booking summary ── */}
+        {/* ── Tenant Empty State ── */}
         {!isLandlord && (
-          <div style={{ marginTop: 24 }}>
-            {bookings.length === 0 ? (
-              <div className="profile-empty" style={{ color: colors.secondaryText, textAlign: 'center', padding: '40px 0' }}>
-                <p style={{ fontSize: 16, marginBottom: 12 }}>You haven't made any bookings yet.</p>
-                <button
-                  onClick={() => navigate('/map')}
-                  style={{ padding: '10px 24px', background: '#E8622E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Find a Dorm
-                </button>
-              </div>
-            ) : (
-              <div>
-                <h2 className="listings-section__title" style={{ color: colors.text }}>
-                  <span className="listings-section__title-accent">My</span> Bookings
-                </h2>
-                <div className="listings-grid">
-                  {bookings.slice(0, 6).map((b) => (
-                    <div key={b.id} className="listing-card"
-                      style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}>
-                      <div className="listing-card__image">🏠</div>
-                      <div className="listing-card__body">
-                        <h3 className="listing-card__title" style={{ color: colors.text }}>{b.dormName || b.listingTitle || 'Booking'}</h3>
-                        <p className="listing-card__address" style={{ color: colors.secondaryText }}>{b.listingAddress || ''}</p>
-                        <div className="listing-card__meta">
-                          <div className="listing-card__meta-badge"
-                            style={{ background: isDark ? '#1a1a4a' : '#f5f5f5', color: colors.secondaryText }}>
-                            {b.status || 'pending'}
-                          </div>
-                        </div>
-                        <div className="listing-card__footer">
-                          <p className="listing-card__price">
-                            {b.price ? `₱${b.price}/month` : ''}
-                          </p>
-                          <button className="btn--view" onClick={() => navigate('/booking')}>View</button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="profile-empty" style={{ color: colors.secondaryText }}>
           </div>
         )}
       </div>
     </div>
   );
 }
+
