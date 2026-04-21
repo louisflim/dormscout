@@ -8,10 +8,25 @@ export const AuthProvider = ({ children }) => {
   });
   const [loading, setLoading] = useState(true);
 
+  const normalizeUser = (rawUser) => {
+    if (!rawUser) return rawUser;
+
+    const firstName = rawUser.firstName || rawUser.name?.split(' ')[0] || '';
+    const lastName = rawUser.lastName || rawUser.name?.split(' ').slice(1).join(' ') || '';
+    const name = rawUser.name || `${firstName} ${lastName}`.trim();
+
+    return {
+      ...rawUser,
+      firstName,
+      lastName,
+      name,
+    };
+  };
+
   useEffect(() => {
     const storedUser = localStorage.getItem('dormScoutUser');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      setUser(normalizeUser(JSON.parse(storedUser)));
     }
     setLoading(false);
   }, []);
@@ -19,11 +34,23 @@ export const AuthProvider = ({ children }) => {
   // Broadcast user updates to other parts of the app
   useEffect(() => {
     if (user) {
+      const normalizedUser = normalizeUser(user);
       try {
-        localStorage.setItem('dormScoutUser', JSON.stringify(user));
+        localStorage.setItem('dormScoutUser', JSON.stringify(normalizedUser));
+
+        const users = JSON.parse(localStorage.getItem('dormScoutUsers')) || [];
+        const existingIndex = users.findIndex(u => u.id === normalizedUser.id || u.email === normalizedUser.email);
+
+        if (existingIndex >= 0) {
+          users[existingIndex] = { ...users[existingIndex], ...normalizedUser };
+        } else {
+          users.push(normalizedUser);
+        }
+
+        localStorage.setItem('dormScoutUsers', JSON.stringify(users));
       } catch (_) {}
       // Emit custom event so BookingContext and other components react
-      window.dispatchEvent(new CustomEvent('dormscout:user-updated', { detail: user }));
+      window.dispatchEvent(new CustomEvent('dormscout:user-updated', { detail: normalizedUser }));
     }
   }, [user]);
 
@@ -32,16 +59,18 @@ export const AuthProvider = ({ children }) => {
     const users = JSON.parse(localStorage.getItem('dormScoutUsers')) || [];
 
     const existingUser = users.find(
-      u => u.email === userData.email || u.name === userData.name
+      u => u.email === userData.email
     );
 
     if (existingUser) {
-      return { success: false, message: 'Email or name already exists' };
+      return { success: false, message: 'Email already exists' };
     }
+
+    const normalizedInput = normalizeUser(userData);
 
     const newUser = {
       id: Date.now(),
-      ...userData,
+      ...normalizedInput,
       createdAt: new Date().toISOString(),
       bookings: [],
       listings: [],
@@ -72,12 +101,13 @@ export const AuthProvider = ({ children }) => {
     );
 
     if (foundUser) {
-      localStorage.setItem('dormScoutUser', JSON.stringify(foundUser));
+      const normalizedFoundUser = normalizeUser(foundUser);
+      localStorage.setItem('dormScoutUser', JSON.stringify(normalizedFoundUser));
 
       // Also save userType separately for easy access
-      localStorage.setItem('userType', foundUser.userType);
+      localStorage.setItem('userType', normalizedFoundUser.userType);
 
-      setUser(foundUser);
+      setUser(normalizedFoundUser);
       return { success: true, message: 'Login successful!' };
     }
 
@@ -114,7 +144,7 @@ export const AuthProvider = ({ children }) => {
         }
       });
 
-      return merged;
+      return normalizeUser(merged);
     });
   };
 

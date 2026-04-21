@@ -90,9 +90,10 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   // Profile fields - use real user data
   const [firstName,       setFirstName]       = useState(user?.firstName || savedProfile.firstName       || '');
   const [lastName,        setLastName]        = useState(user?.lastName || savedProfile.lastName        || '');
-  const [email,           setEmail]           = useState(user?.email            || '');
-  const [phoneNumber,     setPhoneNumber]     = useState(user?.phone || savedProfile.phoneNumber     || '');
-  const [university,      setUniversity]      = useState(user?.university       || '');
+  const [email,           setEmail]           = useState(user?.email || savedProfile.email || '');
+  const [phoneNumber,     setPhoneNumber]     = useState(user?.phone || user?.phoneNumber || savedProfile.phoneNumber || savedProfile.phone || '');
+  const [university,      setUniversity]      = useState(user?.university || user?.school || savedProfile.university || savedProfile.school || '');
+  const [gender,          setGender]          = useState(user?.gender || savedProfile.gender || '');
   const [course,          setCourse]          = useState(user?.course           || '');
   const [yearLevel,       setYearLevel]       = useState(user?.yearLevel        || '');
   const [studentId,       setStudentId]       = useState(user?.studentId        || '');
@@ -127,14 +128,22 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   });
 
   function saveProfileChanges() {
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
+    const fullName = `${normalizedFirstName} ${normalizedLastName}`.trim();
+
     // Save to AuthContext (real user object)
     if (user) {
       updateUser({
-        firstName,
-        lastName,
+        firstName: normalizedFirstName,
+        lastName: normalizedLastName,
+        name: fullName,
         email,
         phone: phoneNumber,
+        phoneNumber,
+        school: university,
         university,
+        gender,
         course,
         yearLevel,
         studentId,
@@ -145,7 +154,23 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     }
 
     // Also save to localStorage for landlord profile
-    const profile = { firstName, lastName, email, phoneNumber, businessName, businessPermit, isVerified };
+    const profile = {
+      firstName: normalizedFirstName,
+      lastName: normalizedLastName,
+      name: fullName,
+      email,
+      phoneNumber,
+      phone: phoneNumber,
+      school: university,
+      university,
+      gender,
+      course,
+      yearLevel,
+      studentId,
+      businessName,
+      businessPermit,
+      isVerified,
+    };
     try { localStorage.setItem('dormscout_landlord_profile', JSON.stringify(profile)); } catch (_) {}
     window.dispatchEvent(new Event('dormscout:profileUpdated'));
 
@@ -229,7 +254,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
           {/* Profile Picture */}
           <SettingSection title="Profile Picture" colors={colors}>
             <div className="settings-avatar">
-              <div className="settings-avatar__circle">{user?.name?.split(' ').map(n => n[0]).join('') || '??'}</div>
+              <div className="settings-avatar__circle">{(user?.name || `${firstName} ${lastName}`.trim()).split(' ').filter(Boolean).map(n => n[0]).join('') || '??'}</div>
               <div>
                 <p className="settings-avatar__hint" style={{ color: colors.secondaryText }}>
                   Click the avatar to upload a new profile picture.
@@ -248,6 +273,27 @@ export default function Settings({ userType: propUserType, darkMode = false, set
             <div className="settings-grid-2">
               <InputField label="Email"        type="email" value={email}        onChange={(e) => setEmail(e.target.value)}        placeholder="john@example.com"   colors={colors} />
               <InputField label="Phone Number" type="tel"   value={phoneNumber}  onChange={(e) => setPhoneNumber(e.target.value)}  placeholder="+63 9XX XXX XXXX"   colors={colors} />
+            </div>
+            <div className="settings-grid-2 settings-grid-2--mb">
+              <div className="input-field">
+                <label className="input-field__label" style={{ color: colors.secondaryText }}>
+                  Gender
+                </label>
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className="input-field__select"
+                  style={{
+                    border: `1px solid ${colors.border}`,
+                    background: colors.inputBg,
+                    color: colors.text,
+                  }}
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
             </div>
             <button className="btn-primary btn-primary--mt" onClick={saveProfileChanges}>Save Changes</button>
           </SettingSection>

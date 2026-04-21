@@ -17,7 +17,8 @@ export default function Register({ setUserType }) {
   const userType = urlUserType;
 
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     password: '',
@@ -49,7 +50,8 @@ export default function Register({ setUserType }) {
   ];
 
   const registerFields = [
-    { name: 'name', placeholder: 'Full Name', type: 'text' },
+    { name: 'firstName', placeholder: 'First Name', type: 'text' },
+    { name: 'lastName', placeholder: 'Last Name', type: 'text' },
     { name: 'email', placeholder: 'Email', type: 'email' },
     { name: 'phone', placeholder: 'Phone Number', type: 'tel' },
     { name: 'password', placeholder: 'Password', type: 'password' },
@@ -62,6 +64,14 @@ export default function Register({ setUserType }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
+
+    const firstName = formData.firstName.trim();
+    const lastName = formData.lastName.trim();
+
+    if (!firstName || !lastName) {
+      setError('Please enter your first and last name');
+      return;
+    }
 
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters');
@@ -80,8 +90,13 @@ export default function Register({ setUserType }) {
 
     setLoading(true);
 
+    const fullName = `${firstName} ${lastName}`.trim();
+
     const userData = {
       ...formData,
+      firstName,
+      lastName,
+      name: fullName,
       userType,  // This is LOCKED from URL parameter
       gender,
       school: userType === 'tenant' ? school : null,
@@ -111,7 +126,7 @@ export default function Register({ setUserType }) {
     <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'row', background: 'linear-gradient(135deg, #f5d5c0 0%, #d4ece8 100%)' }}>
       {/* Left Section - Branding */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px 60px', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
-        <h1 style={{ fontSize: '56px', fontWeight: '800', position: 'absolute', top: '5px', left: '60px' }}><span style={{ color: PRIMARY }}>Dorm</span><span style={{ color: SECONDARY }}>Scout</span></h1>
+        <button type="button" onClick={() => navigate('/')} style={{ fontSize: '56px', fontWeight: '800', position: 'absolute', top: '5px', left: '60px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}><span style={{ color: PRIMARY }}>Dorm</span><span style={{ color: SECONDARY }}>Scout</span></button>
 
         {/* Photo Collage */}
         <div style={{ position: 'relative', width: '460px', height: '420px', margin: '0 auto' }}>

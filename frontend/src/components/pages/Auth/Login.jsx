@@ -82,18 +82,24 @@ export default function Login({ setUserType }) {
           position: 'relative',
         }}
       >
-        <h1
+        <button
+          type="button"
+          onClick={() => navigate('/')}
           style={{
             fontSize: '56px',
             fontWeight: '800',
             position: 'absolute',
             top: '5px',
             left: '60px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
           }}
         >
           <span style={{ color: PRIMARY }}>Dorm</span>
           <span style={{ color: SECONDARY }}>Scout</span>
-        </h1>
+        </button>
 
         <div
           style={{

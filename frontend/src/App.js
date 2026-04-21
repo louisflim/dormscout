@@ -64,37 +64,10 @@ function App() {
     document.documentElement.classList.toggle('dark-mode', darkMode);
   }, [darkMode]);
 
-  const Header = () => (
-    <header className="global-header">
-      <div className="logo">DormScout</div>
-      <div style={{ display: 'flex', gap: '12px' }}>
-        {location.pathname === '/' && (
-          <button onClick={() => navigate('/login')} className="primary-btn">
-            Login
-          </button>
-        )}
-        {(location.pathname === '/login' ||
-          location.pathname === '/register' ||
-          location.pathname === '/forgot-password') && (
-          <button onClick={() => navigate('/')} className="primary-btn">
-            Back to Main Menu
-          </button>
-        )}
-      </div>
-    </header>
-  );
-
-  const pagesWithoutOwnNav = [
-    '/', '/login', '/register', '/forgot-password',
-  ];
-
-  const showHeader = pagesWithoutOwnNav.includes(location.pathname);
-
   return (
     <AuthProvider>
       <BookingProvider>
         <div className="app-shell">
-          {showHeader && <Header />}
           <Routes>
             <Route path="/" element={<Homepage key={location.key} />} />
             <Route path="/login" element={<Login setUserType={setUserType} />} />
