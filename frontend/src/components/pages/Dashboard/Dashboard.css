@@ -152,6 +152,7 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  height: 100%;
 }
 
 /* ===== Page Heading ===== */
@@ -202,8 +203,8 @@
 /* ===== Layout: Sidebar + Main ===== */
 .dashboard-layout {
   display: flex;
-  flex: 1;
-  min-width: 0;
+  overflow: hidden;
+  height: calc(100vh - 64px); 
 }
 
 /* ===== Sidebar ===== */
@@ -216,6 +217,9 @@
   gap: 2px;
   border-right: 1px solid;
   overflow-y: auto;
+  position: relative;
+  top: 0;
+  height: 100%;
 }
 
 .dashboard-wrapper.light .dashboard-sidebar { background: #fff; border-right-color: #e8e8e8; }
@@ -270,7 +274,7 @@
 .dashboard-main {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* ===== Overview: Stats Grid ===== */

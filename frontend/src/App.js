@@ -64,7 +64,6 @@ function App() {
     document.documentElement.classList.toggle('dark-mode', darkMode);
   }, [darkMode]);
 
-  // Simplified Header
   const Header = () => (
     <header className="global-header">
       <div className="logo">DormScout</div>
@@ -81,26 +80,15 @@ function App() {
             Back to Main Menu
           </button>
         )}
-        {(location.pathname === '/dashboard' ||
-          location.pathname === '/profile' ||
-          location.pathname === '/settings' ||
-          location.pathname === '/reviews' ||
-          location.pathname === '/support' ||
-          location.pathname === '/about') && (
-          <button onClick={() => navigate('/')} className="primary-btn">
-            Back to Main Menu
-          </button>
-        )}
       </div>
     </header>
   );
 
-  const pagesWithOwnNav = [
-    '/overview', '/map', '/listing', '/booking', '/notifications', '/messages',
-    '/profile', '/support', '/about', '/settings', '/reviews', '/report',
+  const pagesWithoutOwnNav = [
     '/', '/login', '/register', '/forgot-password',
   ];
-  const showHeader = pagesWithOwnNav.includes(location.pathname);
+
+  const showHeader = pagesWithoutOwnNav.includes(location.pathname);
 
   return (
     <AuthProvider>
@@ -166,16 +154,7 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/about" element={<AboutUs darkMode={darkMode} setDarkMode={setDarkMode} />} />
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <Settings userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-              </ProtectedRoute>
-            } />
-            <Route path="/reviews" element={
-              <ProtectedRoute>
-                <Reviews userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-              </ProtectedRoute>
-            } />
+          
             <Route path="/report" element={
               <ProtectedRoute>
                 <Report userType={userType} darkMode={darkMode} />
