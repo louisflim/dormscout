@@ -96,7 +96,7 @@ export default function Register({ setUserType }) {
         setUserType(userType);
       }
 
-      navigate('/dashboard');
+      navigate('/overview');
     } else {
       setError(result.message);
       setLoading(false);

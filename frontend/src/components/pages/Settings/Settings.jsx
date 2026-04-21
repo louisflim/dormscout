@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../../context/AuthContext';
 import './Settings.css';
 
 const PRIMARY = '#E8622E';
@@ -63,7 +64,8 @@ const InputField = ({ label, type = 'text', value, onChange, placeholder, colors
 );
 
 /* ─────────────────────────── Settings ───────────────────────── */
-export default function Settings({ userType = 'tenant', darkMode = false, setDarkMode }) {
+export default function Settings({ userType: propUserType, darkMode = false, setDarkMode }) {
+  const { user, updateUser } = useAuth();
   const dk = darkMode;
 
   const colors = {
@@ -75,35 +77,48 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
     tabBg:         dk ? '#2a2a4a' : '#f0f0f0',
   };
 
-  const isLandlord = userType === 'landlord';
+  const userTypeFromContext = user?.userType;
+  const isLandlord = userTypeFromContext === 'landlord' || propUserType === 'landlord';
 
   const [activeSettingTab, setActiveSettingTab] = useState('profile');
 
-  // Load saved profile from localStorage on mount
+  // Load profile from user (AuthContext) or localStorage
   const savedProfile = (() => {
     try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
   })();
 
-  // Profile fields
-  const [firstName,       setFirstName]       = useState(savedProfile.firstName       || '');
-  const [lastName,        setLastName]         = useState(savedProfile.lastName        || '');
-  const [email,           setEmail]            = useState(savedProfile.email           || '');
-  const [phoneNumber,     setPhoneNumber]      = useState(savedProfile.phoneNumber     || '');
-  const [university,      setUniversity]       = useState('');
-  const [course,          setCourse]           = useState('');
-  const [yearLevel,       setYearLevel]        = useState('');
-  const [studentId,       setStudentId]        = useState('');
-  const [currentPassword, setCurrentPassword]  = useState('');
-  const [newPassword,     setNewPassword]      = useState('');
-  const [confirmPassword, setConfirmPassword]  = useState('');
-  const [businessName,    setBusinessName]     = useState(savedProfile.businessName    || '');
-  const [businessPermit,  setBusinessPermit]   = useState(savedProfile.businessPermit  || '');
-  const [isVerified,      setIsVerified]       = useState(savedProfile.isVerified      || false);
+  // Profile fields - use real user data
+  const [firstName,       setFirstName]       = useState(user?.firstName || savedProfile.firstName       || '');
+  const [lastName,        setLastName]        = useState(user?.lastName || savedProfile.lastName        || '');
+  const [email,           setEmail]           = useState(user?.email            || '');
+  const [phoneNumber,     setPhoneNumber]     = useState(user?.phone || savedProfile.phoneNumber     || '');
+  const [university,      setUniversity]      = useState(user?.university       || '');
+  const [course,          setCourse]          = useState(user?.course           || '');
+  const [yearLevel,       setYearLevel]       = useState(user?.yearLevel        || '');
+  const [studentId,       setStudentId]       = useState(user?.studentId        || '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword,     setNewPassword]     = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [businessName,    setBusinessName]    = useState(user?.businessName || savedProfile.businessName    || '');
+  const [businessPermit,  setBusinessPermit]  = useState(user?.businessPermit || savedProfile.businessPermit  || '');
+  const [isVerified,      setIsVerified]      = useState(user?.isVerified      || savedProfile.isVerified      || false);
 
   // App settings
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [inAppNotifications,  setInAppNotifications]  = useState(true);
-  const [messageAlerts,       setMessageAlerts]       = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(user?.settings?.emailNotifications !== false);
+  const [inAppNotifications,  setInAppNotifications]  = useState(user?.settings?.inAppNotifications !== false);
+  const [messageAlerts,       setMessageAlerts]       = useState(user?.settings?.messageAlerts !== false);
+
+  // Sync dark mode to user settings
+  useEffect(() => {
+    if (user) {
+      updateUser({
+        settings: {
+          ...(user.settings || {}),
+          darkMode,
+        }
+      });
+    }
+  }, [darkMode]);
 
   /* ── Helpers ── */
   const tabStyle = (tab) => ({
@@ -111,10 +126,45 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
     color:      activeSettingTab === tab ? '#fff'  : colors.text,
   });
 
-  function saveLandlordProfile(extra = {}) {
-    const profile = { firstName, lastName, email, phoneNumber, businessName, businessPermit, isVerified, ...extra };
+  function saveProfileChanges() {
+    // Save to AuthContext (real user object)
+    if (user) {
+      updateUser({
+        firstName,
+        lastName,
+        email,
+        phone: phoneNumber,
+        university,
+        course,
+        yearLevel,
+        studentId,
+        businessName,
+        businessPermit,
+        isVerified,
+      });
+    }
+
+    // Also save to localStorage for landlord profile
+    const profile = { firstName, lastName, email, phoneNumber, businessName, businessPermit, isVerified };
     try { localStorage.setItem('dormscout_landlord_profile', JSON.stringify(profile)); } catch (_) {}
     window.dispatchEvent(new Event('dormscout:profileUpdated'));
+
+    alert('Profile updated successfully! ✓');
+  }
+
+  function saveNotificationSettings() {
+    if (user) {
+      updateUser({
+        settings: {
+          ...(user.settings || {}),
+          emailNotifications,
+          inAppNotifications,
+          messageAlerts,
+          darkMode,
+        }
+      });
+    }
+    alert('Settings saved successfully! ✓');
   }
 
   function handleVerify() {
@@ -122,7 +172,14 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
       alert('Please fill in both Business Name and Business Permit Number before verifying.'); return;
     }
     setIsVerified(true);
-    saveLandlordProfile({ isVerified: true });
+    if (user) {
+      updateUser({
+        isVerified: true,
+        businessName,
+        businessPermit,
+      });
+    }
+    try { localStorage.setItem('dormscout_landlord_profile', JSON.stringify({ isVerified: true, businessName, businessPermit })); } catch (_) {}
     alert('Business verified successfully! ✓');
   }
 
@@ -172,7 +229,7 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
           {/* Profile Picture */}
           <SettingSection title="Profile Picture" colors={colors}>
             <div className="settings-avatar">
-              <div className="settings-avatar__circle">??</div>
+              <div className="settings-avatar__circle">{user?.name?.split(' ').map(n => n[0]).join('') || '??'}</div>
               <div>
                 <p className="settings-avatar__hint" style={{ color: colors.secondaryText }}>
                   Click the avatar to upload a new profile picture.
@@ -192,7 +249,7 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
               <InputField label="Email"        type="email" value={email}        onChange={(e) => setEmail(e.target.value)}        placeholder="john@example.com"   colors={colors} />
               <InputField label="Phone Number" type="tel"   value={phoneNumber}  onChange={(e) => setPhoneNumber(e.target.value)}  placeholder="+63 9XX XXX XXXX"   colors={colors} />
             </div>
-            <button className="btn-primary btn-primary--mt" onClick={() => saveLandlordProfile()}>Save Changes</button>
+            <button className="btn-primary btn-primary--mt" onClick={saveProfileChanges}>Save Changes</button>
           </SettingSection>
 
           {/* Landlord: Business Information */}
@@ -251,7 +308,7 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
                 <InputField label="Student ID"  value={studentId}  onChange={(e) => setStudentId(e.target.value)}  placeholder="2024001234"          colors={colors} />
               </div>
 
-              <button className="btn-primary btn-primary--mt">Save Changes</button>
+              <button className="btn-primary btn-primary--mt" onClick={saveProfileChanges}>Save Changes</button>
             </SettingSection>
           )}
 
@@ -294,10 +351,10 @@ export default function Settings({ userType = 'tenant', darkMode = false, setDar
             <SettingRow label="Email Notifications"  control={<Toggle checked={emailNotifications} onChange={setEmailNotifications} />} colors={colors} />
             <SettingRow label="In-App Notifications" control={<Toggle checked={inAppNotifications}  onChange={setInAppNotifications}  />} colors={colors} />
             <SettingRow label="New Message Alerts"   control={<Toggle checked={messageAlerts}       onChange={setMessageAlerts}       />} colors={colors} />
+            <button className="btn-primary btn-primary--mt" onClick={saveNotificationSettings}>Save Preferences</button>
           </SettingSection>
         </>
       )}
     </div>
   );
 }
-

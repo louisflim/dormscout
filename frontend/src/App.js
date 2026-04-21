@@ -96,17 +96,17 @@ function App() {
   );
 
   const pagesWithOwnNav = [
-    '/dashboard', '/map', '/listing', '/booking', '/notifications', '/messages',
+    '/overview', '/map', '/listing', '/booking', '/notifications', '/messages',
     '/profile', '/support', '/about', '/settings', '/reviews', '/report',
     '/', '/login', '/register', '/forgot-password',
   ];
-  const hideGlobalHeader = pagesWithOwnNav.includes(location.pathname);
+  const showHeader = pagesWithOwnNav.includes(location.pathname);
 
   return (
     <AuthProvider>
       <BookingProvider>
         <div className="app-shell">
-          {!hideGlobalHeader && <Header />}
+          {showHeader && <Header />}
           <Routes>
             <Route path="/" element={<Homepage key={location.key} />} />
             <Route path="/login" element={<Login setUserType={setUserType} />} />
@@ -114,9 +114,47 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {/* Protected Routes */}
-            <Route path="/dashboard" element={
-                <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            <Route path="/overview" element={
+                <ProtectedRoute>
+                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+                </ProtectedRoute>
             } />
+            <Route path="/map" element={
+                <ProtectedRoute>
+                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+                </ProtectedRoute>
+            } />
+            <Route path="/listing" element={
+                <ProtectedRoute>
+                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+                </ProtectedRoute>
+            } />
+            <Route path="/booking" element={
+                <ProtectedRoute>
+                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+                </ProtectedRoute>
+            } />
+            <Route path="/notifications" element={
+                <ProtectedRoute>
+                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+                </ProtectedRoute>
+            } />
+            <Route path="/messages" element={
+                <ProtectedRoute>
+                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+                </ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+                <ProtectedRoute>
+                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+                </ProtectedRoute>
+            } />
+            <Route path="/reviews" element={
+                <ProtectedRoute>
+                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+                </ProtectedRoute>
+            } />
+
             <Route path="/profile" element={
               <ProtectedRoute>
                 <ProfilePage userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
@@ -153,3 +191,4 @@ function App() {
 }
 
 export default App;
+

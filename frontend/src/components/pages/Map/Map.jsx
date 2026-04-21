@@ -643,7 +643,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                       </div>
                       {policy && policy !== 'Both' && (
                         <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', marginTop: '2px' }}>
-                          ⚠️ {policy} Only
+                          ⚠️ {policy}
                         </span>
                       )}
                     </div>

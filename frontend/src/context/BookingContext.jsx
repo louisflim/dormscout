@@ -1,108 +1,114 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 // --- LocalStorage Keys ---
-const BOOKINGS_KEY = 'dormscout_bookings';
+const BOOKINGS_KEY      = 'dormscout_bookings';
 const NOTIFICATIONS_KEY = 'dormscout_notifications';
-const MESSAGES_KEY = 'dormscout_chat_messages';
-const TENANTS_KEY = 'dormscout_tenants';
+const MESSAGES_KEY      = 'dormscout_chat_messages';
+const TENANTS_KEY       = 'dormscout_tenants';
 
-// --- Mock current user data ---
+// --- Fallback mock data (only used when NO real user is available) ---
 const MOCK_TENANT = {
-  id: 'tenant-1',
-  name: 'Juan Dela Cruz',
-  email: 'juan@email.com',
-  phone: '0917-123-4567',
-  avatar: 'JD',
-  type: 'tenant',
+  id:     'tenant-1',
+  name:   'Unknown Tenant',
+  email:  '',
+  phone:  '',
+  avatar: 'T',
+  type:   'tenant',
 };
 
 const MOCK_LANDLORD = {
-  id: 'landlord-1',
-  name: 'Rosa Macaraeg',
-  email: 'rosa@email.com',
-  phone: '0918-987-6543',
-  avatar: 'RM',
-  type: 'landlord',
+  id:     'landlord-1',
+  name:   'Unknown Landlord',
+  email:  '',
+  phone:  '',
+  avatar: 'L',
+  type:   'landlord',
 };
 
-// --- Helper to load/save from localStorage ---
+// --- Helpers ---
 function loadJSON(key, fallback = []) {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
-  } catch { return fallback; }
+  } catch {
+    return fallback;
+  }
 }
+
 function saveJSON(key, data) {
   localStorage.setItem(key, JSON.stringify(data));
+}
+
+function getRealUser() {
+  try {
+    return JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
+  } catch {
+    return null;
+  }
 }
 
 // --- Context ---
 const BookingContext = createContext();
 
-// Listeners for real-time updates
-let bookingListeners = [];
+// Module-level listener arrays for "real-time" cross-component updates
+let bookingListeners      = [];
 let notificationListeners = [];
-let listingListeners = [];
-let settingsListeners = [];
-let messagingListeners = [];
+let listingListeners      = [];
+let settingsListeners     = [];
+let messagingListeners    = [];
 
-function notifyBookingChange() {
-  bookingListeners.forEach(listener => listener());
-}
-
-function notifyNotificationChange() {
-  notificationListeners.forEach(listener => listener());
-}
-
-function notifyListingChange() {
-  listingListeners.forEach(listener => listener());
-}
-
-function notifySettingsChange() {
-  settingsListeners.forEach(listener => listener());
-}
-
-function notifyMessagingChange() {
-  messagingListeners.forEach(listener => listener());
-}
+function notifyBookingChange()      { bookingListeners.forEach(l => l());      }
+function notifyNotificationChange() { notificationListeners.forEach(l => l()); }
+function notifyListingChange()      { listingListeners.forEach(l => l());      }
+function notifySettingsChange()     { settingsListeners.forEach(l => l());     }
+function notifyMessagingChange()    { messagingListeners.forEach(l => l());    }
 
 export function BookingProvider({ children }) {
-  const [bookings, setBookings] = useState(() => loadJSON(BOOKINGS_KEY));
+  const [bookings,      setBookings]      = useState(() => loadJSON(BOOKINGS_KEY));
   const [notifications, setNotifications] = useState(() => loadJSON(NOTIFICATIONS_KEY));
-  const [chatMessages, setChatMessages] = useState(() => loadJSON(MESSAGES_KEY, {}));
-  const [tenants, setTenants] = useState(() => loadJSON(TENANTS_KEY));
+  const [chatMessages,  setChatMessages]  = useState(() => loadJSON(MESSAGES_KEY, {}));
+  const [tenants,       setTenants]       = useState(() => loadJSON(TENANTS_KEY));
+  const [currentUser,   setCurrentUser]   = useState(() => getRealUser());
 
-  // Persist to localStorage on change
+  // Keep currentUser in sync with AuthContext writes
   useEffect(() => {
-    saveJSON(BOOKINGS_KEY, bookings);
-    notifyBookingChange();
-  }, [bookings]);
+    function handleStorage(e) {
+      if (e.key === 'dormScoutUser' || !e.key) {
+        setCurrentUser(getRealUser());
+      }
+    }
+    function handleCustomEvent(e) {
+      setCurrentUser(e.detail || getRealUser());
+    }
 
-  useEffect(() => {
-    saveJSON(NOTIFICATIONS_KEY, notifications);
-    notifyNotificationChange();
-  }, [notifications]);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('dormscout:user-updated', handleCustomEvent);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('dormscout:user-updated', handleCustomEvent);
+    };
+  }, []);
 
-  useEffect(() => {
-    saveJSON(MESSAGES_KEY, chatMessages);
-  }, [chatMessages]);
+  // Persist on change + notify listeners
+  useEffect(() => { saveJSON(BOOKINGS_KEY,      bookings);      notifyBookingChange();      }, [bookings]);
+  useEffect(() => { saveJSON(NOTIFICATIONS_KEY, notifications); notifyNotificationChange(); }, [notifications]);
+  useEffect(() => { saveJSON(MESSAGES_KEY,      chatMessages);                              }, [chatMessages]);
+  useEffect(() => { saveJSON(TENANTS_KEY,       tenants);                                   }, [tenants]);
 
-  useEffect(() => {
-    saveJSON(TENANTS_KEY, tenants);
-  }, [tenants]);
-
-  // --- HELPER: sync booking status into tenant's dormScoutUsers record ---
+  // --- Sync booking status back into the tenant's dormScoutUsers record ---
   function _syncStatusToDormScoutUsers(booking, status) {
     try {
       const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
       let changed = false;
+
       const updatedUsers = users.map(u => {
+        // Match by id or email
         if (u.id !== booking.tenantId && u.email !== booking.tenantEmail) return u;
+
         const updatedBookings = (u.bookings || []).map(b => {
-          if (
-            (booking.listingId && String(b.listingId) === String(booking.listingId)) ||
-            (booking.listingTitle && (b.dormName || b.title) === booking.listingTitle)
-          ) {
+          const sameById    = booking.id && String(b.id) === String(booking.id);
+          const sameByTitle = booking.listingTitle && (b.dormName || b.title) === booking.listingTitle;
+          if (sameById || sameByTitle) {
             changed = true;
             return { ...b, status };
           }
@@ -110,62 +116,83 @@ export function BookingProvider({ children }) {
         });
         return { ...u, bookings: updatedBookings };
       });
+
       if (changed) {
         localStorage.setItem('dormScoutUsers', JSON.stringify(updatedUsers));
-        // Update current session if this tenant is logged in right now
-        const currentUser = JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
-        if (currentUser) {
-          const updatedCurrentUser = updatedUsers.find(u => u.id === currentUser.id);
-          if (updatedCurrentUser) {
-            localStorage.setItem('dormScoutUser', JSON.stringify(updatedCurrentUser));
-            // Dispatch storage event so BookingPage re-reads
+
+        // Update the currently-logged-in tenant's session too
+        const sessionUser = JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
+        if (sessionUser) {
+          const updated = updatedUsers.find(u => u.id === sessionUser.id);
+          if (updated) {
+            localStorage.setItem('dormScoutUser', JSON.stringify(updated));
             window.dispatchEvent(new StorageEvent('storage', {
-              key: 'dormScoutUser',
-              newValue: JSON.stringify(updatedCurrentUser),
+              key:        'dormScoutUser',
+              newValue:   JSON.stringify(updated),
               storageArea: localStorage,
             }));
           }
         }
       }
-    } catch (e) { /* ignore */ }
+    } catch (_) { /* ignore */ }
+  }
+
+  // --- ADD NOTIFICATION ---
+  function addNotification(notif) {
+    setNotifications(prev => [{
+      id:        `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      ...notif,
+      read:      false,
+      createdAt: new Date().toISOString(),
+    }, ...prev]);
   }
 
   // --- CREATE BOOKING (tenant action) ---
   function createBooking(listing, moveInDate, tenantUser = null) {
-    const tenantInfo = tenantUser || MOCK_TENANT;
+    // ✅ FIX: always prefer the passed-in user or the live session user — never fall back
+    //         to the hardcoded MOCK_TENANT name in user-facing strings.
+    const realSessionUser = getRealUser();
+    const tenantInfo = tenantUser || realSessionUser || MOCK_TENANT;
+
+    const tenantName   = tenantInfo.name  || 'Unknown Tenant';
+    const tenantEmail  = tenantInfo.email || '';
+    const tenantPhone  = tenantInfo.phone || '';
+    const tenantAvatar = tenantInfo.avatar || (tenantName.charAt(0).toUpperCase());
+
     const newBooking = {
-      id: `booking-${Date.now()}`,
-      listingId: listing.id,
-      listingTitle: listing.title,
-      listingAddress: listing.address,
-      listingPrice: listing.price,
-      listingDescription: listing.description,
-      listingImages: listing.images || [],
-      listingLat: listing.lat,
-      listingLng: listing.lng,
-      listingUniversity: listing.university,
-      listingRooms: listing.availableRooms,
-      listingTags: listing.tags || [],
-      landlordId: listing.landlordId || null,
-      tenantId: tenantInfo.id,
-      tenantName: tenantInfo.name,
-      tenantEmail: tenantInfo.email,
-      tenantPhone: tenantInfo.phone || MOCK_TENANT.phone,
-      tenantAvatar: tenantInfo.avatar || (tenantInfo.name || 'T').charAt(0),
+      id:                  `booking-${Date.now()}`,
+      listingId:           listing.id,
+      listingTitle:        listing.title,
+      listingAddress:      listing.address,
+      listingPrice:        listing.price,
+      listingDescription:  listing.description,
+      listingImages:       listing.images || [],
+      listingLat:          listing.lat,
+      listingLng:          listing.lng,
+      listingUniversity:   listing.university,
+      listingRooms:        listing.availableRooms,
+      listingTags:         listing.tags || [],
+      landlordId:          listing.landlordId || null,
+      tenantId:            tenantInfo.id,
+      tenantName,
+      tenantEmail,
+      tenantPhone,
+      tenantAvatar,
       moveInDate,
-      status: 'pending', // pending | accepted | rejected
+      status:    'pending',
       createdAt: new Date().toISOString(),
     };
+
     setBookings(prev => [...prev, newBooking]);
 
-    // Add notification for landlord
+    // ✅ FIX: notification message uses the real tenant name
     addNotification({
-      type: 'new_booking',
-      title: 'New Booking Request',
-      message: `${MOCK_TENANT.name} requested to book "${listing.title}" with move-in date ${moveInDate}`,
+      type:      'new_booking',
+      title:     'New Booking Request',
+      message:   `${tenantName} requested to book "${listing.title}" with move-in date ${moveInDate}`,
       bookingId: newBooking.id,
       listingId: listing.id,
-      forRole: 'landlord',
+      forRole:   'landlord',
     });
 
     return newBooking;
@@ -174,68 +201,97 @@ export function BookingProvider({ children }) {
   // --- ACCEPT BOOKING (landlord action) ---
   function acceptBooking(bookingId) {
     setBookings(prev => prev.map(b =>
-      b.id === bookingId ? { ...b, status: 'accepted', acceptedAt: new Date().toISOString() } : b
+      b.id === bookingId
+        ? { ...b, status: 'accepted', acceptedAt: new Date().toISOString() }
+        : b
     ));
 
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
-      setTenants(prev => [...prev, {
-        id: `tenant-record-${Date.now()}`,
-        bookingId,
-        listingId: booking.listingId,
-        tenantId: booking.tenantId,
-        tenantName: booking.tenantName,
-        tenantEmail: booking.tenantEmail,
-        tenantPhone: booking.tenantPhone,
-        tenantAvatar: booking.tenantAvatar,
-        roomNumber: `Room ${Math.floor(Math.random() * 20) + 1}`,
-        moveInDate: booking.moveInDate,
-        status: 'active',
-      }]);
+      setTenants(prev => [
+        ...prev,
+        {
+          id:          `tenant-record-${Date.now()}`,
+          bookingId,
+          listingId:   booking.listingId,
+          tenantId:    booking.tenantId,
+          tenantName:  booking.tenantName,
+          tenantEmail: booking.tenantEmail,
+          tenantPhone: booking.tenantPhone,
+          tenantAvatar: booking.tenantAvatar,
+          roomNumber:  `Room ${Math.floor(Math.random() * 20) + 1}`,
+          moveInDate:  booking.moveInDate,
+          status:      'active',
+        },
+      ]);
 
       addNotification({
-        type: 'booking_accepted',
-        title: 'Booking Accepted!',
-        message: `Your booking for "${booking.listingTitle}" has been accepted by the landlord.`,
+        type:      'booking_accepted',
+        title:     'Booking Accepted!',
+        message:   `Your booking for "${booking.listingTitle}" has been accepted by the landlord.`,
         bookingId,
         listingId: booking.listingId,
-        forRole: 'tenant',
+        forRole:   'tenant',
       });
 
-      // Sync accepted status into tenant's AuthContext user record
       _syncStatusToDormScoutUsers(booking, 'accepted');
 
-      // ── Write to the shared 'bookings' key so BookingPage always sees it ──
+      // Write to shared 'bookings' key so BookingPage always sees the latest
       try {
-        const landlordUser = JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
-        const sharedBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-        // Remove any existing entry for this bookingId to avoid duplicates
-        const filtered = sharedBookings.filter(b => b.id !== bookingId);
+        const landlordUser    = getRealUser();
+        const sharedBookings  = JSON.parse(localStorage.getItem('bookings') || '[]');
+        const filtered        = sharedBookings.filter(b => b.id !== bookingId);
         filtered.push({
-          id: bookingId,
-          tenantId: booking.tenantId,
-          tenantName: booking.tenantName,
-          listingName: booking.listingTitle,
+          id:            bookingId,
+          tenantId:      booking.tenantId,
+          tenantName:    booking.tenantName,
+          listingName:   booking.listingTitle,
           listingAddress: booking.listingAddress,
-          price: booking.listingPrice,
-          status: 'Confirmed',
-          bookedOn: booking.createdAt || new Date().toISOString(),
-          moveInDate: booking.moveInDate,
-          landlordId: booking.landlordId || (landlordUser?.id || null),
-          landlordName: landlordUser?.name || 'Landlord',
-          lat: booking.listingLat,
-          lng: booking.listingLng,
-          university: booking.listingUniversity,
-          tags: booking.listingTags || [],
-          description: booking.listingDescription || '',
+          price:         booking.listingPrice,
+          status:        'Confirmed',
+          bookedOn:      booking.createdAt || new Date().toISOString(),
+          moveInDate:    booking.moveInDate,
+          landlordId:    booking.landlordId || (landlordUser?.id || null),
+          landlordName:  landlordUser?.name || 'Landlord',
+          lat:           booking.listingLat,
+          lng:           booking.listingLng,
+          university:    booking.listingUniversity,
+          tags:          booking.listingTags || [],
+          description:   booking.listingDescription || '',
           listingImages: booking.listingImages || [],
         });
         localStorage.setItem('bookings', JSON.stringify(filtered));
       } catch (_) { /* ignore */ }
+    }
+  }
 
-      if (window.__dormscoutSyncCallback) {
-        window.__dormscoutSyncCallback('acceptBooking', bookingId);
-      }
+  // --- REJECT BOOKING (landlord action) ---
+  function rejectBooking(bookingId) {
+    setBookings(prev => prev.map(b =>
+      b.id === bookingId ? { ...b, status: 'rejected' } : b
+    ));
+
+    const booking = bookings.find(b => b.id === bookingId);
+    if (booking) {
+      addNotification({
+        type:      'booking_rejected',
+        title:     'Booking Rejected',
+        message:   `Your booking for "${booking.listingTitle}" has been rejected.`,
+        bookingId,
+        listingId: booking.listingId,
+        forRole:   'tenant',
+      });
+
+      _syncStatusToDormScoutUsers(booking, 'rejected');
+
+      try {
+        const sharedBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+        const idx = sharedBookings.findIndex(b => b.id === bookingId);
+        if (idx !== -1) {
+          sharedBookings[idx] = { ...sharedBookings[idx], status: 'Rejected' };
+          localStorage.setItem('bookings', JSON.stringify(sharedBookings));
+        }
+      } catch (_) { /* ignore */ }
     }
   }
 
@@ -246,21 +302,24 @@ export function BookingProvider({ children }) {
     setTenants(prev => prev.filter(t => t.bookingId !== bookingId));
 
     if (booking) {
+      const reasonSuffix   = reason    ? ` Reason: ${reason}`          : '';
+      const moveOutSuffix  = moveOutDate ? ` Move-out: ${moveOutDate}` : '';
+
       addNotification({
-        type: 'booking_cancelled',
-        title: 'Booking Cancelled',
-        message: `${booking.tenantName} cancelled their booking for "${booking.listingTitle}".${reason ? ` Reason: ${reason}` : ''}${moveOutDate ? ` Move-out: ${moveOutDate}` : ''}`,
+        type:      'booking_cancelled',
+        title:     'Booking Cancelled',
+        message:   `${booking.tenantName} cancelled their booking for "${booking.listingTitle}".${reasonSuffix}${moveOutSuffix}`,
         bookingId,
         listingId: booking.listingId,
-        forRole: 'landlord',
+        forRole:   'landlord',
       });
       addNotification({
-        type: 'booking_cancelled',
-        title: 'Booking Cancelled',
-        message: `You cancelled your booking for "${booking.listingTitle}".${reason ? ` Reason: ${reason}` : ''}`,
+        type:      'booking_cancelled',
+        title:     'Booking Cancelled',
+        message:   `You cancelled your booking for "${booking.listingTitle}".${reasonSuffix}`,
         bookingId,
         listingId: booking.listingId,
-        forRole: 'tenant',
+        forRole:   'tenant',
       });
     }
   }
@@ -273,24 +332,19 @@ export function BookingProvider({ children }) {
     if (tenantRecord) {
       setBookings(prev => prev.filter(b => b.id !== tenantRecord.bookingId));
 
-      try {
-        const raw = localStorage.getItem('dormscout_my_bookings');
-        const myBookings = raw ? JSON.parse(raw) : [];
-        localStorage.setItem('dormscout_my_bookings', JSON.stringify(
-          myBookings.filter(b => b.id !== tenantRecord.listingId)
-        ));
-      } catch (e) { /* ignore */ }
+      const reasonSuffix  = reason     ? ` Reason: ${reason}`               : '';
+      const moveOutSuffix = moveOutDate ? ` Move-out date: ${moveOutDate}`   : '';
 
       addNotification({
-        type: 'tenant_removed',
-        title: 'Tenant Removed',
-        message: `You have been removed from "${tenantRecord.listingId}".${reason ? ` Reason: ${reason}` : ''}${moveOutDate ? ` Move-out date: ${moveOutDate}` : ''}`,
+        type:    'tenant_removed',
+        title:   'Tenant Removed',
+        message: `You have been removed from the listing.${reasonSuffix}${moveOutSuffix}`,
         forRole: 'tenant',
       });
       addNotification({
-        type: 'tenant_removed',
-        title: 'Tenant Removed',
-        message: `You removed ${tenantRecord.tenantName} from the listing.${reason ? ` Reason: ${reason}` : ''}${moveOutDate ? ` Move-out date: ${moveOutDate}` : ''}`,
+        type:    'tenant_removed',
+        title:   'Tenant Removed',
+        message: `You removed ${tenantRecord.tenantName} from the listing.${reasonSuffix}${moveOutSuffix}`,
         forRole: 'landlord',
       });
     }
@@ -301,57 +355,11 @@ export function BookingProvider({ children }) {
     setBookings(prev => prev.filter(b => b.id !== bookingId));
   }
 
-  // --- REJECT BOOKING (landlord action) ---
-  function rejectBooking(bookingId) {
-    setBookings(prev => prev.map(b =>
-      b.id === bookingId ? { ...b, status: 'rejected' } : b
-    ));
-
-    const booking = bookings.find(b => b.id === bookingId);
-    if (booking) {
-      addNotification({
-        type: 'booking_rejected',
-        title: 'Booking Rejected',
-        message: `Your booking for "${booking.listingTitle}" has been rejected.`,
-        bookingId,
-        listingId: booking.listingId,
-        forRole: 'tenant',
-      });
-
-      // Sync rejected status into tenant's AuthContext user record
-      _syncStatusToDormScoutUsers(booking, 'rejected');
-
-      // ── Update the shared 'bookings' key status to Rejected ──
-      try {
-        const sharedBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-        const idx = sharedBookings.findIndex(b => b.id === bookingId);
-        if (idx !== -1) {
-          sharedBookings[idx] = { ...sharedBookings[idx], status: 'Rejected' };
-          localStorage.setItem('bookings', JSON.stringify(sharedBookings));
-        }
-      } catch (_) { /* ignore */ }
-
-      if (window.__dormscoutSyncCallback) {
-        window.__dormscoutSyncCallback('rejectBooking', bookingId);
-      }
-    }
-  }
-
-  // --- ADD NOTIFICATION ---
-  function addNotification(notif) {
-    setNotifications(prev => [{
-      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      ...notif,
-      read: false,
-      createdAt: new Date().toISOString(),
-    }, ...prev]);
-  }
-
   // --- MARK NOTIFICATION READ ---
   function markNotificationRead(notifId) {
-    setNotifications(prev => prev.map(n =>
-      n.id === notifId ? { ...n, read: true } : n
-    ));
+    setNotifications(prev =>
+      prev.map(n => (n.id === notifId ? { ...n, read: true } : n))
+    );
   }
 
   // --- DELETE NOTIFICATION ---
@@ -367,8 +375,8 @@ export function BookingProvider({ children }) {
   // --- SEND CHAT MESSAGE ---
   function sendMessage(conversationId, senderRole, text) {
     const msg = {
-      id: `msg-${Date.now()}`,
-      sender: senderRole,
+      id:        `msg-${Date.now()}`,
+      sender:    senderRole,
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       createdAt: new Date().toISOString(),
@@ -380,16 +388,15 @@ export function BookingProvider({ children }) {
 
     const otherRole = senderRole === 'tenant' ? 'landlord' : 'tenant';
     addNotification({
-      type: 'new_message',
-      title: 'New Message',
-      message: `New message: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`,
+      type:           'new_message',
+      title:          'New Message',
+      message:        `New message: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`,
       conversationId,
-      forRole: otherRole,
+      forRole:        otherRole,
     });
   }
 
   // --- SUBSCRIBE FUNCTIONS ---
-  // ✅ FIX: All three were missing — defined here using the same pattern as the others
   const subscribeToBookings = useCallback((listener) => {
     bookingListeners.push(listener);
     return () => { bookingListeners = bookingListeners.filter(l => l !== listener); };
@@ -419,19 +426,15 @@ export function BookingProvider({ children }) {
   function getBookingsForListing(listingId) {
     return bookings.filter(b => b.listingId === listingId);
   }
-
   function getPendingCount(listingId) {
     return bookings.filter(b => b.listingId === listingId && b.status === 'pending').length;
   }
-
   function getNotifications(role) {
     return notifications.filter(n => n.forRole === role);
   }
-
   function getUnreadCount(role) {
     return notifications.filter(n => n.forRole === role && !n.read).length;
   }
-
   function getTenantsForListing(listingId) {
     return tenants.filter(t => t.listingId === listingId);
   }
@@ -442,6 +445,7 @@ export function BookingProvider({ children }) {
       notifications,
       chatMessages,
       tenants,
+      currentUser,
       createBooking,
       acceptBooking,
       rejectBooking,
@@ -460,9 +464,9 @@ export function BookingProvider({ children }) {
       getTenantsForListing,
       subscribeToBookings,
       subscribeToNotifications,
-      subscribeToListings,      // ✅ now defined
-      subscribeToSettings,      // ✅ now defined
-      subscribeToMessaging,     // ✅ now defined
+      subscribeToListings,
+      subscribeToSettings,
+      subscribeToMessaging,
       notifyListingChange,
       notifySettingsChange,
       notifyMessagingChange,

@@ -70,7 +70,7 @@ export default function Homepage() {
 
       // Save userType
       localStorage.setItem('userType', realUserType);
-      navigate('/dashboard');
+      navigate('/overview');
     } else {
       setError(result.message);
       setLoading(false);

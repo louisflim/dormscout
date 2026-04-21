@@ -1,4 +1,4 @@
-import React, { useState, useEffect} from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import './ProfilePage.css';
@@ -32,39 +32,41 @@ const COLORS = {
   },
 };
 
-const SAMPLE_BOARDING_HOUSES = [
-  { id: 1, title: 'Sunshine Boarding House', price: '₱5,500/month', rooms: '15 rooms', availableRooms: '3 available', address: 'Cebu City, Cebu',  image: '🏠' },
-  { id: 2, title: 'Cozy Dorm',               price: '₱4,200/month', rooms: '12 rooms', availableRooms: '5 available', address: 'Mandaue, Cebu',    image: '🏢' },
-  { id: 3, title: 'Campus Haven',             price: '₱6,000/month', rooms: '20 rooms', availableRooms: '2 available', address: 'Cebu City, Cebu',  image: '🏛️' },
-];
+const AVATAR_OPTIONS = ['👤', '👨', '👩', '🧑', '😊', '🎭', '🧔', '👱'];
 
-export default function ProfilePage({ role, darkMode, setDarkMode }) {
-  const navigate = useNavigate();
+export default function ProfilePage({ darkMode, setDarkMode }) {
+  const navigate   = useNavigate();
   const { user, logout } = useAuth();
 
-  const userRole   = role || user?.userType || 'tenant';
+  // Derive everything from the real AuthContext user
+  const userRole   = user?.userType || 'tenant';
+  const isLandlord = userRole === 'landlord';
   const isDark     = darkMode || false;
   const colors     = isDark ? COLORS.dark : COLORS.light;
-  const isLandlord = userRole === 'landlord';
 
-  const [showDropdown, setShowDropdown] = useState(false);
-  const dropdownRef = React.useRef(null);
-  const [profilePicture, setProfilePicture] = useState('👤');
+  const displayName  = user?.name  || 'Guest User';
+  const userEmail    = user?.email || '';
+  const userPhone    = user?.phone || '';
+  const userSchool   = user?.school || '';
+  const userGender   = user?.gender || '';
 
-  // Use real user data from localStorage
-  const displayName = user?.name || 'Guest User';
-  const userEmail = user?.email || '';
-  const userSchool = user?.school || '';
+  // Real stats from user data
+  const listings     = user?.listings  || [];
+  const bookings     = user?.bookings  || [];
+  const activeListings = listings.filter(l => l.status === 'Active').length;
+  const activeBookings = bookings.filter(b => b.status === 'accepted').length;
 
+  const [showDropdown,    setShowDropdown]    = useState(false);
+  const [profilePicture,  setProfilePicture]  = useState('👤');
+  const dropdownRef = useRef(null);
+
+  // Load saved profile picture on mount
   useEffect(() => {
-    // Load saved profile picture
-    const savedPicture = localStorage.getItem('profilePicture');
-    if (savedPicture) {
-      setProfilePicture(savedPicture);
-    }
+    const saved = localStorage.getItem('profilePicture');
+    if (saved) setProfilePicture(saved);
   }, []);
 
-  // Dashboard dropdown: close on outside click
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target))
@@ -75,37 +77,46 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
   }, [showDropdown]);
 
   const handleProfilePictureChange = () => {
-    const emojis = ['👤', '👨', '👩', '🧑', '😊', '🎭'];
-    const newPicture = emojis[Math.floor(Math.random() * emojis.length)];
-    setProfilePicture(newPicture);
-    localStorage.setItem('profilePicture', newPicture);
+    const current = AVATAR_OPTIONS.indexOf(profilePicture);
+    const next    = AVATAR_OPTIONS[(current + 1) % AVATAR_OPTIONS.length];
+    setProfilePicture(next);
+    localStorage.setItem('profilePicture', next);
   };
 
   const handleLogout = () => {
-    logout(); // Clears localStorage via AuthContext
+    logout();
     localStorage.removeItem('userType');
-    navigate('/');
+    window.location.href = '/';
   };
 
-  const bioText = isLandlord
-    ? 'Passionate about providing quality accommodation for students. Over 5 years of experience in the boarding house business.'
-    : 'College student looking for a comfortable place to stay near campus. Love meeting new people!';
+  // ✅ FIX: safe toggle — only call setDarkMode if it was actually passed in
+  const handleDarkModeToggle = () => {
+    if (typeof setDarkMode === 'function') setDarkMode(!isDark);
+  };
+
+  // Stat rows differ by role
+  const stats = isLandlord
+    ? [
+        { value: activeListings || listings.length, label: 'Listings' },
+        { value: user?.activities?.length || 0,     label: 'Activities' },
+        { value: '4.8',                              label: 'Rating' },
+      ]
+    : [
+        { value: bookings.length,  label: 'Bookings'  },
+        { value: activeBookings,   label: 'Active'     },
+        { value: '4.5',            label: 'Rating'     },
+      ];
 
   return (
     <div className={`profile-page ${isDark ? 'dark' : ''}`} style={{ background: colors.bg }}>
 
       {/* ── Navbar ── */}
-
       <nav className="dashboard-nav">
         <button
           className="dashboard-nav-title-btn"
-          style={{
-            background: 'none', border: 'none', padding: 0, margin: 0,
-            cursor: 'pointer', fontSize: 24, fontWeight: 700,
-            color: colors.text, fontFamily: 'inherit',
-          }}
+          style={{ background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer', fontSize: 24, fontWeight: 700, color: colors.text, fontFamily: 'inherit' }}
           aria-label="Go to Overview"
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate('/overview')}  // ✅ FIX: was /dashboard which doesn't exist
         >
           DormScout
         </button>
@@ -130,13 +141,12 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
               </div>
               <div
                 className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
-                onClick={() => { setDarkMode(!isDark); setShowDropdown(false); }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px', }}
+                onClick={() => { handleDarkModeToggle(); setShowDropdown(false); }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px' }}
               >
                 {isDark ? <Sun size={15} /> : <Moon size={15} />}
                 <span style={{ marginLeft: 8 }}>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
               </div>
-
               <div className="dropdown-item dropdown-item-logout"
                 onClick={() => { setShowDropdown(false); handleLogout(); }}>
                 <LogOut size={15} /> Logout
@@ -150,48 +160,55 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
       <div className="profile-content">
 
         {/* ── Profile Card ── */}
-        <div
-          className="profile-card"
-          style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}
-        >
-          {/* Avatar */}
+        <div className="profile-card" style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}>
+
+          {/* Avatar — cycles through emoji options on click */}
           <div
             className="avatar-btn avatar-btn--profile"
             onClick={handleProfilePictureChange}
-            title="Click to change profile picture"
+            title="Click to change avatar"
           >
             {profilePicture}
           </div>
 
-          {/* Name - Now uses real user data */}
+          {/* Name */}
           <h1 className="profile-card__name" style={{ color: isDark ? '#fff' : '#000' }}>
             {displayName}
           </h1>
 
-          {/* Email (NEW) */}
-          <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '8px' }}>
-            {userEmail}
-          </p>
+          {/* Role badge */}
+          <span style={{
+            display: 'inline-block',
+            padding: '3px 12px',
+            borderRadius: 99,
+            fontSize: 12,
+            fontWeight: 700,
+            marginBottom: 8,
+            background: isLandlord ? 'rgba(91,173,168,0.15)' : 'rgba(232,98,46,0.12)',
+            color:      isLandlord ? '#5BADA8'               : '#E8622E',
+          }}>
+            {isLandlord ? '🏠 Landlord' : '🎓 Tenant'}
+          </span>
 
-          {/* School for Tenants (NEW) */}
-          {isLandlord === false && userSchool && (
-            <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '8px' }}>
+          {/* Contact info */}
+          <p style={{ color: colors.secondaryText, fontSize: 14, marginBottom: 4 }}>{userEmail}</p>
+          {userPhone && (
+            <p style={{ color: colors.secondaryText, fontSize: 14, marginBottom: 4 }}>📞 {userPhone}</p>
+          )}
+          {userGender && (
+            <p style={{ color: colors.secondaryText, fontSize: 14, marginBottom: 4 }}>
+              {userGender === 'Male' ? '♂️' : '♀️'} {userGender}
+            </p>
+          )}
+          {!isLandlord && userSchool && (
+            <p style={{ color: colors.secondaryText, fontSize: 14, marginBottom: 8 }}>
               🎓 {userSchool}
             </p>
           )}
 
-          {/* Bio */}
-          <p className="profile-card__bio" style={{ color: colors.secondaryText }}>
-            {bioText}
-          </p>
-
-          {/* Stats */}
+          {/* Stats — real data */}
           <div className="profile-stats">
-            {[
-              { value: isLandlord ? '3' : '0',   label: isLandlord ? 'Listings' : 'Bookings' },
-              { value: '245',                     label: 'Followers' },
-              { value: isLandlord ? '4.8' : '4.5', label: 'Rating' },
-            ].map(({ value, label }) => (
+            {stats.map(({ value, label }) => (
               <div key={label} className="profile-stats__item">
                 <p className="profile-stats__value">{value}</p>
                 <p className="profile-stats__label" style={{ color: colors.secondaryText }}>{label}</p>
@@ -199,58 +216,52 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
             ))}
           </div>
 
-          {/* Action Buttons */}
+          {/* Action buttons */}
           <div className="profile-actions">
-            <button className="btn btn--follow">+ Follow</button>
-            <button className="btn btn--followers">
-              {isLandlord ? '245' : '0'} Followers
+            <button className="btn btn--follow" onClick={() => navigate('/overview')}>
+              ← Dashboard
             </button>
-            <button className="btn btn--message">Message</button>
+            <button className="btn btn--message" onClick={() => navigate('/messages')}>
+              Messages
+            </button>
           </div>
         </div>
 
-        {/* ── Landlord Listings ── */}
-        {isLandlord && (
+        {/* ── Landlord: real listings ── */}
+        {isLandlord && listings.length > 0 && (
           <div>
             <h2 className="listings-section__title" style={{ color: colors.text }}>
               <span className="listings-section__title-accent">My</span> Listings
             </h2>
-
             <div className="listings-grid">
-              {SAMPLE_BOARDING_HOUSES.map((house) => (
+              {listings.map((house) => (
                 <div
                   key={house.id}
                   className="listing-card"
                   style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}
                 >
-                  <div className="listing-card__image">{house.image}</div>
-
+                  <div className="listing-card__image">
+                    {house.images?.[0]
+                      ? <img src={house.images[0]} alt={house.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : '🏠'}
+                  </div>
                   <div className="listing-card__body">
-                    <h3 className="listing-card__title" style={{ color: colors.text }}>
-                      {house.title}
-                    </h3>
-                    <p className="listing-card__address" style={{ color: colors.secondaryText }}>
-                      {house.address}
-                    </p>
-
+                    <h3 className="listing-card__title" style={{ color: colors.text }}>{house.title}</h3>
+                    <p className="listing-card__address" style={{ color: colors.secondaryText }}>{house.address}</p>
                     <div className="listing-card__meta">
-                      {[house.rooms, house.availableRooms].map((label) => (
-                        <div
-                          key={label}
-                          className="listing-card__meta-badge"
-                          style={{
-                            background: isDark ? '#1a1a4a' : '#f5f5f5',
-                            color: colors.secondaryText,
-                          }}
-                        >
+                      {[
+                        `${house.availableRooms ?? '?'} available`,
+                        house.status || 'Active',
+                      ].map((label) => (
+                        <div key={label} className="listing-card__meta-badge"
+                          style={{ background: isDark ? '#1a1a4a' : '#f5f5f5', color: colors.secondaryText }}>
                           {label}
                         </div>
                       ))}
                     </div>
-
                     <div className="listing-card__footer">
-                      <p className="listing-card__price">{house.price}</p>
-                      <button className="btn--view">View</button>
+                      <p className="listing-card__price">₱{house.price}/month</p>
+                      <button className="btn--view" onClick={() => navigate('/listing')}>View</button>
                     </div>
                   </div>
                 </div>
@@ -259,13 +270,66 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
           </div>
         )}
 
-        {/* ── Tenant Empty State ── */}
+        {/* ── Landlord: no listings yet ── */}
+        {isLandlord && listings.length === 0 && (
+          <div className="profile-empty" style={{ color: colors.secondaryText, textAlign: 'center', padding: '40px 0' }}>
+            <p style={{ fontSize: 16, marginBottom: 12 }}>You haven't added any listings yet.</p>
+            <button
+              onClick={() => navigate('/listing')}
+              style={{ padding: '10px 24px', background: '#E8622E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
+            >
+              + Add Your First Listing
+            </button>
+          </div>
+        )}
+
+        {/* ── Tenant: booking summary ── */}
         {!isLandlord && (
-          <div className="profile-empty" style={{ color: colors.secondaryText }}>
+          <div style={{ marginTop: 24 }}>
+            {bookings.length === 0 ? (
+              <div className="profile-empty" style={{ color: colors.secondaryText, textAlign: 'center', padding: '40px 0' }}>
+                <p style={{ fontSize: 16, marginBottom: 12 }}>You haven't made any bookings yet.</p>
+                <button
+                  onClick={() => navigate('/map')}
+                  style={{ padding: '10px 24px', background: '#E8622E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Find a Dorm
+                </button>
+              </div>
+            ) : (
+              <div>
+                <h2 className="listings-section__title" style={{ color: colors.text }}>
+                  <span className="listings-section__title-accent">My</span> Bookings
+                </h2>
+                <div className="listings-grid">
+                  {bookings.slice(0, 6).map((b) => (
+                    <div key={b.id} className="listing-card"
+                      style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}>
+                      <div className="listing-card__image">🏠</div>
+                      <div className="listing-card__body">
+                        <h3 className="listing-card__title" style={{ color: colors.text }}>{b.dormName || b.listingTitle || 'Booking'}</h3>
+                        <p className="listing-card__address" style={{ color: colors.secondaryText }}>{b.listingAddress || ''}</p>
+                        <div className="listing-card__meta">
+                          <div className="listing-card__meta-badge"
+                            style={{ background: isDark ? '#1a1a4a' : '#f5f5f5', color: colors.secondaryText }}>
+                            {b.status || 'pending'}
+                          </div>
+                        </div>
+                        <div className="listing-card__footer">
+                          <p className="listing-card__price">
+                            {b.price ? `₱${b.price}/month` : ''}
+                          </p>
+                          <button className="btn--view" onClick={() => navigate('/booking')}>View</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 }
-

@@ -1,9 +1,11 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('dormScoutUser')) || null; } catch { return null; }
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -13,6 +15,17 @@ export const AuthProvider = ({ children }) => {
     }
     setLoading(false);
   }, []);
+
+  // Broadcast user updates to other parts of the app
+  useEffect(() => {
+    if (user) {
+      try {
+        localStorage.setItem('dormScoutUser', JSON.stringify(user));
+      } catch (_) {}
+      // Emit custom event so BookingContext and other components react
+      window.dispatchEvent(new CustomEvent('dormscout:user-updated', { detail: user }));
+    }
+  }, [user]);
 
   // Register a new user
   const register = (userData) => {
@@ -78,24 +91,31 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  // Update user data
+  // Update user data - smartly merges nested arrays like listings, bookings, messages
   const updateUser = (updates) => {
-    const updatedUser = { ...user, ...updates };
-    setUser(updatedUser);
-    localStorage.setItem('dormScoutUser', JSON.stringify(updatedUser));
+    setUser(prev => {
+      if (!prev) return prev;
 
-    // Also update in users array
-    const users = JSON.parse(localStorage.getItem('dormScoutUsers')) || [];
-    const index = users.findIndex(u => u.id === user.id);
-    if (index !== -1) {
-      users[index] = updatedUser;
-      localStorage.setItem('dormScoutUsers', JSON.stringify(users));
-    }
+      // If updates is a function, call it with prev
+      const nextUpdates = typeof updates === 'function' ? updates(prev) : updates;
 
-    // Update userType if it changed
-    if (updates.userType) {
-      localStorage.setItem('userType', updates.userType);
-    }
+      // Smart merge for nested arrays
+      const merged = { ...prev };
+      Object.keys(nextUpdates).forEach(key => {
+        const nextVal = nextUpdates[key];
+        const prevVal = merged[key];
+
+        // If it's an array, merge intelligently
+        if (Array.isArray(nextVal) && Array.isArray(prevVal)) {
+          // For listings, bookings, activities - replace but preserve new items
+          merged[key] = nextVal;
+        } else {
+          merged[key] = nextVal;
+        }
+      });
+
+      return merged;
+    });
   };
 
   // Add activity to user's activity log
