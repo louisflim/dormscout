@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Map from '../Map/Map';
 import ListingPage from '../Listing/ListingPage';
@@ -33,6 +33,16 @@ import {
   Clock,
   Plus,
 } from 'lucide-react';
+
+// ─── Helper Functions ────────────────────────────────────────────────────────
+
+function getRealUser() {
+  try {
+    return JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
+  } catch {
+    return null;
+  }
+}
 
 const NAV_ITEMS = {
   landlord: [
@@ -130,7 +140,20 @@ function TenantOverview({ darkMode, onNavigate, user }) {
   const rowBg   = darkMode ? '#0f3460' : '#f9f9f9';
 
   const displayName    = user?.name?.split(' ')[0] || 'User';
-  const bookings       = user?.bookings || [];
+  const [bookings, setBookings] = React.useState(user?.bookings || []);
+  const { subscribeToBookings } = useBooking();
+
+  // Subscribe to booking changes for real-time updates
+  useEffect(() => {
+    const unsubscribe = subscribeToBookings(() => {
+      const updatedUser = getRealUser();
+      if (updatedUser?.bookings) {
+        setBookings(updatedUser.bookings);
+      }
+    });
+    return unsubscribe;
+  }, [subscribeToBookings]);
+
   const activeBooking  = bookings.find(b => b.status === 'accepted');
   const pendingBookings= bookings.filter(b => b.status === 'pending');
   const activities     = user?.activities || [];
@@ -327,7 +350,7 @@ function TenantOverview({ darkMode, onNavigate, user }) {
 
 function LandlordOverview({ darkMode, onNavigate, user }) {
   const [requests, setRequests] = useState([]);
-  const { updateBookingStatus, addActivity } = useAuth();
+  const { updateBookingStatus } = useAuth();
   const { bookings: contextBookings, acceptBooking, rejectBooking, subscribeToBookings } = useBooking();
 
   const cardBg  = darkMode ? '#16213e' : '#fff';
@@ -336,12 +359,93 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
   const rowBg   = darkMode ? '#0f3460' : '#f9f9f9';
 
   const displayName = user?.name?.split(' ')[0] || 'Landlord';
-  const listings    = useMemo(() => user?.listings || [], [user?.listings]);
-  const activities  = user?.activities || [];
 
-  const activeListings  = listings.filter(l => l.status === 'Active');
-  const vacantListings  = listings.filter(l => l.status === 'Active' && l.availableRooms > 0);
-  const pendingListings = listings.filter(l => l.status === 'Pending');
+  // Read listings from localStorage
+  const [listings, setListings] = useState([]);
+  const [activities, setActivities] = useState([]);
+
+  const userId = user?.id ? String(user.id) : null;
+
+  // Load listings from localStorage
+  useEffect(() => {
+    const loadListings = () => {
+      try {
+        const allListings = JSON.parse(localStorage.getItem('dormscout_listings') || '[]');
+
+        const myListings = allListings.filter(l => {
+          const listingLandlordId = l.landlordId ? String(l.landlordId) : null;
+
+          if (userId && listingLandlordId && listingLandlordId === userId) {
+            return true;
+          }
+
+          if (listingLandlordId === 'unknown' && user?.email) {
+            return l.landlordEmail === user.email;
+          }
+
+          if (user?.email && l.landlordEmail === user.email) {
+            return true;
+          }
+
+          return false;
+        });
+
+        setListings(myListings);
+      } catch (_) {
+        setListings([]);
+      }
+    };
+
+    loadListings();
+
+    const handleUpdate = () => loadListings();
+    window.addEventListener('dormscout:listingUpdated', handleUpdate);
+    window.addEventListener('dormscout:listingsUpdated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener('dormscout:listingUpdated', handleUpdate);
+      window.removeEventListener('dormscout:listingsUpdated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [userId, user?.email]);
+
+  // Load activities
+  useEffect(() => {
+    const loadActivities = () => {
+      if (user?.activities && user.activities.length > 0) {
+        setActivities(user.activities);
+      } else {
+        try {
+          const storedActivities = JSON.parse(localStorage.getItem(`dormscout_activities_${user?.id}`) || '[]');
+          setActivities(storedActivities);
+        } catch (_) {
+          setActivities([]);
+        }
+      }
+    };
+
+    loadActivities();
+
+    const handleUpdate = () => loadActivities();
+    window.addEventListener('dormscout:profileUpdated', handleUpdate);
+
+    return () => window.removeEventListener('dormscout:profileUpdated', handleUpdate);
+  }, [user?.id, user?.activities]);
+
+  // Calculate stats
+  const totalRoomsAvailable = listings.reduce((sum, l) => sum + (parseInt(l.availableRooms) || 0), 0);
+
+  // Room type breakdown
+  const roomTypeStats = listings.reduce((acc, l) => {
+    const roomType = l.rooms || 'Unknown';
+    if (!acc[roomType]) {
+      acc[roomType] = { count: 0, available: 0 };
+    }
+    acc[roomType].count++;
+    acc[roomType].available += parseInt(l.availableRooms) || 0;
+    return acc;
+  }, {});
 
   useEffect(() => {
     function updatePendingRequests() {
@@ -369,13 +473,39 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
   const handleAccept = (request) => {
     acceptBooking(request.id);
     updateBookingStatus(request.id, 'accepted');
-    addActivity('booking', `You accepted ${request.tenantName}'s booking request for "${request.listingTitle}"`, 'listing');
+
+    const newActivity = {
+      id: Date.now(),
+      type: 'booking',
+      text: `You accepted ${request.tenantName}'s booking request for "${request.listingTitle}"`,
+      time: 'Just now',
+      nav: 'listing',
+      createdAt: new Date().toISOString(),
+    };
+
+    const storedActivities = JSON.parse(localStorage.getItem(`dormscout_activities_${user?.id}`) || '[]');
+    const updatedActivities = [newActivity, ...storedActivities].slice(0, 20);
+    localStorage.setItem(`dormscout_activities_${user?.id}`, JSON.stringify(updatedActivities));
+    setActivities(updatedActivities);
   };
 
   const handleReject = (request) => {
     rejectBooking(request.id);
     updateBookingStatus(request.id, 'rejected');
-    addActivity('booking', `You rejected ${request.tenantName}'s booking request for "${request.listingTitle}"`, 'listing');
+
+    const newActivity = {
+      id: Date.now(),
+      type: 'booking',
+      text: `You rejected ${request.tenantName}'s booking request for "${request.listingTitle}"`,
+      time: 'Just now',
+      nav: 'listing',
+      createdAt: new Date().toISOString(),
+    };
+
+    const storedActivities = JSON.parse(localStorage.getItem(`dormscout_activities_${user?.id}`) || '[]');
+    const updatedActivities = [newActivity, ...storedActivities].slice(0, 20);
+    localStorage.setItem(`dormscout_activities_${user?.id}`, JSON.stringify(updatedActivities));
+    setActivities(updatedActivities);
   };
 
   return (
@@ -434,45 +564,205 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
         </div>
       )}
 
-      <div className="overview-row-2col">
-        <div className="overview-card-new" style={{ background: cardBg }}>
-          <div className="overview-card-header">
-            <ClipboardList size={16} color="#E8622E" />
-            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>My Listings</span>
-            <button onClick={() => onNavigate('listing')}
-              style={{ marginLeft: 'auto', background: '#E8622E', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Plus size={12} /> Add New
-            </button>
-          </div>
-
-          {listings.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <p style={{ color: subText, fontSize: 13, marginBottom: 12 }}>You haven't added any listings yet.</p>
-              <button className="ov-action-btn-primary" onClick={() => onNavigate('listing')}>
-                <Plus size={14} /> Add Your First Listing
-              </button>
-            </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-                {[
-                  { label: 'Active',  value: activeListings.length,  color: '#5BADA8' },
-                  { label: 'Vacant',  value: vacantListings.length,   color: '#E8622E' },
-                  { label: 'Pending', value: pendingListings.length,  color: '#F59E0B' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 12, background: rowBg }}>
-                    <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color }}>{value}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: subText, marginTop: 2 }}>{label}</p>
-                  </div>
-                ))}
-              </div>
-              <button className="ov-link-btn" onClick={() => onNavigate('listing')} style={{ color: '#E8622E' }}>
-                Manage listings <ChevronRight size={13} />
-              </button>
-            </>
-          )}
+      {/* My Listings Section with Cards */}
+      <div className="overview-card-new" style={{ background: cardBg }}>
+        <div className="overview-card-header">
+          <ClipboardList size={16} color="#E8622E" />
+          <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>My Listings</span>
+          <button onClick={() => onNavigate('listing')}
+            style={{ marginLeft: 'auto', background: '#E8622E', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Plus size={12} /> Add New
+          </button>
         </div>
 
+        {listings.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <p style={{ color: subText, fontSize: 13, marginBottom: 12 }}>You haven't added any listings yet.</p>
+            <button className="ov-action-btn-primary" onClick={() => onNavigate('listing')}>
+              <Plus size={14} /> Add Your First Listing
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Stats Row */}
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+              <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 12, background: rowBg }}>
+                <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#5BADA8' }}>{listings.length}</p>
+                <p style={{ margin: 0, fontSize: 11, color: subText, marginTop: 2 }}>Total Listings</p>
+              </div>
+              <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 12, background: rowBg }}>
+                <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#E8622E' }}>{totalRoomsAvailable}</p>
+                <p style={{ margin: 0, fontSize: 11, color: subText, marginTop: 2 }}>Vacant Rooms</p>
+              </div>
+              <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 12, background: rowBg }}>
+                <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#F59E0B' }}>{requests.length}</p>
+                <p style={{ margin: 0, fontSize: 11, color: subText, marginTop: 2 }}>Pending Bookings</p>
+              </div>
+            </div>
+
+            {/* Room Types Breakdown */}
+            {Object.keys(roomTypeStats).length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ margin: '0 0 8px 0', fontSize: 12, fontWeight: 600, color: text }}>Room Types</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {Object.entries(roomTypeStats).map(([roomType, stats]) => (
+                    <div key={roomType} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '6px 12px',
+                      background: rowBg,
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}>
+                      <span style={{ color: text, fontWeight: 600 }}>{roomType}</span>
+                      <span style={{ color: subText }}>•</span>
+                      <span style={{ color: '#5BADA8', fontWeight: 600 }}>{stats.available} vacant</span>
+                      <span style={{ color: subText }}>({stats.count} {stats.count === 1 ? 'listing' : 'listings'})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Listing Cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {listings.slice(0, 3).map((listing) => (
+                <div
+                  key={listing.id}
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    padding: 12,
+                    background: rowBg,
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s',
+                  }}
+                  onClick={() => onNavigate('listing')}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  {/* Listing Image */}
+                  <div style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    background: cardBg,
+                  }}>
+                    {listing.images && listing.images.length > 0 ? (
+                      <img
+                        src={listing.images[0]}
+                        alt={listing.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '2rem',
+                      }}>
+                        🏠
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Listing Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <p style={{
+                        margin: 0,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: text,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '180px',
+                      }}>
+                        {listing.title}
+                      </p>
+                      <span style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#E8622E',
+                      }}>
+                        ₱{Number(listing.price).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <p style={{
+                      margin: 0,
+                      fontSize: 12,
+                      color: subText,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      marginBottom: 6,
+                    }}>
+                      {listing.address}
+                    </p>
+
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: 11,
+                        padding: '3px 8px',
+                        background: 'rgba(91,173,168,0.15)',
+                        color: '#5BADA8',
+                        borderRadius: 6,
+                        fontWeight: 600,
+                      }}>
+                        🛏️ {listing.rooms || 'Room'}
+                      </span>
+                      <span style={{
+                        fontSize: 11,
+                        padding: '3px 8px',
+                        background: parseInt(listing.availableRooms) > 0 ? 'rgba(232,98,46,0.15)' : 'rgba(220,53,69,0.15)',
+                        color: parseInt(listing.availableRooms) > 0 ? '#E8622E' : '#dc3545',
+                        borderRadius: 6,
+                        fontWeight: 600,
+                      }}>
+                        {listing.availableRooms || 0} rooms vacant
+                      </span>
+                      {listing.genderPolicy && (
+                        <span style={{
+                          fontSize: 11,
+                          padding: '3px 8px',
+                          background: 'rgba(59,130,246,0.15)',
+                          color: '#3b82f6',
+                          borderRadius: 6,
+                          fontWeight: 600,
+                        }}>
+                          {listing.genderPolicy === 'Girls Only' ? '♀️' : listing.genderPolicy === 'Boys Only' ? '♂️' : '⚥'} {listing.genderPolicy}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <ChevronRight size={18} color={subText} style={{ alignSelf: 'center', flexShrink: 0 }} />
+                </div>
+              ))}
+            </div>
+
+            {listings.length > 3 && (
+              <button
+                className="ov-link-btn"
+                onClick={() => onNavigate('listing')}
+                style={{ color: '#E8622E', marginTop: 12 }}
+              >
+                View all {listings.length} listings <ChevronRight size={13} />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="overview-row-2col">
         <div className="overview-card-new" style={{ background: cardBg }}>
           <div className="overview-card-header">
             <TrendingUp size={16} color="#E8622E" />
@@ -492,33 +782,33 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
             ))}
           </div>
         </div>
-      </div>
 
-      <div className="overview-card-new" style={{ background: cardBg }}>
-        <div className="overview-card-header">
-          <Clock size={16} color="#E8622E" />
-          <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Recent Activity</span>
-        </div>
-        {activities.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '20px 0', color: subText, fontSize: 13 }}>
-            No recent activity yet.{' '}
-            {requests.length > 0 ? 'Approve or reject pending requests!' : 'Add listings to get started!'}
+        <div className="overview-card-new" style={{ background: cardBg }}>
+          <div className="overview-card-header">
+            <Clock size={16} color="#E8622E" />
+            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Recent Activity</span>
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {activities.slice(0, 5).map((item) => (
-              <div key={item.id} className="activity-item" style={{ background: rowBg }}
-                onClick={() => item.nav && onNavigate(item.nav)}>
-                <span className="activity-icon">{ACTIVITY_ICON[item.type] || <Bell size={15} color="#666" />}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: text, fontWeight: 500 }}>{item.text}</p>
-                  <p style={{ margin: 0, fontSize: 11, color: subText }}>{item.time}</p>
+          {activities.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px 0', color: subText, fontSize: 13 }}>
+              No recent activity yet.{' '}
+              {requests.length > 0 ? 'Approve or reject pending requests!' : 'Add listings to get started!'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {activities.slice(0, 5).map((item) => (
+                <div key={item.id} className="activity-item" style={{ background: rowBg }}
+                  onClick={() => item.nav && onNavigate(item.nav)}>
+                  <span className="activity-icon">{ACTIVITY_ICON[item.type] || <Bell size={15} color="#666" />}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: text, fontWeight: 500 }}>{item.text}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: subText }}>{item.time}</p>
+                  </div>
+                  {item.nav && <ChevronRight size={14} color={subText} />}
                 </div>
-                {item.nav && <ChevronRight size={14} color={subText} />}
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -529,6 +819,7 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
 export default function Dashboard({ userType: propUserType, darkMode = false, setDarkMode }) {
   const [editListingData, setEditListingData] = useState(null);
   const [showDropdown,    setShowDropdown]    = useState(false);
+
   const dropdownRef = useRef(null);
   const navigate    = useNavigate();
   const location    = useLocation();
@@ -548,8 +839,16 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
 
   const activeNav = getActiveSectionFromPath();
 
-  // ✅ FIX: removed the useEffect that called navigate(activeNav) — it caused an
-  //         infinite redirect loop because every navigation triggered the effect again.
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      // AuthContext already updates the user object via localStorage
+      // Force a re-render by reading the updated user
+    };
+
+    window.addEventListener('dormscout:profileUpdated', handleProfileUpdate);
+    return () => window.removeEventListener('dormscout:profileUpdated', handleProfileUpdate);
+  }, []);
+
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -595,7 +894,20 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
 
         <div ref={dropdownRef} className="dashboard-dropdown-wrap">
           <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
-            <User size={20} color="#fff" />
+            {user?.profileImage ? (
+              <img
+                src={user.profileImage}
+                alt="Profile"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '50%',
+                  objectFit: 'cover'
+                }}
+              />
+            ) : (
+              <User size={20} color="#fff" />
+            )}
           </div>
           {showDropdown && (
             <div className="dashboard-dropdown">

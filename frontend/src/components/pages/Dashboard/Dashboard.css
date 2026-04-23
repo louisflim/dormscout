@@ -63,6 +63,7 @@
   cursor: pointer;
   transition: transform 0.2s ease;
   position: relative;
+  overflow: hidden;
 }
 
 .dashboard-avatar:hover { transform: scale(1.1); }

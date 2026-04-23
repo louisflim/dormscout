@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useBooking } from '../../../context/BookingContext';
 import { useAuth } from '../../../context/AuthContext';
+import { UNIVERSITIES, findNearestUniversity, getDistanceFromUniversity } from '../../../constants/universities';
 import './Map.css';
 
 const PRIMARY     = '#E8622E';
@@ -49,52 +50,10 @@ function makeBlueLabel(abbr) {
   });
 }
 
-const UNIVERSITIES = [
-  { name: 'Cebu Institute of Technology - University',    abbr: 'CIT',        coords: [10.29457049495325,  123.8810696234642]  },
-  { name: 'University of San Carlos - Downtown',          abbr: 'USC-DC',     coords: [10.299533411273078, 123.89894228028311] },
-  { name: 'University of the Visayas',                    abbr: 'UV',         coords: [10.298701521575332, 123.90136409833146] },
-  { name: 'University of Cebu - Main',                    abbr: 'UC Main',    coords: [10.29859134168097,  123.89769041976133] },
-  { name: 'University of San Carlos - Talamban',          abbr: 'USC-TC',     coords: [10.352530648303398, 123.91257785415208] },
-  { name: 'University of Cebu - Banilad',                 abbr: 'UC Banilad', coords: [10.338903100091237, 123.91192294436264] },
-  { name: 'University of Cebu - METC',                    abbr: 'UC METC',    coords: [10.287151042846553, 123.87788175785442] },
-  { name: 'University of San Jose-Recoletos - Main',      abbr: 'USJR Main',  coords: [10.294176444197102, 123.89750739647967] },
-  { name: 'University of San Jose-Recoletos - Basak',     abbr: 'USJR Basak', coords: [10.290123577674795, 123.8624596247838]  },
-  { name: 'Cebu Normal University',                       abbr: 'CNU',        coords: [10.301911563323149, 123.8962597988632]  },
-  { name: 'University of the Philippines Cebu',           abbr: 'UP',         coords: [10.32250556542723,  123.89824335176846] },
-  { name: 'Southwestern University PHINMA',               abbr: 'SWU',        coords: [10.303344727301218, 123.89140215600317] },
-  { name: 'Cebu Technological University',                abbr: 'CTU',        coords: [10.297444457685753, 123.90659062522744] },
-  { name: "Saint Theresa's College",                      abbr: 'STC',        coords: [10.3127944559912,   123.89601129648001] },
-  { name: 'Asian College of Technology',                  abbr: 'ACT',        coords: [10.298830349299022, 123.89590624741045] },
-];
-
-function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-  const R    = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a    =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function getNearestUniversity(lat, lng) {
-  if (!lat || !lng) return null;
-  let nearest = null, minDistance = Infinity;
-  UNIVERSITIES.forEach((uni) => {
-    const distance = getDistanceFromLatLonInKm(lat, lng, uni.coords[0], uni.coords[1]);
-    if (distance < minDistance) { minDistance = distance; nearest = { ...uni, distance }; }
-  });
-  return nearest;
-}
-
-function getDistanceFromUserUniversity(lat, lng, userUniversity) {
-  if (!lat || !lng || !userUniversity) return null;
-  const userUni = UNIVERSITIES.find(uni => uni.name === userUniversity || uni.abbr === userUniversity);
-  if (!userUni) return null;
-  const distance = getDistanceFromLatLonInKm(lat, lng, userUni.coords[0], userUni.coords[1]);
-  return { ...userUni, distance };
-}
+// DELETE THESE - they're now in constants
+// function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) { ... }
+// function getNearestUniversity(lat, lng) { ... }
+// function getDistanceFromUserUniversity(lat, lng, userUniversity) { ... }
 
 const matchesSearch = (l, s) =>
   (l.title    && l.title.toLowerCase().includes(s))    ||
@@ -224,11 +183,11 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
       } else {
         const dist = user?.school
-          ? getDistanceFromUserUniversity(l.lat, l.lng, user.school)
-          : getNearestUniversity(l.lat, l.lng);
+          ? getDistanceFromUniversity(l.lat, l.lng, user.school)
+          : findNearestUniversity(l.lat, l.lng);
         if (dist && dist.distance > maxDistance) return false;
         if (schoolFilter === 'myschool' && user?.school) {
-          const listingUni = getNearestUniversity(l.lat, l.lng);
+          const listingUni = findNearestUniversity(l.lat, l.lng);
           if (listingUni?.name !== user.school) return false;
         }
       }
@@ -274,9 +233,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     // Gender-based booking restriction
     const userGender = user?.gender;
     const policy = listing?.genderPolicy;
-    
 
-    
     // Strict gender check - BLOCK if policy doesn't match gender
     if (policy && policy !== 'Both') {
       if (!userGender) {
@@ -313,7 +270,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         ]));
       }
 
-      // 2. ✅ Save to AuthContext (for Overview dashboard)
+      // 2. Save to AuthContext (for Overview dashboard)
       if (user) {
         addBooking({
           id: createdBooking?.id,
@@ -353,11 +310,11 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     } else {
       // Tenant: distance & school filters
       const dist = user?.school
-        ? getDistanceFromUserUniversity(l.lat, l.lng, user.school)
-        : getNearestUniversity(l.lat, l.lng);
+        ? getDistanceFromUniversity(l.lat, l.lng, user.school)
+        : findNearestUniversity(l.lat, l.lng);
       if (dist && dist.distance > maxDistance) return false;
       if (schoolFilter === 'myschool' && user?.school) {
-        const listingUni = getNearestUniversity(l.lat, l.lng);
+        const listingUni = findNearestUniversity(l.lat, l.lng);
         if (listingUni?.name !== user.school) return false;
       }
     }
@@ -367,12 +324,11 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const noResults         = filteredListings.length === 0 && filteredUnis.length === 0;
 
   const nearest = selectedListing
-    ? (user?.school ? getDistanceFromUserUniversity(selectedListing.lat, selectedListing.lng, user.school) : null) || getNearestUniversity(selectedListing.lat, selectedListing.lng)
+    ? (user?.school ? getDistanceFromUniversity(selectedListing.lat, selectedListing.lng, user.school) : null) || findNearestUniversity(selectedListing.lat, selectedListing.lng)
     : null;
 
   return (
     <div className={`map-wrapper ${theme}`}>
-
       {/* Search & Filters */}
       <div className="map-search-wrap" style={{ alignItems: 'center', gap: '8px', position: 'relative' }}>
         <div style={{
@@ -409,7 +365,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
             ⚙️ Filters {showFilters ? '▲' : '▼'}
           </button>
 
-          {/* Floating dropdown card — like the profile menu */}
+          {/* Floating dropdown card */}
           {showFilters && (
             <div style={{
               position: 'absolute',
@@ -435,7 +391,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
               {/* Filter rows */}
               <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
-                {/* Price — both roles */}
+                {/* Price */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555', display: 'flex', alignItems: 'center', gap: '5px' }}>💰 Max Price</span>

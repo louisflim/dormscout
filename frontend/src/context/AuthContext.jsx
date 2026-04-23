@@ -49,7 +49,7 @@ export const AuthProvider = ({ children }) => {
 
         localStorage.setItem('dormScoutUsers', JSON.stringify(users));
       } catch (_) {}
-      // Emit custom event so BookingContext and other components react
+
       window.dispatchEvent(new CustomEvent('dormscout:user-updated', { detail: normalizedUser }));
     }
   }, [user]);
@@ -85,7 +85,6 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('dormScoutUsers', JSON.stringify(users));
     localStorage.setItem('dormScoutUser', JSON.stringify(newUser));
 
-    // Also save userType separately for easy access
     localStorage.setItem('userType', userData.userType);
 
     setUser(newUser);
@@ -104,7 +103,6 @@ export const AuthProvider = ({ children }) => {
       const normalizedFoundUser = normalizeUser(foundUser);
       localStorage.setItem('dormScoutUser', JSON.stringify(normalizedFoundUser));
 
-      // Also save userType separately for easy access
       localStorage.setItem('userType', normalizedFoundUser.userType);
 
       setUser(normalizedFoundUser);
@@ -121,23 +119,84 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  // Update user data - smartly merges nested arrays like listings, bookings, messages
+  // Delete user account
+  const deleteAccount = async () => {
+    const currentUser = JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
+
+    if (!currentUser) {
+      return { success: false, message: 'No user logged in' };
+    }
+
+    try {
+      // Remove from users list
+      const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
+      const filteredUsers = users.filter(u => u.id !== currentUser.id);
+      localStorage.setItem('dormScoutUsers', JSON.stringify(filteredUsers));
+
+      // Clear user's bookings from shared bookings
+      if (currentUser.userType === 'tenant') {
+        const sharedBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+        const filteredBookings = sharedBookings.filter(b =>
+          String(b.tenantId) !== String(currentUser.id)
+        );
+        localStorage.setItem('bookings', JSON.stringify(filteredBookings));
+      }
+
+      // Clear user's dormscout bookings
+      const dormscoutBookings = JSON.parse(localStorage.getItem('dormscout_bookings') || '[]');
+      const filteredDormscoutBookings = dormscoutBookings.filter(b =>
+        String(b.tenantId) !== String(currentUser.id)
+      );
+      localStorage.setItem('dormscout_bookings', JSON.stringify(filteredDormscoutBookings));
+
+      // Clear user's notifications
+      const notifications = JSON.parse(localStorage.getItem('dormscout_notifications') || '[]');
+      const filteredNotifications = notifications.filter(n =>
+        n.tenantId !== currentUser.id && n.forRole !== currentUser.userType
+      );
+      localStorage.setItem('dormscout_notifications', JSON.stringify(filteredNotifications));
+
+      // Clear profile-specific storage
+      if (currentUser.userType === 'landlord') {
+        localStorage.removeItem('dormscout_landlord_profile');
+      }
+
+      // Clear user session
+      localStorage.removeItem('dormScoutUser');
+      localStorage.removeItem('userType');
+      localStorage.removeItem('dormscout_settings');
+
+      // Clear listings if landlord
+      if (currentUser.userType === 'landlord') {
+        const allListings = JSON.parse(localStorage.getItem('dormscout_listings') || '[]');
+        const filteredListings = allListings.filter(l =>
+          String(l.landlordId) !== String(currentUser.id)
+        );
+        localStorage.setItem('dormscout_listings', JSON.stringify(filteredListings));
+      }
+
+      setUser(null);
+
+      return { success: true, message: 'Account deleted successfully' };
+    } catch (error) {
+      console.error('Delete account error:', error);
+      return { success: false, message: 'Failed to delete account' };
+    }
+  };
+
+  // Update user data
   const updateUser = (updates) => {
     setUser(prev => {
       if (!prev) return prev;
 
-      // If updates is a function, call it with prev
       const nextUpdates = typeof updates === 'function' ? updates(prev) : updates;
 
-      // Smart merge for nested arrays
       const merged = { ...prev };
       Object.keys(nextUpdates).forEach(key => {
         const nextVal = nextUpdates[key];
         const prevVal = merged[key];
 
-        // If it's an array, merge intelligently
         if (Array.isArray(nextVal) && Array.isArray(prevVal)) {
-          // For listings, bookings, activities - replace but preserve new items
           merged[key] = nextVal;
         } else {
           merged[key] = nextVal;
@@ -272,6 +331,7 @@ export const AuthProvider = ({ children }) => {
       addBooking,
       updateBookingStatus,
       cancelBooking,
+      deleteAccount,
     }}>
       {children}
     </AuthContext.Provider>
