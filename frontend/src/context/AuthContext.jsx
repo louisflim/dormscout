@@ -55,63 +55,57 @@ export const AuthProvider = ({ children }) => {
   }, [user]);
 
   // Register a new user
-  const register = (userData) => {
-    const users = JSON.parse(localStorage.getItem('dormScoutUsers')) || [];
+  const register = async (userData) => {
+    try {
+      const response = await fetch('http://localhost:8080/api/users/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
 
-    const existingUser = users.find(
-      u => u.email === userData.email
-    );
+      const data = await response.json();
 
-    if (existingUser) {
-      return { success: false, message: 'Email already exists' };
+      if (data.success) {
+        const normalizedUser = normalizeUser(data.user);
+        localStorage.setItem('dormScoutUser', JSON.stringify(normalizedUser));
+        localStorage.setItem('userType', userData.userType);
+        setUser(normalizedUser);
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.message };
+      }
+    } catch (error) {
+      return { success: false, message: 'Registration failed: ' + error.message };
     }
-
-    const normalizedInput = normalizeUser(userData);
-
-    const newUser = {
-      id: Date.now(),
-      ...normalizedInput,
-      createdAt: new Date().toISOString(),
-      bookings: [],
-      listings: [],
-      activities: [],
-      settings: {
-        darkMode: false,
-        notifications: true,
-      },
-    };
-
-    users.push(newUser);
-    localStorage.setItem('dormScoutUsers', JSON.stringify(users));
-    localStorage.setItem('dormScoutUser', JSON.stringify(newUser));
-
-    // Also save userType separately for easy access
-    localStorage.setItem('userType', userData.userType);
-
-    setUser(newUser);
-
-    return { success: true, message: 'Registration successful!' };
   };
 
   // Login user
-  const login = (email, password) => {
-    const users = JSON.parse(localStorage.getItem('dormScoutUsers')) || [];
-    const foundUser = users.find(
-      u => u.email === email && u.password === password
-    );
+  const login = async (email, password) => {
+    try {
+      const response = await fetch('http://localhost:8080/api/users/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (foundUser) {
-      const normalizedFoundUser = normalizeUser(foundUser);
-      localStorage.setItem('dormScoutUser', JSON.stringify(normalizedFoundUser));
+      const data = await response.json();
 
-      // Also save userType separately for easy access
-      localStorage.setItem('userType', normalizedFoundUser.userType);
-
-      setUser(normalizedFoundUser);
-      return { success: true, message: 'Login successful!' };
+      if (data.success) {
+        const normalizedUser = normalizeUser(data.user);
+        localStorage.setItem('dormScoutUser', JSON.stringify(normalizedUser));
+        localStorage.setItem('userType', data.user.userType);
+        setUser(normalizedUser);
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.message };
+      }
+    } catch (error) {
+      return { success: false, message: 'Login failed: ' + error.message };
     }
-
-    return { success: false, message: 'Invalid email or password' };
   };
 
   // Logout user
@@ -168,22 +162,30 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Add a listing (for landlords)
-  const addListing = (listing) => {
+  const addListing = async (listing) => {
     if (!user || user.userType !== 'landlord') return;
 
-    const newListing = {
-      id: listing.id || Date.now(),
-      ...listing,
-      status: 'Active',
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const response = await fetch(`http://localhost:8080/api/listings?landlordId=${user.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(listing),
+      });
 
-    const listings = [newListing, ...(user.listings || [])];
-    updateUser({ listings });
+      const data = await response.json();
 
-    addActivity('listing', `New listing "${listing.title}" created`, 'listing');
-
-    return newListing;
+      if (data.success) {
+        const newListing = data.listing;
+        const listings = [newListing, ...(user.listings || [])];
+        updateUser({ listings });
+        addActivity('listing', `New listing "${listing.title}" created`, 'listing');
+        return newListing;
+      }
+    } catch (error) {
+      console.error('Failed to add listing:', error);
+    }
   };
 
   // Update a listing (for landlords)
@@ -207,43 +209,67 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Add a booking (for tenants)
-  const addBooking = (booking) => {
+  const addBooking = async (booking) => {
     if (!user || user.userType !== 'tenant') return;
 
-    const newBooking = {
-      id: booking.id || Date.now(),
-      ...booking,
-      status: 'pending',
-      bookedAt: new Date().toISOString(),
-    };
+    try {
+      const response = await fetch(`http://localhost:8080/api/bookings?tenantId=${user.id}&listingId=${booking.listingId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(booking),
+      });
 
-    const bookings = [newBooking, ...(user.bookings || [])];
-    updateUser({ bookings });
+      const data = await response.json();
 
-    addActivity('booking', `Booking request sent for "${booking.dormName}"`, 'booking');
-
-    return newBooking;
+      if (data.success) {
+        const newBooking = data.booking;
+        const bookings = [newBooking, ...(user.bookings || [])];
+        updateUser({ bookings });
+        addActivity('booking', `Booking request sent for "${booking.dormName}"`, 'booking');
+        return newBooking;
+      }
+    } catch (error) {
+      console.error('Failed to add booking:', error);
+    }
   };
 
   // Update booking status
-  const updateBookingStatus = (bookingId, status, additionalData = {}) => {
+  const updateBookingStatus = async (bookingId, status, additionalData = {}) => {
     if (!user) return;
 
-    const bookings = (user.bookings || []).map(b => {
-      if (b.id === bookingId) {
-        return { ...b, status, ...additionalData };
-      }
-      return b;
-    });
-    updateUser({ bookings });
+    try {
+      const response = await fetch(`http://localhost:8080/api/bookings/${bookingId}/status?status=${status}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(additionalData),
+      });
 
-    if (user.userType === 'tenant') {
-      const booking = bookings.find(b => b.id === bookingId);
-      if (status === 'accepted') {
-        addActivity('booking', `Your booking for "${booking?.dormName}" was accepted!`, 'booking');
-      } else if (status === 'rejected') {
-        addActivity('booking', `Your booking for "${booking?.dormName}" was rejected`, 'booking');
+      const data = await response.json();
+
+      if (data.success) {
+        const bookings = (user.bookings || []).map(b => {
+          if (b.id === bookingId) {
+            return { ...b, status, ...additionalData };
+          }
+          return b;
+        });
+        updateUser({ bookings });
+
+        if (user.userType === 'tenant') {
+          const booking = bookings.find(b => b.id === bookingId);
+          if (status === 'accepted') {
+            addActivity('booking', `Your booking for "${booking?.dormName}" was accepted!`, 'booking');
+          } else if (status === 'rejected') {
+            addActivity('booking', `Your booking for "${booking?.dormName}" was rejected`, 'booking');
+          }
+        }
       }
+    } catch (error) {
+      console.error('Failed to update booking status:', error);
     }
   };
 
