@@ -561,7 +561,6 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
   }, [showDropdown]);
 
   const isOverview  = activeNav === 'overview';
-  const hideHeading = ['messages', 'reviews', 'notifications', 'overview'].includes(activeNav);
   const subLabel    = SECTION_LABELS[activeNav] || 'Dashboard';
   const subDesc     = activeNav === 'messages'
     ? SECTION_DESCRIPTIONS.messages
@@ -651,12 +650,7 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
 
         {/* Content */}
         <div className="dashboard-content">
-          {!hideHeading && (
-            <h2 className={`dashboard-heading ${activeNav === 'listing' ? 'has-bottom-margin-sm' : 'has-bottom-margin-lg'}`}>
-              {subLabel}
-            </h2>
-          )}
-
+          {/* Only render the subheader (small heading) for main sections except overview */}
           {!isOverview && (
             <div className="dashboard-subheader">
               <h4>{subLabel}</h4>
