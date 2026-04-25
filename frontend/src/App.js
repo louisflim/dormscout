@@ -12,6 +12,7 @@ import Support from './components/pages/Support/Support.jsx';
 import AboutUs from './components/pages/About/AboutUs.jsx';
 import ProfilePage from './components/pages/Profile/ProfilePage.jsx';
 import Report from './components/pages/Report/Report.jsx';
+import AdminPage from './components/pages/Admin/AdminPage.jsx';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -124,6 +125,7 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/about" element={<AboutUs darkMode={darkMode} setDarkMode={setDarkMode} />} />
+            <Route path="/admin" element={<AdminPage />} />
           
             <Route path="/report" element={
               <ProtectedRoute>
