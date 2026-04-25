@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Map from '../Map/Map';
 import ListingPage from '../Listing/ListingPage';
 import BookingPage from '../Booking/BookingPage';
+import BookmarkPage from '../Booking/BookmarkPage';
 import Reviews from '../Reviews/Reviews';
 import Messaging from '../Messaging/Messaging';
 import Settings from '../Settings/Settings';
@@ -32,6 +33,7 @@ import {
   TrendingUp,
   Clock,
   Plus,
+  Bookmark,
 } from 'lucide-react';
 
 // ─── Helper Functions ────────────────────────────────────────────────────────
@@ -58,6 +60,7 @@ const NAV_ITEMS = {
     { id: 'overview',      label: 'Overview'       },
     { id: 'map',           label: 'Map View'        },
     { id: 'booking',       label: 'Booking'         },
+    { id: 'bookmarks',     label: 'Saved'           },
     { id: 'notifications', label: 'Notifications'   },
     { id: 'messages',      label: 'Messages'        },
     { id: 'settings',      label: 'Settings'        },
@@ -70,6 +73,7 @@ const NAV_ICON = {
   map:           (c) => <MapPin          size={18} color={c} />,
   listing:       (c) => <ClipboardList   size={18} color={c} />,
   booking:       (c) => <CalendarDays    size={18} color={c} />,
+  bookmarks:     (c) => <Bookmark        size={18} color={c} />,
   notifications: (c) => <Bell            size={18} color={c} />,
   messages:      (c) => <MessageCircle   size={18} color={c} />,
   settings:      (c) => <SettingsIcon    size={18} color={c} />,
@@ -96,16 +100,16 @@ const SECTION_LABELS = {
   settings:      <><span style={{ color: '#E8622E' }}>Settings </span><span style={{ color: '#5BADA8' }}>View</span></>,
   reviews:       <><span style={{ color: '#E8622E' }}>Reviews </span><span style={{ color: '#5BADA8' }}>View</span></>,
   booking:       <><span style={{ color: '#E8622E' }}>Booking </span><span style={{ color: '#5BADA8' }}>View</span></>,
+  bookmarks:     <><span style={{ color: '#E8622E' }}>Saved </span><span style={{ color: '#5BADA8' }}>Listings</span></>,
   notifications: <><span style={{ color: '#E8622E' }}>Notifications </span><span style={{ color: '#5BADA8' }}>View</span></>,
   listing:       <><span style={{ color: '#E8622E' }}>Listing </span><span style={{ color: '#5BADA8' }}>View</span></>,
-  messages:      <><span style={{ color: '#E8622E' }}>Messages </span><span style={{ color: '#5BADA8' }}>View</span></>,
-};
 
 const SECTION_DESCRIPTIONS = {
   map:           'Search for dorms around Cebu City and find the perfect dorm near campus',
   settings:      'Manage your profile, security, and application preferences.',
   reviews:       'Real feedback from students who have lived there',
   booking:       'Manage and track all your boarding house booking requests.',
+  bookmarks:     'Your saved listings. Come back to them anytime.',
   notifications: 'Stay updated with booking requests, approvals, and messages.',
   messages:      'Chat with landlords and property managers about bookings.',
   listing:       'Create and manage your property listings.',
@@ -833,7 +837,7 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
   // Derive active section directly from the URL pathname — no useEffect needed
   const getActiveSectionFromPath = () => {
     const path = location.pathname.replace('/', '');
-    const validSections = ['overview', 'map', 'listing', 'booking', 'notifications', 'messages', 'settings', 'reviews'];
+    const validSections = ['overview', 'map', 'listing', 'booking', 'bookmarks', 'notifications', 'messages', 'settings', 'reviews'];
     return validSections.includes(path) ? path : 'overview';
   };
 
@@ -978,6 +982,8 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
               <ListingPage darkMode={darkMode} editListingData={editListingData} onEditHandled={() => setEditListingData(null)} />
             ) : activeNav === 'booking' && !isLandlord ? (
               <BookingPage darkMode={darkMode} />
+            ) : activeNav === 'bookmarks' && !isLandlord ? (
+              <BookmarkPage darkMode={darkMode} />
             ) : activeNav === 'notifications' ? (
               <Notifications darkMode={darkMode} userType={userType} />
             ) : activeNav === 'reviews' ? (

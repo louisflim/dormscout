@@ -28,20 +28,16 @@ public class User {
     private String firstName;
 
     private String lastName;
-
     private String phone;
-
-    @Column(nullable = false)
     private String userType;
-
-    @Column(nullable = false)
-    private UserType _userType; // TENANT, LANDLORD
-
-    enum UserType {
-        TENANT, LANDLORD
-    }
-
-    @Column(nullable = false)
+    private String gender;
+    private String school;
+    private String course;
+    private String yearLevel;
+    private String studentId;
+    private String businessName;
+    private String businessPermit;
+    private boolean isVerified;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -49,7 +45,6 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // Relationships
     @OneToMany(mappedBy = "landlord", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Listing> listings = new ArrayList<>();
 

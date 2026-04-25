@@ -93,6 +93,11 @@ function App() {
                   <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
                 </ProtectedRoute>
             } />
+            <Route path="/bookmarks" element={
+                <ProtectedRoute>
+                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+                </ProtectedRoute>
+            } />
             <Route path="/notifications" element={
                 <ProtectedRoute>
                   <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />

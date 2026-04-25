@@ -7,11 +7,48 @@ import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITIES, findNearestUniversity, getDistanceFromUniversity } from '../../../constants/universities';
 import './Map.css';
 
-const PRIMARY     = '#E8622E';
-const BLUE        = '#2563EB';
-const CENTER      = [10.3157, 123.8854];
-const STORAGE_KEY = 'dormscout_listings';
-const BOOKING_KEY = 'dormscout_my_bookings';
+const PRIMARY       = '#E8622E';
+const BLUE          = '#2563EB';
+const CENTER        = [10.3157, 123.8854];
+const STORAGE_KEY   = 'dormscout_listings';
+const BOOKING_KEY   = 'dormscout_my_bookings';
+const BOOKMARK_KEY  = 'dormscout_bookmarks';
+
+function getBookmarks() {
+  try { return JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]'); } catch (_) { return []; }
+}
+
+function isBookmarked(listingId) {
+  return getBookmarks().some(b => String(b.listingId) === String(listingId));
+}
+
+function toggleBookmark(listing, user) {
+  const bookmarks = getBookmarks();
+  const existsIdx = bookmarks.findIndex(b => String(b.listingId) === String(listing.id));
+  if (existsIdx !== -1) {
+    bookmarks.splice(existsIdx, 1);
+  } else {
+    bookmarks.push({
+      id: Date.now(),
+      listingId: listing.id,
+      listingTitle: listing.title,
+      listingAddress: listing.address,
+      listingPrice: listing.price,
+      listingImages: listing.images || [],
+      lat: listing.lat,
+      lng: listing.lng,
+      university: listing.university,
+      landlordName: listing.landlordName || '',
+      genderPolicy: listing.genderPolicy || '',
+      tags: listing.tags || [],
+      description: listing.description || '',
+      tenantId: user?.id || null,
+      savedAt: new Date().toISOString(),
+    });
+  }
+  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks));
+  return existsIdx === -1; // true = was just added
+}
 
 const orangePinIcon = L.divIcon({
   className: '',
@@ -100,6 +137,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
   const [listings, setListings]           = useState([]);
   const [selectedListing, setSelectedListing] = useState(null);
+  const [bookmarked, setBookmarked]         = useState(false);
   const [search, setSearch]               = useState('');
   const [bookingStep, setBookingStep]     = useState('info');
   const [moveInDate, setMoveInDate]       = useState('');
@@ -197,13 +235,20 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       .filter(l => l.lat && l.lng)
       .map((listing) => {
         const marker = L.marker([listing.lat, listing.lng], { icon: orangePinIcon }).addTo(mapInstance.current);
-        marker.on('click', () => setSelectedListing(listing));
+        marker.on('click', () => openModal(listing));
         return marker;
       });
   }, [listings, search, maxDistance, maxPrice, schoolFilter, genderPolicyFilter, user, isLandlord]);
 
   const handleUniversityClick = (uni) => {
     if (mapInstance.current && uni.coords) mapInstance.current.setView(uni.coords, 15);
+  };
+
+  const openModal = (listing) => {
+    setSelectedListing(listing);
+    setBookmarked(isBookmarked(listing.id));
+    setBookingStep('info');
+    setMoveInDate('');
   };
 
   const closeModal = () => {
@@ -514,6 +559,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
               onClick={() => {
                 if (listing.lat && listing.lng && mapInstance.current)
                   mapInstance.current.setView([listing.lat, listing.lng], 15);
+                openModal(listing);
               }}
             >
               <div className="map-listing-card-title">
@@ -638,6 +684,27 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                     <>
                       <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
                         📅 Book This Property
+                      </button>
+                      <button
+                        onClick={() => {
+                          const next = toggleBookmark(selectedListing, user);
+                          setBookmarked(next);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          borderRadius: '12px',
+                          marginBottom: '8px',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '0.92rem',
+                          background: bookmarked ? 'rgba(91,173,168,0.15)' : 'transparent',
+                          border: '1px solid #5BADA8',
+                          color: '#5BADA8',
+                          transition: 'background 0.2s',
+                        }}
+                      >
+                        🔖 {bookmarked ? 'Saved' : 'Save'}
                       </button>
                       <button className="map-btn-contact" onClick={() => {
                         const landlord = {
