@@ -1,7 +1,6 @@
 package com.dormscout.backend.service;
 
 import com.dormscout.backend.entity.Report;
-import com.dormscout.backend.entity.User;
 import com.dormscout.backend.repository.ReportRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

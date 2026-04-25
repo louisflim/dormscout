@@ -103,6 +103,7 @@ const SECTION_LABELS = {
   bookmarks:     <><span style={{ color: '#E8622E' }}>Saved </span><span style={{ color: '#5BADA8' }}>Listings</span></>,
   notifications: <><span style={{ color: '#E8622E' }}>Notifications </span><span style={{ color: '#5BADA8' }}>View</span></>,
   listing:       <><span style={{ color: '#E8622E' }}>Listing </span><span style={{ color: '#5BADA8' }}>View</span></>,
+};
 
 const SECTION_DESCRIPTIONS = {
   map:           'Search for dorms around Cebu City and find the perfect dorm near campus',
