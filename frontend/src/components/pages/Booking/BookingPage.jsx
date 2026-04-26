@@ -4,9 +4,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../context/AuthContext';
 import { useBooking } from '../../../context/BookingContext';
+import { bookingsAPI, listingsAPI } from '../../../utils/api';
 import './BookingPage.css';
-
-const STORAGE_KEY_SHARED = 'bookings'; // written by BookingContext.acceptBooking
 
 const defaultIcon = L.icon({
   iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -44,13 +43,15 @@ function statusStyle(status) {
 
 export default function BookingPage({ darkMode = false }) {
   const navigate = useNavigate();
-  const { user, cancelBooking: authCancelBooking } = useAuth();
-  const { cancelBooking: contextCancelBooking } = useBooking();
+  const { user } = useAuth();
+  const { cancelBooking: contextCancelBooking, subscribeToBookings } = useBooking();
   const [bookings, setBookings] = useState([]);
+  const [listings, setListings] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelMoveOutDate, setCancelMoveOutDate] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const dk = darkMode;
   const theme      = dk ? 'dark' : 'light';
@@ -60,88 +61,106 @@ export default function BookingPage({ darkMode = false }) {
   const borderColor= dk ? '#2a2a4a' : '#e4e6eb';
   const inputBg    = dk ? '#0f3460' : '#f7f7f7';
 
-  // ── Merge confirmed/rejected from 'bookings' key + pending from user.bookings ──
-  const loadMerged = useCallback(() => {
-    let sharedRaw = [];
-    try { sharedRaw = JSON.parse(localStorage.getItem(STORAGE_KEY_SHARED) || '[]'); } catch (_) {}
+  // Load bookings from backend
+  const loadBookings = useCallback(async () => {
+    if (!user?.id) return;
+    setLoading(true);
 
-    const myId    = user?.id;
-    const myEmail = user?.email;
+    try {
+      // Get user's bookings
+      const response = await bookingsAPI.getBookingsByTenant(user.id);
+      let userBookings = Array.isArray(response) ? response : (response.data || []);
 
-    const shared = sharedRaw.filter(b =>
-      (myId    && (String(b.tenantId)    === String(myId))) ||
-      (myEmail && (b.tenantEmail === myEmail))
-    );
-    const sharedIds = new Set(shared.map(b => String(b.id)));
+      // If API returns wrapped response
+      if (userBookings.success !== undefined) {
+        userBookings = userBookings.data || [];
+      }
 
-    const fromUser = (user?.bookings || [])
-    .filter(b => !sharedIds.has(String(b.id)))
-    .map(b => ({
-      id:             b.id,
-      tenantId:       myId,
-      listingName:    b.dormName || b.title,
-      listingAddress: b.address || '',
-      price:          b.price,
-      status:         b.status === 'accepted' ? 'Confirmed' : b.status,  // ✅ Normalize
-      bookedOn:       b.bookedAt || b.createdAt,
-      moveInDate:     b.moveInDate,
-      landlordId:     b.landlordId || null,
-      landlordName:   b.landlordName || b.landlord || 'Landlord',
-      lat:            b.lat,
-      lng:            b.lng,
-      university:     b.university,
-      tags:           b.tags || [],
-      description:    b.description || '',
-      listingImages:  b.images || b.listingImages || [],
-    }));
+      // Get all listings for listing details
+      const listingsResponse = await listingsAPI.getAll();
+      const allListings = Array.isArray(listingsResponse) ? listingsResponse : (listingsResponse.data || []);
 
-    const merged = [
-      ...shared.map(b => ({ ...b, listingName: b.listingName || b.dormName || b.title })),
-      ...fromUser,
-    ].sort((a, b) => new Date(b.bookedOn || 0) - new Date(a.bookedOn || 0));
+      // Merge booking data with listing data
+      const mergedBookings = userBookings.map(booking => {
+        const listing = allListings.find(l => l.id === booking.listingId || l.id === booking.listing?.id);
+        return {
+          ...booking,
+          listingName: booking.listingName || listing?.title || 'Property',
+          listingAddress: booking.listingAddress || listing?.address || '',
+          price: booking.price || listing?.price || 0,
+          landlordId: listing?.landlordId || listing?.landlord?.id || null,
+          landlordName: booking.landlordName || listing?.landlordName || 'Landlord',
+          lat: booking.lat || listing?.lat,
+          lng: booking.lng || listing?.lng,
+          university: listing?.university,
+          tags: listing?.tags || [],
+          description: listing?.description,
+          listingImages: booking.listingImages || listing?.images || [],
+        };
+      });
 
-    setBookings(merged);
-  }, [user]);
-
-  useEffect(() => { loadMerged(); }, [loadMerged]);
+      setBookings(mergedBookings);
+      setListings(allListings);
+    } catch (error) {
+      console.error('Failed to load bookings:', error);
+      // Fallback to localStorage
+      try {
+        const stored = JSON.parse(localStorage.getItem('bookings') || '[]');
+        const myBookings = stored.filter(b => String(b.tenantId) === String(user.id));
+        setBookings(myBookings);
+      } catch (_) {}
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
-    const handler = (e) => {
-      if (e.key === STORAGE_KEY_SHARED || e.key === 'dormScoutUser' || e.key === 'dormscout_bookings') {
-        loadMerged();
-      }
-    };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
-  }, [loadMerged]);
+    loadBookings();
+  }, [loadBookings]);
+
+  // Subscribe to booking changes
+  useEffect(() => {
+    const unsubscribe = subscribeToBookings(() => {
+      loadBookings();
+    });
+    return unsubscribe;
+  }, [subscribeToBookings, loadBookings]);
 
   // ── Cancel ─────────────────────────────────────────────────────────────────
-  const handleCancelBooking = () => {
+  const handleCancelBooking = async () => {
     if (!selectedBooking) return;
+    setLoading(true);
 
     try {
-      const shared = JSON.parse(localStorage.getItem(STORAGE_KEY_SHARED) || '[]');
-      localStorage.setItem(STORAGE_KEY_SHARED, JSON.stringify(
-        shared.filter(b => String(b.id) !== String(selectedBooking.id))
-      ));
-    } catch (_) {}
+      const response = await bookingsAPI.delete(selectedBooking.id);
 
-    authCancelBooking(selectedBooking.id);
-    contextCancelBooking(selectedBooking.id, cancelReason, cancelMoveOutDate);
+      if (response.success || response.ok) {
+        // Update available rooms on listing
+        if (selectedBooking.listingId) {
+          const listing = listings.find(l => l.id === selectedBooking.listingId);
+          if (listing) {
+            const newAvailable = (parseInt(listing.availableRooms) || 0) + 1;
+            await listingsAPI.update(selectedBooking.listingId, { availableRooms: newAvailable });
+          }
+        }
 
-    try {
-      const raw = localStorage.getItem('dormscout_my_bookings');
-      if (raw) {
-        const arr = JSON.parse(raw).filter(b => String(b.id) !== String(selectedBooking.id));
-        localStorage.setItem('dormscout_my_bookings', JSON.stringify(arr));
+        // Call context cancel
+        contextCancelBooking(selectedBooking.id);
+
+        setBookings(prev => prev.filter(b => String(b.id) !== String(selectedBooking.id)));
+      } else {
+        alert(response.message || 'Failed to cancel booking');
       }
-    } catch (_) {}
-
-    setCancelModal(false);
-    setCancelReason('');
-    setCancelMoveOutDate('');
-    setSelectedBooking(null);
-    setBookings(prev => prev.filter(b => String(b.id) !== String(selectedBooking.id)));
+    } catch (error) {
+      console.error('Cancel booking error:', error);
+      alert('Failed to cancel booking');
+    } finally {
+      setCancelModal(false);
+      setCancelReason('');
+      setCancelMoveOutDate('');
+      setSelectedBooking(null);
+      setLoading(false);
+    }
   };
 
   const formatDate = (iso) => {
@@ -152,8 +171,9 @@ export default function BookingPage({ darkMode = false }) {
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <div className={`booking-wrapper ${theme}`}>
-
-      {bookings.length === 0 ? (
+      {loading && bookings.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 40 }}>Loading bookings...</div>
+      ) : bookings.length === 0 ? (
         <div className="booking-empty">
           <p>You have no active bookings.</p>
           <p>Go to Map View or Listing to book a property!</p>
@@ -205,7 +225,7 @@ export default function BookingPage({ darkMode = false }) {
                     <strong style={{ color: text }}>Landlord:</strong> {b.landlordName || 'N/A'}
                   </p>
                   <div className="booking-card-price" style={{ color: '#E8622E' }}>
-                    ₱{b.price}
+                    ₱{Number(b.price).toLocaleString()}
                   </div>
                   {b.moveInDate && (
                     <p style={{ margin: '4px 0', fontSize: '12px', color: subText }}>
@@ -213,7 +233,7 @@ export default function BookingPage({ darkMode = false }) {
                     </p>
                   )}
                   <p style={{ margin: '4px 0 10px 0', fontSize: '12px', color: subText }}>
-                    Booked: {formatDate(b.bookedOn)}
+                    Booked: {formatDate(b.bookedOn || b.createdAt)}
                   </p>
                   {b.tags && b.tags.length > 0 && (
                     <div className="booking-tags" style={{ marginBottom: '10px' }}>
@@ -222,17 +242,19 @@ export default function BookingPage({ darkMode = false }) {
                       ))}
                     </div>
                   )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setSelectedBooking(b); setCancelModal(true); }}
-                    style={{
-                      width: '100%', padding: '8px', marginTop: '4px',
-                      background: 'transparent', border: '1px solid #dc3545',
-                      color: '#dc3545', borderRadius: '8px',
-                      fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-                    }}
-                  >
-                    Cancel Booking
-                  </button>
+                  {(b.status === 'pending' || b.status === 'accepted') && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedBooking(b); setCancelModal(true); }}
+                      style={{
+                        width: '100%', padding: '8px', marginTop: '4px',
+                        background: 'transparent', border: '1px solid #dc3545',
+                        color: '#dc3545', borderRadius: '8px',
+                        fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                      }}
+                    >
+                      Cancel Booking
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -276,7 +298,7 @@ export default function BookingPage({ darkMode = false }) {
                         <strong>Price:</strong> ₱{selectedBooking.price}
                       </p>
                       <p className="booking-details-row" style={{ color: text }}>
-                        <strong>Booked On:</strong> {formatDate(selectedBooking.bookedOn)}
+                        <strong>Booked On:</strong> {formatDate(selectedBooking.bookedOn || selectedBooking.createdAt)}
                       </p>
                     </>
                   );
@@ -297,9 +319,11 @@ export default function BookingPage({ darkMode = false }) {
               )}
 
               <div className="modal-actions">
-                <button className="btn-cancel-booking" onClick={() => setCancelModal(true)}>
-                  Cancel Booking
-                </button>
+                {(selectedBooking.status === 'pending' || selectedBooking.status === 'accepted') && (
+                  <button className="btn-cancel-booking" onClick={() => setCancelModal(true)}>
+                    Cancel Booking
+                  </button>
+                )}
                 {selectedBooking.landlordId && (
                   <button className="btn-contact-landlord" onClick={() => {
                     navigate('/messages', {
@@ -345,7 +369,9 @@ export default function BookingPage({ darkMode = false }) {
 
             <div className="cancel-actions">
               <button className="btn-keep-booking" onClick={() => setCancelModal(false)}>Keep Booking</button>
-              <button className="btn-confirm-cancel" onClick={handleCancelBooking}>Confirm Cancel</button>
+              <button className="btn-confirm-cancel" onClick={handleCancelBooking} disabled={loading}>
+                {loading ? 'Cancelling...' : 'Confirm Cancel'}
+              </button>
             </div>
           </div>
         </div>

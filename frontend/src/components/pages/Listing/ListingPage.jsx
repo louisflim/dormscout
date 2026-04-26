@@ -3,16 +3,12 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useBooking } from '../../../context/BookingContext';
 import { useAuth } from '../../../context/AuthContext';
-import { UNIVERSITIES } from '../../../constants/universities';  // ✅ Import from your constants
+import { UNIVERSITIES } from '../../../constants/universities';
 import TenantManagement from './TenantManagement';
+import { listingsAPI } from '../../../utils/api';
 import './ListingPage.css';
 
-function getLandlordProfile() {
-  try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
-}
-
 const BLUE       = '#2563EB';
-const STORAGE_KEY = 'dormscout_listings';
 const CEBU_BOUNDS = { minLat: 10.25, maxLat: 10.45, minLng: 123.82, maxLng: 123.95 };
 
 const defaultIcon = L.icon({
@@ -83,9 +79,10 @@ const EMPTY_FORM = {
 export default function ListingPage({ mode = 'board', darkMode = false, editListingData, onEditHandled }) {
   const [listings, setListings]           = useState([]);
   const [editingId, setEditingId]         = useState(null);
+  const [loading, setLoading]             = useState(false);
 
   const { getPendingCount, notifyListingChange } = useBooking();
-  const { user, addListing, updateListing, removeListing: authRemoveListing } = useAuth();
+  const { user } = useAuth();
 
   const [form, setForm]                   = useState(EMPTY_FORM);
   const [imageFiles, setImageFiles]       = useState([]);
@@ -93,7 +90,6 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
   const [errors, setErrors]               = useState({});
   const [viewMode, setViewMode]           = useState(mode);
   const [selectedId, setSelectedId]       = useState(null);
-  const [landlordProfile, setLandlordProfile] = useState(getLandlordProfile);
   const [locationError, setLocationError] = useState('');
 
   const mapContainerRef = useRef(null);
@@ -108,36 +104,35 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
   useEffect(() => { setViewMode(mode); }, [mode]);
 
   useEffect(() => {
-    function onProfileUpdate() { setLandlordProfile(getLandlordProfile()); }
-    window.addEventListener('dormscout:profileUpdated', onProfileUpdate);
-    return () => window.removeEventListener('dormscout:profileUpdated', onProfileUpdate);
-  }, []);
-
-  useEffect(() => {
     if (editListingData) { startEdit(editListingData); if (onEditHandled) onEditHandled(); }
   }, [editListingData, onEditHandled]);
 
-  // Load listings from AuthContext (real user data)
+  // Load listings from backend API
   useEffect(() => {
+    if (!user?.id) return;
     mountedRef.current = true;
+    setLoading(true);
 
-    // Always prefer dormscout_listings (the source tenants book from) to ensure IDs match
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        // If logged in as landlord, only show their own listings
-        const filtered = user?.id
-          ? parsed.filter(l => !l.landlordId || String(l.landlordId) === String(user.id))
-          : parsed;
-        if (mountedRef.current) setListings(filtered.length > 0 ? filtered : (user?.listings || []));
-      } else if (user?.listings && user.listings.length > 0) {
-        if (mountedRef.current) setListings(user.listings);
-      }
-    } catch (e) { console.error('Failed to load listings', e); }
+    listingsAPI.getListingsByLandlord(user.id)
+      .then(response => {
+        if (mountedRef.current) {
+          const data = Array.isArray(response) ? response : (response.data || []);
+          setListings(data);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load listings:', err);
+        if (mountedRef.current) setListings([]);
+      })
+      .finally(() => {
+        if (mountedRef.current) setLoading(false);
+      });
 
-    return () => { mountedRef.current = false; previewUrls.forEach((u) => URL.revokeObjectURL(u)); };
-  }, [user, previewUrls]);
+    return () => {
+      mountedRef.current = false;
+      previewUrls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [user?.id, previewUrls]);
 
   useEffect(() => {
     if (selectedId && !listings.find((l) => l.id === selectedId)) setSelectedId(null);
@@ -151,7 +146,6 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
     if (form.lat && form.lng) markerRef.current = L.marker([form.lat, form.lng], { icon: defaultIcon }).addTo(map);
 
-    // ✅ Use imported UNIVERSITIES
     UNIVERSITIES.forEach((uni) => {
       const marker = L.marker(uni.coords, { icon: makeBlueLabel(uni.abbr) }).addTo(map);
       marker.bindPopup(`<b>${uni.name}</b>`);
@@ -216,92 +210,117 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     setForm((f) => ({ ...f, images: imgs }));
   }
 
-  // ✅ FIX: saveToStorage is now a plain function — no hook calls inside
-  const saveToStorage = (newListings) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newListings));
-      window.dispatchEvent(new CustomEvent('dormscout:listingsUpdated', { detail: newListings }));
-      // notifyListingChange comes from the hook called at component level above
-      notifyListingChange?.();
-    } catch (e) { console.error('Failed to save', e); }
-  };
-
   async function handleAdd(e) {
     e.preventDefault(); if (!validateForm()) return;
-    let finalImages = form.images || [];
-    if (imageFiles.length > 0) {
-      try { const dataUrls = await filesToDataUrls(imageFiles); finalImages = [...finalImages, ...dataUrls].slice(0, 3); } catch (err) { console.error('Failed to read images', err); }
+    setLoading(true);
+
+    try {
+      let finalImages = form.images || [];
+      if (imageFiles.length > 0) {
+        const dataUrls = await filesToDataUrls(imageFiles);
+        finalImages = [...finalImages, ...dataUrls].slice(0, 3);
+      }
+      const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
+
+      const listingData = {
+        title: form.title,
+        address: form.address,
+        price: form.price,
+        rooms: form.rooms,
+        availableRooms: form.availableRooms,
+        description: form.description,
+        tags: tagsArray,
+        images: finalImages,
+        lat: form.lat,
+        lng: form.lng,
+        university: form.university,
+        genderPolicy: form.genderPolicy,
+      };
+
+      const response = await listingsAPI.create(listingData, user.id);
+
+      if (response.success) {
+        const newListing = response.listing || response.data?.listing;
+        setListings(prev => [newListing, ...prev]);
+        notifyListingChange();
+        resetForm();
+        setViewMode('board');
+      } else {
+        setErrors({ general: response.message || 'Failed to create listing' });
+      }
+    } catch (err) {
+      console.error('Create listing error:', err);
+      setErrors({ general: 'Failed to create listing' });
+    } finally {
+      setLoading(false);
     }
-    const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
-    const getLandlordName = () => user?.name || landlordProfile.businessName || 'Landlord';
-    const sharedId = Date.now();
-    const newListing = {
-      id: sharedId,
-      ...form,
-      tags: tagsArray,
-      images: finalImages,
-      landlordId: user?.id || 'unknown',
-      landlordName: getLandlordName(),
-      landlordEmail: user?.email,
-      landlordVerified: landlordProfile.isVerified || false,
-      landlordBusiness: landlordProfile.businessName || ''
-    };
-
-    addListing({
-      id: sharedId,
-      title: form.title,
-      address: form.address,
-      price: form.price,
-      rooms: form.rooms,
-      availableRooms: form.availableRooms,
-      description: form.description,
-      tags: tagsArray,
-      images: finalImages,
-      lat: form.lat,
-      lng: form.lng,
-      university: form.university,
-      genderPolicy: form.genderPolicy,
-    });
-
-    const newListings = [newListing, ...listings];
-    setListings(newListings); saveToStorage(newListings);
-    resetForm(); setViewMode('board');
   }
 
   async function handleUpdate(e) {
     e.preventDefault(); if (!validateForm()) return;
-    let finalImages = form.images || [];
-    if (imageFiles.length > 0) {
-      try { const dataUrls = await filesToDataUrls(imageFiles); finalImages = [...finalImages, ...dataUrls].slice(0, 3); } catch (err) { console.error('Failed to read images', err); }
+    setLoading(true);
+
+    try {
+      let finalImages = form.images || [];
+      if (imageFiles.length > 0) {
+        const dataUrls = await filesToDataUrls(imageFiles);
+        finalImages = [...finalImages, ...dataUrls].slice(0, 3);
+      }
+      const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
+
+      const updates = {
+        title: form.title,
+        address: form.address,
+        price: form.price,
+        rooms: form.rooms,
+        availableRooms: form.availableRooms,
+        description: form.description,
+        tags: tagsArray,
+        images: finalImages,
+        lat: form.lat,
+        lng: form.lng,
+        university: form.university,
+        genderPolicy: form.genderPolicy,
+      };
+
+      const response = await listingsAPI.update(editingId, updates);
+
+      if (response.success) {
+        const updatedListing = response.listing || response.data?.listing;
+        setListings(prev => prev.map(l => l.id === editingId ? { ...l, ...updates, ...updatedListing } : l));
+        notifyListingChange();
+        resetForm();
+        setViewMode('board');
+      } else {
+        setErrors({ general: response.message || 'Failed to update listing' });
+      }
+    } catch (err) {
+      console.error('Update listing error:', err);
+      setErrors({ general: 'Failed to update listing' });
+    } finally {
+      setLoading(false);
     }
-    const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
-    const getLandlordName = () => user?.name || landlordProfile.businessName || 'Landlord';
-    const updates = {
-      ...form,
-      tags: tagsArray,
-      images: finalImages,
-      landlordId: user?.id || 'unknown',
-      landlordName: getLandlordName(),
-      landlordEmail: user?.email,
-      landlordVerified: landlordProfile.isVerified || false,
-      landlordBusiness: landlordProfile.businessName || ''
-    };
-
-    updateListing(editingId, updates);
-
-    const newListings = listings.map((l) => l.id === editingId ? { ...l, ...updates } : l);
-    setListings(newListings); saveToStorage(newListings);
-    resetForm(); setViewMode('board');
   }
 
-  function removeListing(id) {
+  async function removeListing(id) {
     if (!window.confirm('Delete this listing?')) return;
+    setLoading(true);
 
-    authRemoveListing(id);
-
-    const newListings = listings.filter((l) => l.id !== id);
-    setListings(newListings); saveToStorage(newListings);
-    if (selectedId === id) setSelectedId(null);
+    try {
+      const response = await listingsAPI.delete(id);
+      if (response.success) {
+        setListings(prev => prev.filter(l => l.id !== id));
+        notifyListingChange();
+        if (selectedId === id) setSelectedId(null);
+      } else {
+        alert(response.message || 'Failed to delete listing');
+      }
+    } catch (err) {
+      console.error('Delete listing error:', err);
+      alert('Failed to delete listing');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function startEdit(listing) {
@@ -320,6 +339,10 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
   function createNewListing() {
     resetForm(); setViewMode('manage');
     setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
+  }
+
+  if (loading && listings.length === 0) {
+    return <div style={{ padding: 40, textAlign: 'center' }}>Loading listings...</div>;
   }
 
   return (
@@ -368,27 +391,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                           <div className="listing-card-body">
                             <div className="listing-card-title">
                               {l.title}
-                              {landlordProfile.isVerified && (
-                                <span title="Verified Landlord" style={{ marginLeft: '6px', fontSize: '0.82rem', color: '#16a34a' }}>✅</span>
-                              )}
                             </div>
-                            {(() => {
-                              const ownerName = [landlordProfile.firstName, landlordProfile.lastName].filter(Boolean).join(' ');
-                              const biz = landlordProfile.businessName;
-                              return (
-                                <>
-                                  {ownerName && (
-                                    <div style={{ fontSize: '0.78rem', color: '#888', marginBottom: '2px' }}>
-                                      👤 {ownerName}
-                                      {landlordProfile.isVerified && <span style={{ marginLeft: '4px', color: '#16a34a' }}>✅</span>}
-                                    </div>
-                                  )}
-                                  {biz && (
-                                    <div style={{ fontSize: '0.78rem', color: '#E8622E', marginBottom: '2px' }}>🏢 {biz}</div>
-                                  )}
-                                </>
-                              );
-                            })()}
                             <div className="listing-card-address">{l.address}</div>
                             {l.university && (
                               <div className="listing-university-badge">🎓 {l.university}</div>
@@ -416,9 +419,9 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 <button
                   className="btn-delete-listing"
                   onClick={() => selectedId && removeListing(selectedId)}
-                  disabled={!selectedId}
+                  disabled={!selectedId || loading}
                 >
-                  Delete Selected
+                  {loading ? 'Deleting...' : 'Delete Selected'}
                 </button>
                 <button className="btn-create-listing" onClick={createNewListing}>
                   Create New Listing
@@ -441,6 +444,12 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
               <p className="listing-section-subtitle">Click the map to set the exact location.</p>
 
               <form className="listing-form" onSubmit={editingId ? handleUpdate : handleAdd}>
+                {errors.general && (
+                  <div style={{ padding: '10px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px', marginBottom: '12px', fontSize: '14px', textAlign: 'center' }}>
+                    {errors.general}
+                  </div>
+                )}
+
                 <div className="form-row-2">
                   <div className="form-field">
                     <input className="listing-input" value={form.title} onChange={setField('title')} placeholder="Listing title" />
@@ -556,8 +565,8 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 </div>
 
                 <div className="listing-form-actions">
-                  <button type="submit" className="btn-submit-listing">
-                    {editingId ? 'Update Listing' : 'Add Listing'}
+                  <button type="submit" className="btn-submit-listing" disabled={loading}>
+                    {loading ? 'Saving...' : (editingId ? 'Update Listing' : 'Add Listing')}
                   </button>
                   <button type="button" className="btn-cancel-listing" onClick={() => { resetForm(); setViewMode('board'); }}>
                     Cancel
