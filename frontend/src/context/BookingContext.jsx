@@ -63,6 +63,23 @@ function notifyListingChange()      { listingListeners.forEach(l => l());      }
 function notifySettingsChange()     { settingsListeners.forEach(l => l());     }
 function notifyMessagingChange()    { messagingListeners.forEach(l => l());    }
 
+function _updateListingAvailableRooms(listingId, delta) {
+  try {
+    const listings = JSON.parse(localStorage.getItem('dormscout_listings') || '[]');
+    const updated = listings.map(l => {
+      if (String(l.id) === String(listingId)) {
+        const currentRooms = parseInt(l.availableRooms) || 0;
+        const newRooms = Math.max(0, currentRooms + delta);
+        return { ...l, availableRooms: newRooms };
+      }
+      return l;
+    });
+    localStorage.setItem('dormscout_listings', JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('dormscout:listingsUpdated', { detail: updated }));
+    notifyListingChange();
+  } catch (_) { /* ignore */ }
+}
+
 export function BookingProvider({ children }) {
   const [bookings,      setBookings]      = useState(() => loadJSON(BOOKINGS_KEY));
   const [notifications, setNotifications] = useState(() => loadJSON(NOTIFICATIONS_KEY));
@@ -210,8 +227,6 @@ export function BookingProvider({ children }) {
 
   // --- CREATE BOOKING (tenant action) ---
   function createBooking(listing, moveInDate, tenantUser = null) {
-    // ✅ FIX: always prefer the passed-in user or the live session user — never fall back
-    //         to the hardcoded MOCK_TENANT name in user-facing strings.
     const realSessionUser = getRealUser();
     const tenantInfo = tenantUser || realSessionUser || MOCK_TENANT;
 
@@ -246,7 +261,7 @@ export function BookingProvider({ children }) {
 
     setBookings(prev => [...prev, newBooking]);
 
-    // ✅ FIX: notification message uses the real tenant name
+    // notification message uses the real tenant name
     addNotification({
       type:      'new_booking',
       title:     'New Booking Request',
@@ -323,6 +338,8 @@ export function BookingProvider({ children }) {
         });
         localStorage.setItem('bookings', JSON.stringify(filtered));
       } catch (_) { /* ignore */ }
+
+      _updateListingAvailableRooms(booking.listingId, -1);
     }
   }
 
@@ -383,6 +400,7 @@ export function BookingProvider({ children }) {
         forRole:   'tenant',
       });
 
+      _updateListingAvailableRooms(booking.listingId, +1);
       _removeFromSharedBookings(booking);
       _removeBookingFromDormScoutUsers(booking);
     }
@@ -413,6 +431,7 @@ export function BookingProvider({ children }) {
         forRole: 'landlord',
       });
 
+      _updateListingAvailableRooms(tenantRecord.listingId, +1);
       _removeFromSharedBookings(booking);
       _removeBookingFromDormScoutUsers(booking);
     }

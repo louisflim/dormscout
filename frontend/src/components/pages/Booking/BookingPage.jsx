@@ -69,37 +69,35 @@ export default function BookingPage({ darkMode = false }) {
     const myEmail = user?.email;
 
     const shared = sharedRaw.filter(b =>
-      (myId    && (b.tenantId    === myId    || String(b.tenantId)    === String(myId))) ||
+      (myId    && (String(b.tenantId)    === String(myId))) ||
       (myEmail && (b.tenantEmail === myEmail))
     );
     const sharedIds = new Set(shared.map(b => String(b.id)));
 
-    const pending = (user?.bookings || [])
-      .filter(b => {
-        const s = (b.status || '').toLowerCase();
-        return s === 'pending' && !sharedIds.has(String(b.id));
-      })
-      .map(b => ({
-        id:           b.id,
-        tenantId:     myId,
-        listingName:  b.dormName || b.title,
-        listingAddress: b.address || '',
-        price:        b.price,
-        status:       'Pending',
-        bookedOn:     b.bookedAt || b.createdAt,
-        moveInDate:   b.moveInDate,
-        landlordId:   b.landlordId || null,
-        landlordName: b.landlordName || b.landlord || 'Landlord',
-        lat:          b.lat,
-        lng:          b.lng,
-        university:   b.university,
-        tags:         b.tags || [],
-        description:  b.description || '',
-      }));
+    const fromUser = (user?.bookings || [])
+    .filter(b => !sharedIds.has(String(b.id)))
+    .map(b => ({
+      id:             b.id,
+      tenantId:       myId,
+      listingName:    b.dormName || b.title,
+      listingAddress: b.address || '',
+      price:          b.price,
+      status:         b.status === 'accepted' ? 'Confirmed' : b.status,  // ✅ Normalize
+      bookedOn:       b.bookedAt || b.createdAt,
+      moveInDate:     b.moveInDate,
+      landlordId:     b.landlordId || null,
+      landlordName:   b.landlordName || b.landlord || 'Landlord',
+      lat:            b.lat,
+      lng:            b.lng,
+      university:     b.university,
+      tags:           b.tags || [],
+      description:    b.description || '',
+      listingImages:  b.images || b.listingImages || [],
+    }));
 
     const merged = [
       ...shared.map(b => ({ ...b, listingName: b.listingName || b.dormName || b.title })),
-      ...pending,
+      ...fromUser,
     ].sort((a, b) => new Date(b.bookedOn || 0) - new Date(a.bookedOn || 0));
 
     setBookings(merged);
