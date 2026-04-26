@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { userAPI } from '../utils/api';
 
 const AuthContext = createContext(null);
@@ -6,75 +6,84 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [userType, setUserType] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
 
-    // Check for existing user on app load
-    useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        const storedUserType = localStorage.getItem('userType');
-
-        if (storedUser) {
-            setUser(JSON.parse(storedUser));
-            setUserType(storedUserType);
-        }
-        setLoading(false);
-    }, []);
-
-    const login = async (email, password) => {
+    const login = useCallback(async (email, password) => {
         try {
+            setLoading(true);
+            console.log('🔄 AuthContext: Starting login...');
+
             const result = await userAPI.login(email, password);
+            console.log('📦 AuthContext: Login result:', result);
 
             if (result.success) {
                 const userData = result.user;
+
+                console.log('✅ AuthContext: Login successful');
+                console.log('📦 userData:', userData);
+                console.log('📦 userData.userType:', userData?.userType);
+
                 setUser(userData);
                 setUserType(userData.userType);
-
-                // Save to localStorage
-                localStorage.setItem('user', JSON.stringify(userData));
-                localStorage.setItem('userType', userData.userType);
 
                 return { success: true, user: userData };
             } else {
                 return { success: false, message: result.message };
             }
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('❌ AuthContext: Login error:', error);
             return { success: false, message: 'Connection error. Please try again.' };
+        } finally {
+            setLoading(false);
         }
-    };
+    }, []);
 
-    const register = async (userData) => {
+    const register = useCallback(async (userData) => {
         try {
+            setLoading(true);
+            console.log('🔄 AuthContext: Starting register...');
+
             const result = await userAPI.register(userData);
+            console.log('📦 AuthContext: Register result:', result);
 
             if (result.success) {
                 const newUser = result.user;
+
+                console.log('✅ AuthContext: Registration successful');
+                console.log('📦 newUser:', newUser);
+                console.log('📦 newUser.userType:', newUser?.userType);
+
                 setUser(newUser);
                 setUserType(newUser.userType);
-
-                // Save to localStorage
-                localStorage.setItem('user', JSON.stringify(newUser));
-                localStorage.setItem('userType', newUser.userType);
 
                 return { success: true, user: newUser };
             } else {
                 return { success: false, message: result.message };
             }
         } catch (error) {
-            console.error('Registration error:', error);
+            console.error('❌ AuthContext: Register error:', error);
             return { success: false, message: 'Connection error. Please try again.' };
+        } finally {
+            setLoading(false);
         }
-    };
+    }, []);
 
-    const logout = () => {
+    const logout = useCallback(() => {
         setUser(null);
         setUserType(null);
-        localStorage.removeItem('user');
-        localStorage.removeItem('userType');
-    };
+    }, []);
 
     return (
-        <AuthContext.Provider value={{ user, userType, login, register, logout, loading }}>
+        <AuthContext.Provider value={{
+            user,
+            userType,
+            login,
+            register,
+            logout,
+            loading,
+            setUser,
+            setUserType
+        }}>
             {children}
         </AuthContext.Provider>
     );
