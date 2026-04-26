@@ -2,53 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useBooking } from '../../../context/BookingContext';
 import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITIES, findNearestUniversity, getDistanceFromUniversity } from '../../../constants/universities';
+import { listingsAPI, bookingsAPI } from '../../../utils/api';
 import './Map.css';
 
-const PRIMARY       = '#E8622E';
-const BLUE          = '#2563EB';
-const CENTER        = [10.3157, 123.8854];
-const STORAGE_KEY   = 'dormscout_listings';
-const BOOKING_KEY   = 'dormscout_my_bookings';
-const BOOKMARK_KEY  = 'dormscout_bookmarks';
-
-function getBookmarks() {
-  try { return JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]'); } catch (_) { return []; }
-}
-
-function isBookmarked(listingId) {
-  return getBookmarks().some(b => String(b.listingId) === String(listingId));
-}
-
-function toggleBookmark(listing, user) {
-  const bookmarks = getBookmarks();
-  const existsIdx = bookmarks.findIndex(b => String(b.listingId) === String(listing.id));
-  if (existsIdx !== -1) {
-    bookmarks.splice(existsIdx, 1);
-  } else {
-    bookmarks.push({
-      id: Date.now(),
-      listingId: listing.id,
-      listingTitle: listing.title,
-      listingAddress: listing.address,
-      listingPrice: listing.price,
-      listingImages: listing.images || [],
-      lat: listing.lat,
-      lng: listing.lng,
-      university: listing.university,
-      landlordName: listing.landlordName || '',
-      genderPolicy: listing.genderPolicy || '',
-      tags: listing.tags || [],
-      description: listing.description || '',
-      tenantId: user?.id || null,
-      savedAt: new Date().toISOString(),
-    });
-  }
-  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks));
-  return existsIdx === -1; // true = was just added
-}
+const PRIMARY = '#E8622E';
+const BLUE = '#2563EB';
+const CENTER = [10.3157, 123.8854];
 
 const orangePinIcon = L.divIcon({
   className: '',
@@ -56,8 +17,8 @@ const orangePinIcon = L.divIcon({
     <path d="M15 0C6.716 0 0 6.716 0 15c0 10.5 15 27 15 27s15-16.5 15-27C30 6.716 23.284 0 15 0z" fill="${PRIMARY}"/>
     <circle cx="15" cy="14" r="6" fill="#fff"/>
   </svg>`,
-  iconSize:    [30, 42],
-  iconAnchor:  [15, 42],
+  iconSize: [30, 42],
+  iconAnchor: [15, 42],
   popupAnchor: [0, -42],
 });
 
@@ -81,116 +42,72 @@ function makeBlueLabel(abbr) {
       <path d="M22 0C9.85 0 0 9.85 0 22c0 15.4 22 34 22 34s22-18.6 22-34C44 9.85 34.15 0 22 0z" fill="${BLUE}"/>
       ${textHtml}
     </svg>`,
-    iconSize:    [44, 56],
-    iconAnchor:  [22, 56],
+    iconSize: [44, 56],
+    iconAnchor: [22, 56],
     popupAnchor: [0, -56],
   });
 }
 
-// DELETE THESE - they're now in constants
-// function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) { ... }
-// function getNearestUniversity(lat, lng) { ... }
-// function getDistanceFromUserUniversity(lat, lng, userUniversity) { ... }
-
 const matchesSearch = (l, s) =>
-  (l.title    && l.title.toLowerCase().includes(s))    ||
-  (l.address  && l.address.toLowerCase().includes(s))  ||
+  (l.title && l.title.toLowerCase().includes(s)) ||
+  (l.address && l.address.toLowerCase().includes(s)) ||
   (l.university && l.university.toLowerCase().includes(s));
 
 const matchesUni = (u, s) =>
   (u.name && u.name.toLowerCase().includes(s)) ||
   (u.abbr && u.abbr.toLowerCase().includes(s));
 
-function getReviewStats(listingId) {
-  try {
-    const all = JSON.parse(localStorage.getItem('dormscout_listing_reviews') || '{}');
-    const reviews = all[listingId] || [];
-    if (!reviews.length) return { avg: 0, count: 0 };
-    const avg = reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length;
-    return { avg, count: reviews.length };
-  } catch (_) { return { avg: 0, count: 0 }; }
-}
-
-function StarDisplay({ rating, count }) {
-  const full  = Math.floor(rating);
-  const half  = rating - full >= 0.5;
-  const empty = 5 - full - (half ? 1 : 0);
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-      <span style={{ color: '#f59e0b', fontSize: '1rem', letterSpacing: '1px' }}>
-        {'★'.repeat(full)}
-        {half ? '½' : ''}
-        {'☆'.repeat(empty < 0 ? 0 : empty)}
-      </span>
-      <span style={{ fontSize: '0.82rem', color: '#888' }}>
-        {count > 0 ? `${rating.toFixed(1)} (${count} review${count !== 1 ? 's' : ''})` : 'No reviews yet'}
-      </span>
-    </div>
-  );
-}
-
 export default function Map({ darkMode = false, userType = 'tenant', onEditListing }) {
-  const mapRef        = useRef(null);
-  const mapInstance   = useRef(null);
-  const markersRef    = useRef([]);
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const markersRef = useRef([]);
   const uniMarkersRef = useRef([]);
 
-  const [listings, setListings]           = useState([]);
+  const [listings, setListings] = useState([]);
   const [selectedListing, setSelectedListing] = useState(null);
-  const [bookmarked, setBookmarked]         = useState(false);
-  const [search, setSearch]               = useState('');
-  const [bookingStep, setBookingStep]     = useState('info');
-  const [moveInDate, setMoveInDate]       = useState('');
-  const [pendingCounts, setPendingCounts] = useState({});
-  const [maxDistance, setMaxDistance]       = useState(100);
-  const [maxPrice, setMaxPrice]             = useState(50000);
-  const [schoolFilter, setSchoolFilter]     = useState('all');
+  const [search, setSearch] = useState('');
+  const [bookingStep, setBookingStep] = useState('info');
+  const [moveInDate, setMoveInDate] = useState('');
+  const [maxDistance, setMaxDistance] = useState(100);
+  const [maxPrice, setMaxPrice] = useState(50000);
+  const [schoolFilter, setSchoolFilter] = useState('all');
   const [genderPolicyFilter, setGenderPolicyFilter] = useState('all');
-  const [showFilters, setShowFilters]       = useState(false);
-  const [landlordProfile, setLandlordProfile] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}'); } catch (_) { return {}; }
-  });
-
-  const { createBooking, getPendingCount, subscribeToBookings, bookings } = useBooking();
-  const { user, addBooking } = useAuth();
+  const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [bookingError, setBookingError] = useState('');
+
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const isLandlord = user?.userType === 'landlord';
+
+  const normalizedUserType = userType?.toLowerCase() || 'tenant';
+  const isLandlord = normalizedUserType === 'landlord';
   const theme = darkMode ? 'dark' : 'light';
 
-  // Real-time pending booking counts
   useEffect(() => {
-    function updatePendingCounts() {
-      const counts = {};
-      listings.forEach(listing => {
-        counts[listing.id] = getPendingCount(listing.id);
-      });
-      setPendingCounts(counts);
+    async function loadListings() {
+      try {
+        console.log('🔄 Map: Loading listings from API...');
+        const data = await listingsAPI.getAllListings();
+        console.log('📦 Map: Listings loaded:', data);
+        setListings(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('❌ Map: Failed to load listings:', error);
+        setListings([]);
+      } finally {
+        setLoading(false);
+      }
     }
-
-    updatePendingCounts();
-    const unsubscribe = subscribeToBookings(updatePendingCounts);
-
-    return () => unsubscribe();
-  }, [listings, getPendingCount, subscribeToBookings]);
-
-  // Reload landlord profile when it updates
-  useEffect(() => {
-    function onProfileUpdate() {
-      try { setLandlordProfile(JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}')); } catch (_) {}
-    }
-    window.addEventListener('dormscout:profileUpdated', onProfileUpdate);
-    return () => window.removeEventListener('dormscout:profileUpdated', onProfileUpdate);
+    loadListings();
   }, []);
 
   useEffect(() => {
-    function loadListings() {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      setListings(raw ? JSON.parse(raw) || [] : []);
-    }
-    loadListings();
-    window.addEventListener('storage', loadListings);
-    return () => window.removeEventListener('storage', loadListings);
+    const handleUpdate = () => {
+      listingsAPI.getAllListings().then(data => {
+        setListings(Array.isArray(data) ? data : []);
+      });
+    };
+    window.addEventListener('dormscout:listingUpdated', handleUpdate);
+    return () => window.removeEventListener('dormscout:listingUpdated', handleUpdate);
   }, []);
 
   useEffect(() => {
@@ -203,22 +120,31 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       marker.on('click', () => handleUniversityClick(uni));
       return marker;
     });
-    return () => { mapInstance.current.remove(); mapInstance.current = null; uniMarkersRef.current = []; };
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+      uniMarkersRef.current = [];
+    };
   }, []);
 
   useEffect(() => {
     if (!mapInstance.current) return;
+
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
+
     const s = search.toLowerCase();
     const searchMatchesUniversity = search.trim() && UNIVERSITIES.some(u => matchesUni(u, s));
     const baseFiltered = searchMatchesUniversity
       ? listings.filter(l => l.university && l.university.toLowerCase().includes(s))
       : listings.filter(l => !search.trim() || matchesSearch(l, s));
+
     const finalFiltered = baseFiltered.filter(l => {
       if (Number(l.price) > maxPrice) return false;
       if (isLandlord) {
-        if (l.landlordId && user?.id && l.landlordId !== user.id) return false;
+        if (l.landlordId && user?.id && String(l.landlordId) !== String(user.id)) return false;
         if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
       } else {
         const dist = user?.school
@@ -232,6 +158,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       }
       return true;
     });
+
     markersRef.current = finalFiltered
       .filter(l => l.lat && l.lng)
       .map((listing) => {
@@ -247,114 +174,55 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
   const openModal = (listing) => {
     setSelectedListing(listing);
-    setBookmarked(isBookmarked(listing.id));
     setBookingStep('info');
     setMoveInDate('');
+    setBookingError('');
   };
 
   const closeModal = () => {
     setSelectedListing(null);
     setBookingStep('info');
     setMoveInDate('');
+    setBookingError('');
   };
 
-  const handleConfirmBooking = (listing) => {
-    if (!moveInDate) { setBookingError('Please select a move-in date.'); return; }
-
-    // Check if tenant already has an active/pending booking
-    if (user?.userType === 'tenant') {
-      const activeStatuses = new Set(['pending', 'confirmed', 'accepted', 'active']);
-      const activeBooking = (bookings || []).find(b => {
-        const status = String(b.status || '').toLowerCase();
-        const sameTenantById = user?.id && String(b.tenantId) === String(user.id);
-        const sameTenantByEmail = user?.email && b.tenantEmail === user.email;
-        return activeStatuses.has(status) && (sameTenantById || sameTenantByEmail);
-      });
-      if (activeBooking) {
-        setBookingError('❌ You already have an active booking. Please cancel it before booking another dorm.');
-        return;
-      }
+  const handleConfirmBooking = async (listing) => {
+    if (!moveInDate) {
+      setBookingError('Please select a move-in date.');
+      return;
     }
 
-    // Gender-based booking restriction
-    const userGender = user?.gender;
-    const policy = listing?.genderPolicy;
+    try {
+      setBookingStep('confirming');
 
-    // Strict gender check - BLOCK if policy doesn't match gender
-    if (policy && policy !== 'Both') {
-      if (!userGender) {
-        setBookingError('❌ Please update your profile with your gender information.');
-        return;
-      }
-      if (policy === 'Girls Only' && userGender === 'Male') {
-        setBookingError('❌ This dorm is for GIRLS ONLY.');
-        return;
-      }
-      if (policy === 'Boys Only' && userGender === 'Female') {
-        setBookingError('❌ This dorm is for BOYS ONLY.');
-        return;
-      }
-    }
+      const bookingData = {
+        listingId: listing.id,
+        tenantId: user?.id,
+        moveInDate: moveInDate,
+        tenantEmail: user?.email,
+        tenantName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+        tenantPhone: user?.phone,
+        status: 'pending'
+      };
 
-    setBookingStep('confirming');
-
-    setTimeout(() => {
-      // 1. Save to old storage (for backwards compatibility)
-      const createdBooking = createBooking(listing, moveInDate, user ? {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone || '',
-        avatar: (user.name || 'T').split(' ').map(n => n[0]).join(''),
-      } : null);
-      const raw = localStorage.getItem(BOOKING_KEY);
-      const current = raw ? JSON.parse(raw) : [];
-      if (!current.find(b => b.id === listing.id)) {
-        localStorage.setItem(BOOKING_KEY, JSON.stringify([
-          ...current,
-          { id: listing.id, bookedAt: new Date().toISOString(), moveInDate, status: 'pending' }
-        ]));
-      }
-
-      // 2. Save to AuthContext (for Overview dashboard)
-      if (user) {
-        addBooking({
-          id: createdBooking?.id,
-          dormName: listing.title,
-          address: listing.address,
-          price: listing.price,
-          room: listing.rooms,
-          landlord: landlordProfile.businessName || landlordProfile.firstName || 'Landlord',
-          moveInDate,
-          lat: listing.lat,
-          lng: listing.lng,
-          university: listing.university,
-          tags: listing.tags,
-          availableRooms: listing.availableRooms,
-          images: listing.images,
-          description: listing.description,
-          status: 'pending',
-          listingId: listing.id,
-          landlordId: listing.landlordId || null,
-          landlordName: listing.landlordName || landlordProfile.businessName || landlordProfile.firstName || 'Landlord',
-        });
-      }
+      await bookingsAPI.createBooking(bookingData);
 
       setBookingStep('success');
-    }, 1500);
+    } catch (error) {
+      console.error('Booking error:', error);
+      setBookingError('Failed to create booking. Please try again.');
+      setBookingStep('info');
+    }
   };
 
   const s = search.toLowerCase();
   const filteredListings = listings.filter(l => {
     if (search.trim() && !matchesSearch(l, s)) return false;
-    const price = Number(l.price);
-    if (price > maxPrice) return false;
+    if (Number(l.price) > maxPrice) return false;
     if (isLandlord) {
-      // Landlord: only show their own listings
-      if (l.landlordId && user?.id && l.landlordId !== user.id) return false;
+      if (l.landlordId && user?.id && String(l.landlordId) !== String(user.id)) return false;
       if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
     } else {
-      // Tenant: distance & school filters
       const dist = user?.school
         ? getDistanceFromUniversity(l.lat, l.lng, user.school)
         : findNearestUniversity(l.lat, l.lng);
@@ -366,16 +234,27 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     }
     return true;
   });
-  const filteredUnis      = search.trim() ? UNIVERSITIES.filter(u => matchesUni(u, s)) : [];
-  const noResults         = filteredListings.length === 0 && filteredUnis.length === 0;
+
+  const filteredUnis = search.trim() ? UNIVERSITIES.filter(u => matchesUni(u, s)) : [];
+  const noResults = filteredListings.length === 0 && filteredUnis.length === 0;
 
   const nearest = selectedListing
     ? (user?.school ? getDistanceFromUniversity(selectedListing.lat, selectedListing.lng, user.school) : null) || findNearestUniversity(selectedListing.lat, selectedListing.lng)
     : null;
 
+  if (loading) {
+    return (
+      <div className={`map-wrapper ${theme}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem' }}>⏳</div>
+          <p style={{ marginTop: '12px', color: darkMode ? '#a0a0b0' : '#666' }}>Loading listings...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`map-wrapper ${theme}`}>
-      {/* Search & Filters */}
       <div className="map-search-wrap" style={{ alignItems: 'center', gap: '8px', position: 'relative' }}>
         <div style={{
           flex: 1, display: 'flex', alignItems: 'center',
@@ -394,7 +273,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
           />
         </div>
 
-        {/* Filter toggle button + floating dropdown */}
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -411,7 +289,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
             ⚙️ Filters {showFilters ? '▲' : '▼'}
           </button>
 
-          {/* Floating dropdown card */}
           {showFilters && (
             <div style={{
               position: 'absolute',
@@ -425,7 +302,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
               boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
               overflow: 'hidden',
             }}>
-              {/* Header */}
               <div style={{
                 background: '#E8622E', color: '#fff',
                 padding: '10px 14px', fontWeight: 700, fontSize: '0.85rem',
@@ -434,58 +310,49 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                 ⚙️ Filters
               </div>
 
-              {/* Filter rows */}
               <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
-                {/* Price */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555', display: 'flex', alignItems: 'center', gap: '5px' }}>💰 Max Price</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>💰 Max Price</span>
                     <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#E8622E', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>₱{maxPrice.toLocaleString()}</span>
                   </div>
                   <input type="range" min="0" max="50000" step="1000" value={maxPrice}
                     onChange={(e) => setMaxPrice(Number(e.target.value))}
                     style={{ width: '100%', accentColor: '#E8622E', cursor: 'pointer' }}
                   />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', opacity: 0.4 }}>
-                    <span>₱0</span><span>₱50k</span>
-                  </div>
                 </div>
 
-                {/* TENANT-ONLY */}
-                {!isLandlord && (<>
-                  <div style={{ borderTop: `1px solid ${darkMode ? '#2d3748' : '#f0f0f0'}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555', display: 'flex', alignItems: 'center', gap: '5px' }}>📍 Distance</span>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#E8622E', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>{maxDistance} km</span>
+                {!isLandlord && (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>📍 Distance</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#E8622E', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>{maxDistance} km</span>
+                      </div>
+                      <input type="range" min="0" max="50" value={maxDistance}
+                        onChange={(e) => setMaxDistance(Number(e.target.value))}
+                        style={{ width: '100%', accentColor: '#E8622E', cursor: 'pointer' }}
+                      />
                     </div>
-                    <input type="range" min="0" max="50" value={maxDistance}
-                      onChange={(e) => setMaxDistance(Number(e.target.value))}
-                      style={{ width: '100%', accentColor: '#E8622E', cursor: 'pointer' }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', opacity: 0.4 }}>
-                      <span>0 km</span><span>50 km</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>🎓 School</span>
+                      <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}
+                        style={{
+                          padding: '6px 8px', borderRadius: '7px',
+                          border: `1.5px solid ${schoolFilter !== 'all' ? '#E8622E' : (darkMode ? '#3d4a5c' : '#dde3ec')}`,
+                          background: darkMode ? '#0f3460' : '#f8fafc',
+                          color: darkMode ? '#fff' : '#333',
+                          fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', outline: 'none', width: '100%',
+                        }}>
+                        <option value="all">All Schools</option>
+                        {user?.school && <option value="myschool">Near {user.school}</option>}
+                      </select>
                     </div>
-                  </div>
-                  <div style={{ borderTop: `1px solid ${darkMode ? '#2d3748' : '#f0f0f0'}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>🎓 School</span>
-                    <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}
-                      style={{
-                        padding: '6px 8px', borderRadius: '7px',
-                        border: `1.5px solid ${schoolFilter !== 'all' ? '#E8622E' : (darkMode ? '#3d4a5c' : '#dde3ec')}`,
-                        background: darkMode ? '#0f3460' : '#f8fafc',
-                        color: darkMode ? '#fff' : '#333',
-                        fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', outline: 'none', width: '100%',
-                      }}>
-                      <option value="all">All Schools</option>
-                      {user?.school && <option value="myschool">Near {user.school}</option>}
-                    </select>
-                  </div>
-                </>)}
+                  </>
+                )}
 
-                {/* LANDLORD-ONLY */}
                 {isLandlord && (
-                  <div style={{ borderTop: `1px solid ${darkMode ? '#2d3748' : '#f0f0f0'}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>⚧ Gender Policy</span>
                     <select value={genderPolicyFilter} onChange={(e) => setGenderPolicyFilter(e.target.value)}
                       style={{
@@ -508,7 +375,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         </div>
       </div>
 
-      {/* Map */}
       <div className="map-container-wrap">
         <div className="map-box">
           <div ref={mapRef} className="map-inner" />
@@ -533,7 +399,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         </div>
       </div>
 
-      {/* Cards */}
       <div className="map-cards-grid">
         {filteredUnis.map((uni) => (
           <button
@@ -549,7 +414,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
         {noResults ? (
           <div className="map-empty-state">
-            No listings or universities found. Try another search term.
+            No listings found. {isLandlord ? 'Create your first listing!' : 'Try adjusting your filters.'}
           </div>
         ) : (
           filteredListings.map((listing) => (
@@ -563,113 +428,35 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                 openModal(listing);
               }}
             >
-              <div className="map-listing-card-title">
-                {listing.title}
-                {landlordProfile.isVerified && (
-                  <span title="Verified Landlord" style={{ marginLeft: '6px', color: '#16a34a', fontSize: '0.85rem' }}>✅</span>
-                )}
-              </div>
-              {landlordProfile.businessName && (
-                <div style={{ fontSize: '0.78rem', color: '#E8622E', fontWeight: 600, marginBottom: '2px' }}>
-                  🏢 {landlordProfile.businessName}
-                </div>
-              )}
+              <div className="map-listing-card-title">{listing.title}</div>
               <div className="map-listing-card-address">{listing.address}</div>
-              {(() => {
-                const { avg, count } = getReviewStats(listing.id);
-                if (!count) return null;
-                return (
-                  <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginTop: '2px' }}>
-                    {'★'.repeat(Math.floor(avg))}{'☆'.repeat(5 - Math.floor(avg))}{' '}
-                    <span style={{ color: '#888' }}>({count})</span>
-                  </div>
-                );
-              })()}
-              <div className="map-listing-card-pending">
-                {pendingCounts[listing.id] > 0 && (
-                  <span className="map-listing-card-pending-count">
-                    {pendingCounts[listing.id]} pending booking{pendingCounts[listing.id] !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
             </button>
           ))
         )}
       </div>
 
-      {/* Modal */}
       {selectedListing && (
         <div className="map-overlay">
           <div className="map-modal">
             <button className="map-modal-close" onClick={closeModal}>&times;</button>
 
             <div className="map-modal-body">
-              {selectedListing.images?.length > 0 && (
-                <div className="map-modal-images">
-                  {selectedListing.images.slice(0, 4).map((img, i) => (
-                    <img key={i} src={img} alt={`Dorm ${i + 1}`} className="map-modal-img" />
-                  ))}
-                </div>
-              )}
-
               <h2 className="map-modal-title">{selectedListing.title}</h2>
               <p className="map-modal-address">{selectedListing.address}</p>
-
-              {/* Owner / Business Info */}
-              {(() => {
-                const ownerName = selectedListing.landlordName || (landlordProfile.firstName ? `${landlordProfile.firstName} ${landlordProfile.lastName}`.trim() : '');
-                const biz       = selectedListing.landlordBusiness || landlordProfile.businessName;
-                const verified  = selectedListing.landlordVerified || landlordProfile.isVerified;
-                const policy    = selectedListing.genderPolicy;
-                if (!ownerName && !biz) return null;
-                return (
-                  <div style={{ margin: '4px 0 10px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', justifyContent: 'space-between' }}>
-                      <div>
-                        {ownerName && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontWeight: 600 }}>
-                            <span>👤 {ownerName}</span>
-                            {verified && <span title="Verified Landlord" style={{ color: '#16a34a', fontSize: '1rem' }}>✅</span>}
-                          </div>
-                        )}
-                        {biz && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#666' }}>
-                            <span>🏢 {biz}</span>
-                            {verified && !ownerName && <span title="Verified Business" style={{ color: '#16a34a' }}>✅</span>}
-                          </div>
-                        )}
-                      </div>
-                      {policy && policy !== 'Both' && (
-                        <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', marginTop: '2px' }}>
-                          ⚠️ {policy}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Stars & Reviews */}
-              {(() => {
-                const { avg, count } = getReviewStats(selectedListing.id);
-                return <div style={{ marginBottom: '12px' }}><StarDisplay rating={avg} count={count} /></div>;
-              })()}
 
               <div className="map-modal-details-grid">
                 <div>
                   <p className="map-modal-detail-label">Price</p>
-                  <p className="map-modal-detail-value price">₱{Number(selectedListing.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="map-modal-detail-value price">₱{Number(selectedListing.price).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="map-modal-detail-label">Rooms</p>
                   <p className="map-modal-detail-value">{selectedListing.availableRooms || 'N/A'}</p>
                 </div>
                 <div className="map-modal-detail-full">
-                  <p className="map-modal-detail-label">{user?.school ? 'Distance From Your University' : 'Nearby University'}</p>
+                  <p className="map-modal-detail-label">Nearby University</p>
                   <p className="map-modal-detail-value">
-                    {nearest
-                      ? `${nearest.name} (${nearest.distance.toFixed(2)} km)`
-                      : 'Location not set'}
+                    {nearest ? `${nearest.name} (${nearest.distance.toFixed(2)} km)` : 'Location not set'}
                   </p>
                 </div>
               </div>
@@ -679,57 +466,32 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                 {selectedListing.description || 'No description provided.'}
               </p>
 
-              {userType === 'tenant' ? (
+              {!isLandlord ? (
                 <>
                   {bookingStep === 'info' && (
                     <>
                       <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
                         📅 Book This Property
                       </button>
-                      <button
-                        onClick={() => {
-                          const next = toggleBookmark(selectedListing, user);
-                          setBookmarked(next);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          borderRadius: '12px',
-                          marginBottom: '8px',
-                          cursor: 'pointer',
-                          fontWeight: 700,
-                          fontSize: '0.92rem',
-                          background: bookmarked ? 'rgba(91,173,168,0.15)' : 'transparent',
-                          border: '1px solid #5BADA8',
-                          color: '#5BADA8',
-                          transition: 'background 0.2s',
-                        }}
-                      >
-                        🔖 {bookmarked ? 'Saved' : 'Save'}
-                      </button>
                       <button className="map-btn-contact" onClick={() => {
                         const landlord = {
                           id: selectedListing.landlordId,
                           name: selectedListing.landlordName || 'Landlord',
-                          avatar: (selectedListing.landlordName || 'L').split(' ').map(n => n[0]).join(''),
                         };
                         navigate('/messages', { state: { contactLandlord: landlord } });
                       }}>
                         💬 Contact Landlord
-                      </button>
-                      <button className="map-btn-report" onClick={() => navigate('/report')}>
-                        🚩 Report Listing
                       </button>
                     </>
                   )}
 
                   {bookingStep === 'booking' && (
                     <div className="map-booking-box">
-                       {bookingError && (
-                         <p style={{ color: '#dc3545', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 600 }}>
+                      {bookingError && (
+                        <p style={{ color: '#dc3545', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 600 }}>
                           ❌ {bookingError}
-                         </p>
-                       )}
+                        </p>
+                      )}
                       <h4>📅 Select Move-in Date</h4>
                       <input
                         type="date"
@@ -751,7 +513,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                     <div className="map-confirming">
                       <div className="map-confirming-icon">⏳</div>
                       <p className="map-confirming-title">Confirming booking...</p>
-                      <p className="map-confirming-subtitle">Please wait</p>
                     </div>
                   )}
 
@@ -759,13 +520,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                     <div className="map-success">
                       <div className="map-success-icon">✅</div>
                       <h4 className="map-success-title">Booking Request Sent!</h4>
-                      <p className="map-success-subtitle">
-                        Your booking request has been sent to the landlord.
-                      </p>
-                      <p className="map-success-meta">
-                        Move-in date: <strong>{moveInDate}</strong> · Status:{' '}
-                        <span className="map-success-status">Pending</span>
-                      </p>
                       <button className="map-btn-done" onClick={closeModal}>Done</button>
                     </div>
                   )}
@@ -774,18 +528,21 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                 <>
                   <button
                     className="map-btn-edit"
-                    onClick={() => { if (onEditListing) onEditListing(selectedListing); setSelectedListing(null); }}
+                    onClick={() => {
+                      if (onEditListing) onEditListing(selectedListing);
+                      setSelectedListing(null);
+                    }}
                   >
                     ✏️ Edit Listing
                   </button>
                   <button
                     className="map-btn-delete"
-                    onClick={() => {
+                    onClick={async () => {
                       if (window.confirm('Delete this listing?')) {
-                        const newListings = listings.filter((l) => l.id !== selectedListing.id);
-                        localStorage.setItem('dormscout_listings', JSON.stringify(newListings));
-                        setListings(newListings);
+                        await listingsAPI.deleteListing(selectedListing.id);
+                        setListings(listings.filter(l => l.id !== selectedListing.id));
                         setSelectedListing(null);
+                        window.dispatchEvent(new Event('dormscout:listingUpdated'));
                       }
                     }}
                   >
