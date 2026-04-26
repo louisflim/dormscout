@@ -28,20 +28,22 @@ const STORAGE_KEYS = {
   users: 'dormScoutUsers',
   listings: 'dormscout_listings',
   bookings: 'dormscout_bookings',
+  bookmarks: 'dormscout_bookmarks',
   reports: 'dormscout_reports',
   reviews: 'dormscout_reviews',
   notifications: 'dormscout_notifications',
 };
 
 const SIDEBAR_ITEMS = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'users', label: 'Users', icon: Users },
-  { id: 'listings', label: 'Listings', icon: ClipboardList },
-  { id: 'bookings', label: 'Bookings', icon: CalendarDays },
-  { id: 'reports', label: 'Reports', icon: FileWarning },
-  { id: 'reviews', label: 'Reviews', icon: Star },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'settings', label: 'Settings', icon: SettingsIcon },
+  { id: 'overview',   label: 'Overview',    icon: LayoutDashboard },
+  { id: 'users',      label: 'Users',       icon: Users           },
+  { id: 'listings',   label: 'Listings',    icon: ClipboardList   },
+  { id: 'bookings',   label: 'Bookings',    icon: CalendarDays    },
+  { id: 'bookmarks',  label: 'Bookmarks',   icon: Star            },
+  { id: 'reports',    label: 'Reports',     icon: FileWarning     },
+  { id: 'reviews',    label: 'Reviews',     icon: Star            },
+  { id: 'notifications', label: 'Notifications', icon: Bell      },
+  { id: 'settings',   label: 'Settings',    icon: SettingsIcon    },
 ];
 
 const safeParse = (value, fallback = []) => {
@@ -98,6 +100,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [listings, setListings] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [bookmarks, setBookmarks] = useState([]);
   const [reports, setReports] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -112,6 +115,7 @@ export default function AdminPage() {
     setUsers(safeParse(localStorage.getItem(STORAGE_KEYS.users), []));
     setListings(safeParse(localStorage.getItem(STORAGE_KEYS.listings), []));
     setBookings(safeParse(localStorage.getItem(STORAGE_KEYS.bookings), []));
+    setBookmarks(safeParse(localStorage.getItem(STORAGE_KEYS.bookmarks), []));
     setReports(safeParse(localStorage.getItem(STORAGE_KEYS.reports), []));
     setReviews(safeParse(localStorage.getItem(STORAGE_KEYS.reviews), []));
     setNotifications(safeParse(localStorage.getItem(STORAGE_KEYS.notifications), []));
@@ -145,11 +149,12 @@ export default function AdminPage() {
       totalUsers: users.length,
       totalListings: listings.length,
       totalBookings: bookings.length,
+      totalBookmarks: bookmarks.length,
       totalReports: reports.length,
       pendingReports,
       activeListings,
     };
-  }, [users, listings, bookings, reports]);
+  }, [users, listings, bookings, bookmarks, reports]);
 
   const universities = useMemo(() => {
     const values = listings
@@ -309,6 +314,21 @@ export default function AdminPage() {
     updateStorage(STORAGE_KEYS.bookings, []);
   };
 
+  const deleteBookmark = (target, index) => {
+    const next = removeByMatcher(bookmarks, (item, idx) => {
+      if (target?.id !== undefined && item?.id !== undefined) {
+        return String(item.id) === String(target.id);
+      }
+      return idx === index;
+    });
+    updateStorage(STORAGE_KEYS.bookmarks, next);
+  };
+
+  const clearAllBookmarks = () => {
+    if (!window.confirm('This will remove all bookmarks. Continue?')) return;
+    updateStorage(STORAGE_KEYS.bookmarks, []);
+  };
+
   const clearAllListings = () => {
     if (!window.confirm('This will remove all listings. Continue?')) return;
     updateStorage(STORAGE_KEYS.listings, []);
@@ -414,6 +434,7 @@ export default function AdminPage() {
                 <article className="admin-stat-card"><p>Total Users</p><h3>{summary.totalUsers}</h3></article>
                 <article className="admin-stat-card"><p>Total Listings</p><h3>{summary.totalListings}</h3></article>
                 <article className="admin-stat-card"><p>Total Bookings</p><h3>{summary.totalBookings}</h3></article>
+                <article className="admin-stat-card"><p>Total Bookmarks</p><h3>{summary.totalBookmarks}</h3></article>
                 <article className="admin-stat-card"><p>Total Reports</p><h3>{summary.totalReports}</h3></article>
                 <article className="admin-stat-card"><p>Pending Reports</p><h3>{summary.pendingReports}</h3></article>
                 <article className="admin-stat-card"><p>Active Listings</p><h3>{summary.activeListings}</h3></article>
@@ -564,6 +585,48 @@ export default function AdminPage() {
                           </span>
                         </td>
                         <td>{toDisplayDate(b.bookedOn || b.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === 'bookmarks' ? (
+            <section>
+              <div className="admin-section-head">
+                <h2 className="admin-section-title">Bookmarks</h2>
+                <button className="admin-icon-btn" onClick={clearAllBookmarks}>Clear All</button>
+              </div>
+
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Tenant ID</th>
+                      <th>Listing Title</th>
+                      <th>Listing Address</th>
+                      <th>Price</th>
+                      <th>Saved At</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bookmarks.length === 0 ? (
+                      <tr><td colSpan={6} className="admin-empty">No bookmarks found.</td></tr>
+                    ) : bookmarks.map((bm, idx) => (
+                      <tr key={bm.id || `bm-${idx}`}>
+                        <td>{bm.tenantId || 'N/A'}</td>
+                        <td>{bm.listingTitle || 'N/A'}</td>
+                        <td>{bm.listingAddress || 'N/A'}</td>
+                        <td>{bm.listingPrice ? `₱${Number(bm.listingPrice).toLocaleString()}` : 'N/A'}</td>
+                        <td>{toDisplayDate(bm.savedAt)}</td>
+                        <td>
+                          <button className="admin-icon-btn danger" onClick={() => deleteBookmark(bm, idx)}>
+                            <Trash2 size={15} /> Delete
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

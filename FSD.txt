@@ -1,0 +1,1529 @@
+# DormScout Frontend Pages - Functional Specification Document
+
+## Table of Contents
+1. [HomePage](#homepage)
+2. [Authentication Pages](#authentication-pages)
+3. [Dashboard](#dashboard)
+4. [Map View](#map-view)
+5. [Listing Management](#listing-management)
+6. [Booking Management](#booking-management)
+7. [Bookmarks](#bookmarks)
+8. [Messaging](#messaging)
+9. [Notifications](#notifications)
+10. [Reviews](#reviews)
+11. [Profile & Settings](#profile--settings)
+12. [Reporting](#reporting)
+13. [About & Support](#about--support)
+14. [Admin Panel](#admin-panel)
+
+---
+
+## **HomePage**
+
+File: frontend/src/components/pages/Home/HomePage.jsx
+
+### **Purpose/Description**
+Landing page that serves as the entry point for user login. Provides a unified login interface for both tenants and landlords with account type selection.
+
+### **Key Features**
+- Dual login mode (Tenant/Landlord toggle)
+- Integrated login form with email/password input
+- Account type validation before navigation
+- Branding with photo collage carousel
+- Real-time account type detection from stored user profiles
+
+### **User Interactions**
+- Select user type (Tenant/Landlord) via button toggle
+- Enter email and password credentials
+- Submit login form
+- View account type mismatch error if attempting wrong account type login
+- Click DormScout branding to reset/scroll to top
+
+### **API Calls/Endpoints Used**
+- `AuthContext.login(email, password)` - validates credentials and user type
+- Reads from `dormScoutUsers` localStorage (simulated backend)
+- Checks `userType` from stored user object
+
+### **State Management**
+- **Local State:**
+  - `selectedType` - currently selected user type (tenant/landlord)
+  - `email` - form field
+  - `password` - form field
+  - `error` - login error message
+  - `loading` - submission loading state
+- **Context Used:** `useAuth()` for login method
+- **LocalStorage Keys:** `dormScoutUsers`, `dormScoutUser`, `userType`
+
+### **Error Handling**
+- Account type mismatch validation: "This account is registered as {userType}. Please login as {userType}."
+- Invalid credentials: "Invalid email or password"
+- Form submission loading state during authentication
+
+### **Dependencies**
+- `AuthContext` for authentication functions
+- React Router (`useNavigate`) for post-login navigation
+- External images (dormpic1.jpg, dormpic2.jpg, dormpic3.webp)
+
+### **Forms/Inputs Present**
+- Email input field (required)
+- Password input field (required)
+- User Type selection buttons (Tenant/Landlord)
+- Submit button
+
+### **Navigation/Links**
+- Redirect to `/overview` on successful login
+- Internal routing via React Router
+
+---
+
+## **Authentication Pages**
+
+### **Login Page**
+File: frontend/src/components/pages/Auth/Login.jsx
+
+**Purpose:** Dedicated login page with URL parameter-based user type enforcement
+
+**Key Features**
+- URL-based user type selection (e.g., `/login?type=landlord`)
+- Account type verification against stored user data
+- Error feedback for account type mismatch
+
+**URL Parameters:**
+- `type` - 'tenant' or 'landlord' (determines login page variant)
+
+**Forms:**
+- Email (required)
+- Password (required)
+
+**Navigation:**
+- `/overview` on success
+- `/register?type={type}` from registration link
+
+---
+
+### **Register Page**
+File: frontend/src/components/pages/Auth/Register.jsx
+
+**Purpose:** User registration with account type locked to URL parameter
+
+**Key Features**
+- Account type locked to URL parameter (cannot be changed by user)
+- Conditional fields based on user type (school selection for tenants)
+- Gender selection (required)
+- Form validation with min password length (6 characters)
+
+**Conditional Fields:**
+- Tenants: School/University selection dropdown
+- Landlords: No school field
+
+**Form Fields:**
+- First Name (required)
+- Last Name (required)
+- Email (required)
+- Phone (required)
+- Password (min 6 chars, required)
+- School (tenant only, required)
+- Gender (required, dropdown)
+
+**Validation Rules:**
+- First and last name must be non-empty
+- Password minimum 6 characters
+- School required for tenants
+- Gender required for all
+
+**State Management:**
+- `formData` object with firstName, lastName, email, phone, password
+- `school`, `gender` separate state
+- `error`, `loading` states
+
+---
+
+### **Forgot Password Page**
+File: frontend/src/components/pages/Auth/ForgotPassword.jsx
+
+**Purpose:** Password reset initiation flow (UI only, no backend)
+
+**Key Features**
+- Email input for account lookup
+- Success message after submission
+- Link back to login
+
+**Workflow:**
+1. User enters email
+2. Form submission shows confirmation message
+3. "Back to Login" button redirects to `/login`
+
+**Forms:**
+- Email input (required)
+- Submit button
+
+---
+
+## **Dashboard**
+
+File: frontend/src/components/pages/Dashboard/Dashboard.jsx
+CSS: frontend/src/components/pages/Dashboard/Dashboard.css
+
+### **Purpose/Description**
+Central hub for user navigation and activity overview. Displays role-specific content (Tenant vs Landlord). Shows overview, navigation to key features, and recent activity feed.
+
+### **Key Features**
+- **Role-based UI:** Different navigation and content for tenants vs landlords
+- **Overview Cards:** Active bookings, pending bookings, stats (for tenants); property stats (for landlords)
+- **Navigation Sidebar:** Quick access to all major features
+- **Activity Feed:** Real-time updates on bookings, messages, reviews, notifications
+- **Theme Toggle:** Light/Dark mode support
+- **Greeting Message:** Time-aware greeting
+
+### **Tenant Features**
+- Current booking card with property details
+- Pending bookings summary
+- Quick action button to find dorms
+- Recent activity timeline
+
+### **Landlord Features**
+- Quick property stats (active listings, pending bookings)
+- Tenant applications list
+- Property overview
+- Recent tenant interactions
+
+### **User Interactions**
+- Click navigation items to switch sections
+- Theme toggle in dropdown menu
+- Click activity items to navigate to relevant pages
+- Logout from dropdown menu
+- Navigate to profile/settings from avatar
+
+### **API Calls/Endpoints Used**
+- `BookingContext.subscribeToBookings()` - real-time booking updates
+- Reads from localStorage: `dormScoutUser`, `dormscout_bookings`, `bookings`
+- No external API calls (all localStorage-based)
+
+### **State Management**
+- **Context Used:**
+  - `useAuth()` for user data and logout
+  - `useBooking()` for booking subscriptions
+- **Local State:**
+  - `showDropdown` - user menu dropdown visibility
+  - `activeSection` - currently selected dashboard section
+  - `darkMode` - theme preference
+  - `bookings` - array of user's bookings
+- **Real-time Updates:** 
+  - Subscribes to booking changes via BookingContext listener
+  - Activity feed updates on message, notification, review, booking events
+
+### **Available Sections**
+- **Tenant:** overview, map, booking, bookmarks, notifications, messages, settings, reviews
+- **Landlord:** overview, map, listing, notifications, messages, settings, reviews
+
+### **Navigation Items**
+- Overview (LayoutDashboard icon)
+- Map View (MapPin icon)
+- Booking/Listing (CalendarDays or ClipboardList)
+- Bookmarks (Bookmark icon, tenants only)
+- Notifications (Bell icon)
+- Messages (MessageCircle icon)
+- Settings (SettingsIcon)
+- Reviews (Star icon)
+
+### **Error Handling**
+- Safe user data extraction with fallback values
+- Activity array may be empty or undefined
+- Booking count safely calculated with filter fallbacks
+
+### **Dependencies**
+- `useAuth()` - user authentication context
+- `useBooking()` - booking management context
+- Child components: Map, ListingPage, BookingPage, BookmarkPage, Reviews, Messaging, Settings, Notifications
+- Lucide React icons
+
+---
+
+## **Map View**
+
+File: frontend/src/components/pages/Map/Map.jsx
+CSS: frontend/src/components/pages/Map/Map.css
+
+### **Purpose/Description**
+Interactive map interface for discovering and booking dorms. Displays available listings as markers, supports filtering, search, and booking workflow.
+
+### **Key Features**
+- **Interactive Leaflet Map:** Pan, zoom, click to view details
+- **Listing Markers:** Orange pins for dorms, blue pins for universities
+- **Advanced Filtering:**
+  - Max distance from university
+  - Max price range
+  - School/University filter
+  - Gender policy filter
+- **Search Functionality:** Search by title, address, or university
+- **Booking Workflow:** Multi-step booking process (info → date → confirmation)
+- **Bookmarking:** Save listings for later
+- **Review Ratings:** Star display for each listing
+- **Real-time Updates:** Pending booking counts refresh
+
+### **User Interactions**
+- Click map to view listing details in popup
+- Filter listings using sidebar filters
+- Enter search query to find specific dorms
+- Click "Book Now" to initiate booking flow
+- Select move-in date in booking form
+- Click bookmark icon to save listing
+- View landlord profile from listing popup
+- Edit listing (landlord only via `onEditListing` callback)
+
+### **API Calls/Endpoints Used**
+- `BookingContext.createBooking()` - submit booking
+- `BookingContext.getPendingCount(listingId)` - get pending bookings for listing
+- `BookingContext.subscribeToBookings()` - real-time pending count updates
+- `BookingContext.notifyListingChange()` - notify when listing changes
+- `AuthContext` - get current user data
+- Reads from localStorage: `dormscout_listings`, `dormscout_bookmarks`, `dormscout_my_bookings`
+
+### **State Management**
+- **Local State:**
+  - `listings` - array of available dorms from storage
+  - `selectedListing` - currently selected listing for popup
+  - `bookmarked` - boolean indicating if selected listing is bookmarked
+  - `search` - search query string
+  - `bookingStep` - 'info' or 'date' in booking workflow
+  - `moveInDate` - selected move-in date
+  - `pendingCounts` - object mapping listing IDs to pending booking counts
+  - `maxDistance`, `maxPrice`, `schoolFilter`, `genderPolicyFilter` - filter values
+  - `showFilters` - filters panel visibility
+  - `landlordProfile` - landlord profile data from storage
+- **Context Used:**
+  - `useBooking()` - booking operations and subscriptions
+  - `useAuth()` - user data and listing management
+
+### **Geolocation Features**
+- **University Markers:** All 15 universities marked with abbreviated labels
+- **Distance Calculation:** Haversine formula-based distance from university
+- **Boundary Enforcement:** Markers limited to Cebu City bounds (10.25-10.45 lat, 123.82-123.95 lng)
+- **Location Search:** Nominatim reverse geocoding for address lookup
+
+### **Filtering Logic**
+- Listings filtered by: distance, price, university, gender policy, search term
+- Filter combinations are AND-ed (all must match)
+
+### **Error Handling**
+- Invalid listing data handled with fallback empty state
+- Missing images show map preview instead
+- Distance calculation handles missing coordinates
+- Reverse geocoding failures silently ignored
+
+### **Dependencies**
+- Leaflet.js for maps
+- OpenStreetMap tiles for map data
+- Nominatim API for reverse geocoding
+- AuthContext, BookingContext
+- University constants from `universities.js`
+
+### **Map Display Information**
+- **Center:** [10.3157, 123.8854] (Cebu City center)
+- **Zoom Level:** 13 (default)
+- **University Pin Color:** Blue (#2563EB)
+- **Listing Pin Color:** Orange (#E8622E)
+
+---
+
+## **Listing Management**
+
+### **ListingPage (Board View)**
+File: frontend/src/components/pages/Listing/ListingPage.jsx
+CSS: frontend/src/components/pages/Listing/ListingPage.css
+
+**Purpose:** Landlord property listing management - create, read, update, delete listings with images and map placement.
+
+**Key Features**
+- **Multiple View Modes:** board (list), grid (cards), manage (form with map)
+- **Listing Creation Form:**
+  - Title, address, price, room type, available rooms
+  - Gender policy selection
+  - Description and tags
+  - Image upload (up to 3 images)
+  - Map-based location pinning
+  - University selection
+  - Amenities/tags input
+- **Edit Existing Listings:** Modify any field and re-save
+- **Delete Listings:** Remove from inventory
+- **Map Integration:** Click map to select coordinates, auto-address lookup via reverse geocoding
+- **Image Management:** Upload new images, preview, remove images
+- **Tenant Management:** View applicants for each listing
+- **Real-time Updates:** Subscribes to booking changes
+
+**Validation Rules**
+- Title required and non-empty
+- Address required and non-empty
+- Coordinates required (must pin on map)
+- Price must be valid number > 0
+- Room type required
+- Available rooms required
+- Gender policy required
+- Description required and non-empty
+- At least 1 image required (up to 3 max)
+
+**Form Fields**
+- Title (text, required)
+- Address (text, required, auto-populated from geocoding)
+- Price (number, required, > 0)
+- Rooms (select: Single, Double, Triple, Shared)
+- Available Rooms (number)
+- Gender Policy (select: Both, Girls Only, Boys Only)
+- Description (textarea, required)
+- Tags (comma-separated text)
+- University (select from dropdown)
+- Images (file upload, multiple)
+- Latitude/Longitude (readonly, set by map click)
+
+**State Management**
+- **Local State:**
+  - `listings` - array of landlord's listings
+  - `editingId` - ID of listing being edited (null if adding new)
+  - `form` - form field values object
+  - `imageFiles` - new image files selected
+  - `previewUrls` - preview URLs for new images
+  - `errors` - validation error messages object
+  - `viewMode` - 'board', 'grid', or 'manage'
+  - `selectedId` - currently selected listing for detail view
+  - `landlordProfile` - landlord business info from storage
+- **Context Used:**
+  - `useAuth()` - user data, add/update/remove listing operations
+  - `useBooking()` - pending booking counts, listing change notifications
+
+**API Calls/Endpoints Used**
+- `AuthContext.addListing(listing)` - create new listing
+- `AuthContext.updateListing(id, listing)` - update existing listing
+- `AuthContext.removeListing(id)` - delete listing
+- Nominatim reverse geocoding API for address lookup
+- Reads/writes to localStorage: `dormscout_listings`, `dormscout_landlord_profile`
+
+**Storage Keys**
+- `dormscout_listings` - shared listings storage for tenants to book from
+- User's `listings` array in `dormScoutUser`
+
+**Image Handling**
+- FileReader API to convert images to data URLs
+- Up to 3 images per listing
+- Preview URLs created with `URL.createObjectURL()`
+- Cleanup of object URLs on unmount
+
+**Map Features**
+- Leaflet map with university overlay markers
+- Click to select coordinates
+- Boundary validation (Cebu City only)
+- Auto-address lookup on marker placement
+
+**Errors That Can Occur**
+- Duplicate listing IDs (handled by Date.now())
+- Missing landlord profile (uses defaults)
+- Image read failures (caught and logged)
+- Storage quota exceeded (caught gracefully)
+
+---
+
+### **TenantManagement (Sub-component)**
+File: frontend/src/components/pages/Listing/TenantManagement.jsx
+
+**Purpose:** Modal/View for landlords to manage tenant applications and active tenants for a specific listing.
+
+**Key Features**
+- **Three Tenant Lists:**
+  - Pending applications
+  - Active tenants (accepted)
+  - Rejected applications
+- **Tenant Detail View:** Modal popup with full tenant information
+- **Actions:**
+  - Accept tenant (moves to active)
+  - Reject tenant
+  - Remove active tenant (with reason and move-out date)
+  - Message tenant
+
+**Data Display**
+- Tenant name, email, phone
+- Move-in date requested
+- Application status (pending/accepted/rejected)
+- Dorm applied for
+- Booking date
+
+**Interactions**
+- Click tenant card to open detail modal
+- Click action buttons in modal (Accept, Reject, Message, Remove)
+- Confirm removal with reason and move-out date
+
+**State Management**
+- `selectedBooking` - booking detail view state
+- `removeModal` - tenant removal confirmation modal
+- `removeReason`, `removeMoveOutDate` - removal form fields
+
+**API Calls**
+- `BookingContext.getBookingsForListing(listingId)` - get all bookings for listing
+- `BookingContext.getTenantsForListing(listingId)` - get active tenants
+- `BookingContext.acceptBooking(bookingId)` - accept tenant
+- `BookingContext.rejectBooking(bookingId)` - reject tenant
+- `BookingContext.removeTenant(bookingId, reason, moveOutDate)` - remove active tenant
+- `AuthContext.updateBookingStatus(bookingId, status)` - sync status to user records
+- `AuthContext.addActivity()` - log activity
+
+**Status Colors**
+- Pending: #ffc107 (yellow)
+- Accepted/Active: #28a745 (green)
+- Rejected: #dc3545 (red)
+
+---
+
+## **Booking Management**
+
+### **BookingPage**
+File: frontend/src/components/pages/Booking/BookingPage.jsx
+CSS: frontend/src/components/pages/Booking/BookingPage.css
+
+**Purpose:** Display tenant's bookings with status, cancel functionality, and booking details.
+
+**Key Features**
+- **Merged Booking Display:** Combines confirmed bookings from shared storage with pending bookings from user profile
+- **Booking Cards:** Each card shows property image/map, name, address, status, price, move-in date
+- **Status Indicators:** Color-coded status badges (Pending, Confirmed, Rejected)
+- **Booking Details Modal:** Full information popup
+- **Cancellation:** Cancel booking with reason and move-out date
+- **Map Preview:** Small map for properties with coordinates
+- **Image Preview:** Show listing image if available
+
+**Status Display**
+- Confirmed/Accepted/Active: green #d1fae5 / #065f46
+- Rejected: red #fee2e2 / #991b1b
+- Pending: yellow #fef9c3 / #92400e
+
+**Cancel Workflow**
+1. Click booking card to select
+2. Open cancellation modal
+3. Enter reason (optional) and move-out date (optional)
+4. Confirm cancellation
+5. Booking removed from displays
+6. Updates synced to multiple storage locations
+
+**Data Merging Logic**
+- **From 'bookings' storage:** Confirmed/rejected bookings shared between users
+- **From user.bookings:** Pending bookings in user profile
+- **Deduplication:** By booking ID to prevent duplicates
+- **Sorting:** By booked date (newest first)
+
+**State Management**
+- `bookings` - merged array of bookings
+- `selectedBooking` - currently selected booking for detail modal
+- `cancelModal` - cancellation modal visibility
+- `cancelReason`, `cancelMoveOutDate` - cancellation form fields
+
+**API Calls/Storage**
+- Reads from localStorage keys: `bookings`, `dormscout_bookings`, `dormScoutUser`
+- `useAuth().cancelBooking(bookingId)` - cancel from AuthContext
+- `useBooking().cancelBooking(bookingId, reason, moveOutDate)` - cancel from BookingContext
+- Writes to: `bookings`, `dormscout_bookings`, `dormscout_my_bookings`
+
+**Real-time Updates**
+- Listens to storage changes on keys: `bookings`, `dormscout_bookings`, `dormScoutUser`
+- Refresh when external updates detected
+
+**Form Fields for Cancellation**
+- Cancellation Reason (textarea, optional)
+- Move-Out Date (date input, optional)
+
+**Dark Mode Support**
+- Theme colors configurable via props
+- Card backgrounds, text colors, borders adapt
+
+**Empty State**
+- Shows message: "You have no active bookings"
+- Button to navigate to Map View
+
+---
+
+### **BookmarkPage (Saved Listings)**
+File: frontend/src/components/pages/Booking/BookmarkPage.jsx
+CSS: frontend/src/components/pages/Booking/BookmarkPage.css
+
+**Purpose:** Display tenant's saved dorm listings for quick reference and later viewing.
+
+**Key Features**
+- **Saved Listings Grid:** Display all bookmarked dorms
+- **Bookmark Information:**
+  - Property image or map preview
+  - Title, address, price
+  - University badge
+  - Gender policy badge
+  - Landlord name
+  - Tags/amenities
+  - Save date
+- **Quick Actions:**
+  - View on Map button
+  - Remove from bookmarks
+  - Book now button (navigate to map)
+- **Sync Across Tabs:** Real-time updates when bookmarks change in other tabs
+
+**Storage**
+- Key: `dormscout_bookmarks`
+- Stores array of bookmark objects with full listing details
+
+**Bookmark Object Structure**
+```
+{
+  id,
+  listingId,
+  listingTitle,
+  listingAddress,
+  listingPrice,
+  listingImages,
+  lat, lng,
+  university,
+  landlordName,
+  genderPolicy,
+  tags,
+  description,
+  tenantId,
+  savedAt
+}
+```
+
+**Interactions**
+- Click "View on Map" to navigate to Map page
+- Click "Remove" button to delete bookmark
+- Click "Book Now" to navigate to Map
+- Click bookmark card to view details
+
+**Empty State**
+- Shows message: "No saved listings yet. Explore the map to save dorms!"
+- "Explore Map" button navigates to `/map`
+
+**Dark Mode Support**
+- Themed backgrounds, text, borders
+
+**Real-time Sync**
+- Listens to storage event for `dormscout_bookmarks` key changes
+- Updates state immediately when bookmarks change
+
+**Date Formatting**
+- Display format: "Saved on [Month] [Day], [Year]" (en-US locale)
+
+---
+
+## **Messaging**
+
+File: frontend/src/components/pages/Messaging/Messaging.jsx
+CSS: frontend/src/components/pages/Messaging/Messaging.css
+
+### **Purpose/Description**
+Direct messaging system for communication between tenants and landlords about bookings and properties.
+
+### **Key Features**
+- **Conversation List:** Display all active conversations
+- **Message Thread:** Full message history with timestamps
+- **Real-time Updates:** Message delivery tracking (sent, delivered, read status)
+- **Typing Indicators:** Show when other user is typing
+- **Message Reactions:** Quick emoji responses (not fully implemented)
+- **Conversation Deduplication:** Prevents duplicate conversations with same user
+- **Avatar Generation:** Color-coded initials for users
+- **Desktop Notifications:** Request permission and notify on new messages
+- **User Status:** Shows online/offline status with green dot
+
+### **Message Statuses**
+- **sent** - ✓
+- **delivered** - ✓✓
+- **read** - ✓✓ (highlighted in primary color)
+
+### **Storage Structure**
+```
+conversations: { tenant: {...}, landlord: {...} }
+conversations[role][convId] = {
+  convId, name, avatar, online, typing, lastMessage, lastMessageTime, 
+  landlordId, timestamp, unreadCount
+}
+
+messages: { tenant: {...}, landlord: {...} }
+messages[role][convId] = [{
+  id, from, to, text, timestamp, status, messageType
+}]
+```
+
+### **Storage Keys**
+- `messaging_conversations` - all conversations by role
+- `messaging_messages` - all messages by role and conversation
+
+### **Data Cleaning Operations**
+- **Placeholder Removal:** Removes hardcoded placeholder conversations (Maria Santos, Juan dela Cruz, etc.)
+- **Conversation Deduplication:** Groups by landlordId, keeps most recent if duplicates exist
+- **Junk Cleanup:** If >100 conversations detected, wipes entire role (indicates old bug data)
+
+### **User Interactions**
+- Click conversation to open message thread
+- Type and send message
+- View message history with timestamps
+- Click user avatar for profile/info
+- Archive conversation (not implemented)
+- Search conversations (not implemented in current version)
+- Desktop notifications for new messages
+
+### **State Management**
+- **Local State:**
+  - `conversations` - active conversation list
+  - `selectedConvId` - currently open conversation ID
+  - `messageText` - draft message input
+  - `isTyping` - typing indicator status
+  - `filteredConversations` - search/filtered results
+  - `unreadCounts` - unread message counts per conversation
+- **Context:** `useAuth()` for user data
+- **Module-level Listeners:** `messagingListeners` array for real-time updates
+
+### **API Calls/Endpoints Used**
+- No external API calls (all localStorage-based)
+- Storage operations via custom Storage helper object
+
+### **Features NOT YET IMPLEMENTED**
+- Message reactions
+- Typing indicators (state prepared but not enforced)
+- Message search
+- Conversation archiving
+- Voice/video calls
+- File sharing
+
+### **Error Handling**
+- Safe JSON parsing with fallbacks
+- Storage quota exceeded handled gracefully
+- Invalid message data ignored
+- Placeholder conversations safely removed
+
+### **Dependencies**
+- AuthContext for user information
+- Lucide React for icons
+- Custom avatar component with color coding
+
+### **Notification Permissions**
+- Requests desktop notification permission on component mount
+- Shows OS notification for new messages
+- Auto-closes notification after 5 seconds
+
+---
+
+## **Notifications**
+
+File: frontend/src/components/pages/Notifications/Notifications.jsx
+CSS: frontend/src/components/pages/Notifications/Notifications.css
+
+### **Purpose/Description**
+Centralized notification center for all platform events - booking updates, messages, reviews, system notifications.
+
+### **Key Features**
+- **Notification List:** Displays all notifications in reverse chronological order
+- **Unread Badge:** Shows count of unread notifications in header
+- **Notification Types:**
+  - new_booking (📦) - Tenant receives booking confirmation
+  - booking_accepted (✅) - Landlord accepts tenant application
+  - booking_rejected (❌) - Landlord rejects tenant application
+  - booking_cancelled (❌) - Booking cancelled
+  - new_message (💬) - New message received
+  - tenant_removed (🚫) - Tenant removed from property
+- **Mark as Read:** Click unread notification to mark read
+- **Delete Individual:** Remove notification with X button
+- **Clear All:** Bulk delete all notifications
+- **Real-time Updates:** Subscribes to notification changes via BookingContext
+
+### **Notification Object Structure**
+```
+{
+  id,
+  type: 'new_booking' | 'booking_accepted' | 'booking_rejected' | 'booking_cancelled' | 'new_message' | 'tenant_removed',
+  title,
+  message,
+  read: boolean,
+  createdAt: ISO timestamp,
+  relatedId, // booking ID, message ID, etc.
+  icon, // emoji based on type
+}
+```
+
+### **Timestamp Formatting**
+- < 1 minute: "Just now"
+- < 1 hour: "{minutes}m ago"
+- < 24 hours: "{hours}h ago"
+- 1 day ago: "yesterday"
+- < 7 days: "{days}d ago"
+- Otherwise: "Mon Jan 15" format
+
+### **User Interactions**
+- Click unread notification to mark as read (visual feedback)
+- Click X button to delete individual notification
+- Click "Clear All" button to delete all notifications
+- Notifications update in real-time when events occur
+
+### **State Management**
+- **Local State:**
+  - `notifications` - array of all notifications for user type
+- **Subscriptions:** 
+  - Subscribes to BookingContext notification changes
+  - Re-fetches on component mount and when userType changes
+- **Context Used:** `useBooking()`
+  - `getNotifications(userType)` - fetch notifications
+  - `markNotificationRead(notificationId)` - mark read
+  - `deleteNotification(notificationId)` - delete single
+  - `clearAllNotifications(userType)` - delete all
+  - `subscribeToNotifications(callback)` - real-time updates
+
+### **API Calls/Endpoints Used**
+- All operations via BookingContext (localStorage-backed)
+
+### **Empty State**
+- Shows bell icon (🔕)
+- Message: "No notifications yet."
+
+### **Dark Mode Support**
+- Theme-aware colors for background, text, borders
+- Unread notification highlighting with primary color border
+
+### **Styling Details**
+- Unread notifications: white background with orange border
+- Read notifications: light gray background with subtle border
+- Hover effects on delete and clear buttons
+- Icon emojis for quick visual scanning
+
+---
+
+## **Reviews**
+
+File: frontend/src/components/pages/Reviews/Reviews.jsx
+CSS: frontend/src/components/pages/Reviews/Reviews.css
+
+### **Purpose/Description**
+Review system for students to rate and review dorms they've lived in, helping other students make informed decisions.
+
+### **Key Features**
+- **Read Reviews:** View all reviews for available dorms
+- **Write Review:** Submit new review with rating, tags, and detailed feedback
+- **Star Rating:** 5-star interactive rating system
+- **Helpful Votes:** Mark reviews as helpful
+- **Review Filters:** By dorm selection
+- **Review Tags:** Pre-defined tags (Clean, Safe, Quiet, Affordable, Fast WiFi, etc.)
+- **Review Statistics:** Average rating and total review count per dorm
+
+### **Available Dorms** (Hardcoded for current version)
+1. Sunrise Boarding House
+2. Green Leaf Dormitory
+3. BlueSky Residences
+
+### **Review Object Structure**
+```
+{
+  id,
+  dormId,
+  author,
+  avatar, // initials
+  date: 'Month Day, Year' format,
+  rating: 1-5,
+  tags: [], // array of tag strings
+  body, // review text,
+  helpful: number,
+  userMarkedHelpful: boolean
+}
+```
+
+### **Available Review Tags**
+- Clean, Safe, Quiet, Affordable, Fast WiFi, Great Location
+- Friendly Staff, Modern, Secure, Average
+
+### **User Interactions**
+- Select dorm from dropdown to view its reviews
+- Read existing reviews with ratings and comments
+- Click star rating to submit own review
+- Select multiple tags for review
+- Write review body text
+- Submit review
+- Mark review as helpful (vote functionality)
+
+### **Form Fields for New Review**
+- Star Rating (1-5, interactive slider)
+- Tags Selection (multi-select checkboxes)
+- Review Body (textarea)
+- Author Name (auto-filled from user data)
+
+### **State Management**
+- **Local State:**
+  - `selectedDorm` - currently selected dorm for viewing reviews
+  - `selectedRating` - rating slider value (1-5)
+  - `selectedTags` - array of selected tags
+  - `reviewBody` - textarea value
+  - `showWriteForm` - review composition form visibility
+  - `reviews` - all reviews loaded from storage
+- **Context Used:** `useAuth()` for user information
+
+### **Storage**
+- Key: `dormscout_reviews`
+- Stores array of all reviews
+- Initializes with placeholder reviews (commented out, awaiting backend)
+
+### **Star Rating Component**
+- Interactive hover effects
+- Visual feedback on hover and selection
+- 5-star scale with fractional ratings supported (½ star for 0.5 increments)
+
+### **Avatar Component**
+- Color-coded initials based on author name
+- Pre-defined color palette (5 colors, rotated)
+
+### **Storage Helper**
+- `get(key, defaultValue)` - safe JSON parse
+- `set(key, value)` - safe JSON stringify
+
+### **Features NOT YET IMPLEMENTED**
+- Backend integration (placeholder reviews section commented)
+- Helpful vote persistence
+- Review editing
+- Review deletion (user's own reviews)
+- Review sorting (by rating, date, helpful count)
+- Photo uploads in reviews
+
+---
+
+## **Profile & Settings**
+
+### **ProfilePage**
+File: frontend/src/components/pages/Profile/ProfilePage.jsx
+CSS: frontend/src/components/pages/Profile/ProfilePage.css
+
+**Purpose:** User profile display with stats and information, with quick links to settings and support.
+
+**Key Features**
+- **Profile Card:**
+  - Avatar (profile picture or user icon)
+  - Name display
+  - Email
+  - School/University (for tenants)
+  - Bio (role-dependent)
+- **Statistics:**
+  - Listings count (landlords) / Bookings count (tenants)
+  - Joined date
+- **Quick Links:**
+  - Edit Profile (go to Settings)
+  - Help and Support
+  - About Us
+- **Theme Toggle:** Dark/Light mode switch in dropdown
+- **Logout:** From dropdown menu
+- **Navigation:** Back to overview/dashboard
+
+**Profile Data Retrieved**
+- From AuthContext/user object
+- Fields: name, email, school/university, listings (count), bookings (count)
+
+**Role-specific Bio**
+- Tenant: "Looking for the perfect place to stay near campus."
+- Landlord: "Providing quality accommodation for students."
+
+**Navbar**
+- DormScout branding (clickable to go to overview)
+- User avatar with dropdown
+
+**Dropdown Menu Items**
+- My Profile
+- Help and Support
+- About Us
+- Dark/Light Mode Toggle
+- Logout
+
+**User Interactions**
+- Theme toggle
+- Navigate via dropdown menu
+- Click DormScout to go to overview
+
+---
+
+### **Settings Page**
+File: frontend/src/components/pages/Settings/Settings.jsx
+CSS: frontend/src/components/pages/Settings/Settings.css
+
+**Purpose:** Comprehensive user settings management including profile editing, preferences, security, and account management.
+
+**Key Features**
+- **Profile Settings Section:**
+  - Profile picture upload/change
+  - First name, last name editing
+  - Email, phone editing
+  - School/University selection (for tenants)
+  - Business name (for landlords)
+- **Preferences Section:**
+  - Notification toggles
+  - Email preferences
+  - Language selection (future)
+- **Account & Security:**
+  - Change password
+  - Two-factor authentication (future)
+- **Account Actions:**
+  - Delete account (with confirmation modal)
+  - Logout
+- **Profile Picture Upload:**
+  - File validation (images only, max 5MB)
+  - Preview before save
+  - Drag-and-drop support
+
+**Form Components**
+- `InputField` - text inputs with validation
+- `FileUpload` - image upload with preview
+- `SettingRow` - key-value setting display
+- `SettingSection` - grouped settings
+- `Toggle` - ON/OFF switches
+- `AlertModal` - confirmation dialogs
+
+**Settings Sections**
+1. **Profile Information**
+   - Picture upload
+   - First Name (required)
+   - Last Name (required)
+   - Email (required)
+   - Phone Number (required)
+   - School/University (tenant only)
+   - Business Name (landlord only)
+
+2. **Preferences**
+   - Email Notifications (toggle)
+   - In-App Notifications (toggle)
+   - Marketing Communications (toggle)
+
+3. **Security**
+   - Current Password (required to make changes)
+   - New Password
+   - Confirm Password
+   - Change Password button
+
+4. **Account**
+   - Delete Account button (with confirmation)
+   - Logout button
+
+**State Management**
+- **Local State:**
+  - `profileImage`, `profileImageData` - image upload
+  - Form fields: firstName, lastName, email, phone, school, businessName
+  - Preference toggles: emailNotifications, inAppNotifications, marketing
+  - Password fields: currentPassword, newPassword, confirmPassword
+  - Error messages per field
+  - Success/confirmation modals
+- **Context:** `useAuth()` for user data and updates
+
+**Validation Rules**
+- First/Last Name: required, non-empty
+- Email: required, valid email format
+- Phone: required
+- School/University: required (tenants only)
+- Password change: current password must match, new passwords must match
+
+**File Upload Constraints**
+- Accepted types: image/* (jpg, png, gif, webp, etc.)
+- Max file size: 5MB
+- Automatically converts to data URL
+
+**API Calls**
+- `useAuth().updateUserProfile(updates)` - save profile changes
+- `useAuth().changePassword(currentPassword, newPassword)` - change password
+- `useAuth().deleteAccount()` - delete user account
+
+**Confirmation Modals**
+- Account deletion requires explicit confirmation
+- Displays warning about permanent action
+- Shows user email for confirmation
+
+**Dark Mode Support**
+- All form elements themed based on darkMode prop
+
+**Error Display**
+- Per-field error messages below inputs
+- Red text styling for errors
+- Form submission prevented if errors exist
+
+---
+
+## **Reporting**
+
+File: frontend/src/components/pages/Report/Report.jsx
+CSS: frontend/src/components/pages/Report/Report.css
+
+### **Purpose/Description**
+Reporting system for users to report inappropriate listings, landlords, or tenants with evidence.
+
+### **Key Features**
+- **Role-based Report Types:**
+  - Tenants can report: Listings, Landlords
+  - Landlords can report: Tenants
+- **Reason Selection:** Predefined reasons based on report type
+- **Evidence Photo:** Required image attachment
+- **Detailed Description:** Textarea for explanation
+- **Status Tracking:** Reports stored with pending status
+
+### **Report Type to Reasons Mapping**
+
+**Listing Reasons:**
+- False / Misleading Information
+- Scam or Fraudulent Listing
+- Inappropriate Content
+- Already Occupied / Not Available
+- Other
+
+**Landlord Reasons:**
+- Harassment or Discrimination
+- Scam or Fraud
+- Unresponsive or Unprofessional
+- Unsafe Living Conditions
+- Other
+
+**Tenant Reasons:**
+- Property Damage
+- Non-Payment / Late Payment
+- Harassment or Threats
+- Violation of House Rules
+- Other
+
+### **Form Fields**
+- Report Type (dropdown, role-dependent)
+- Subject (text, required) - who/what is being reported
+- Reason (select, required) - predefined reasons
+- Description (textarea, required) - detailed explanation
+- Evidence Photo (file upload, required) - image file
+
+### **User Interactions**
+1. Select report type (auto-populated if navigated with state)
+2. Enter subject (entity name/ID being reported)
+3. Select reason from available options
+4. Write detailed description
+5. Upload evidence photo
+6. Submit report
+7. Confirmation message displayed
+
+**State Management**
+- `reportType` - selected report type
+- `subject` - text field
+- `reason` - selected reason
+- `description` - textarea
+- `imageFile`, `imagePreview` - uploaded image
+- `errors` - validation error messages object
+- `submitted` - success state
+
+**Validation Rules**
+- Subject: required, non-empty trim
+- Reason: must select one
+- Description: required, non-empty trim
+- Image: must upload at least one
+
+**Image Handling**
+- File input accepts image/* files
+- Validates file type (image only)
+- Shows preview with FileReader API
+- Converts to data URL for storage
+- Display error if invalid file
+
+**Storage**
+- Key: `dormscout_reports`
+- Stores array of report objects
+
+**Report Object Structure**
+```
+{
+  id: timestamp,
+  reporterType: 'tenant' | 'landlord',
+  reportType: 'Listing' | 'Landlord' | 'Tenant',
+  subject: string,
+  reason: string,
+  description: string,
+  evidence: data URL (base64),
+  submittedAt: ISO timestamp,
+  status: 'pending'
+}
+```
+
+**Success Workflow**
+- After submission, form resets
+- Show confirmation message
+- Button to submit another report
+
+**Error Handling**
+- Per-field error display
+- Type change resets previous errors
+- Image validation on selection
+
+**Dark Mode Support**
+- Theme-aware colors for inputs, backgrounds, text
+
+**Navigation State**
+- Can receive `userType` and `subject` via `useLocation().state`
+- Pre-fills subject field if navigated with state
+
+---
+
+## **About & Support**
+
+### **AboutUs Page**
+File: frontend/src/components/pages/About/AboutUs.jsx
+CSS: frontend/src/components/pages/About/AboutUs.css
+
+**Purpose:** Informational landing page about DormScout with feature highlights.
+
+**Key Features**
+- **Feature Cards:**
+  1. Interactive Maps - Discover dorms near your university
+  2. Smart Search - Filter by location to find perfect dorm
+  3. Direct Communication - Connect with landlords instantly
+  4. Reviews & Ratings - Make informed decisions
+- **Navigation:** Back to overview or home
+- **Theme Toggle:** Dark/Light mode
+- **Dropdown Menu:** Help, About Us, Logout options
+
+**Feature Display**
+- Icon (emoji)
+- Title
+- Description
+- Grid layout for all 4 features
+
+**Navbar**
+- DormScout branding
+- User avatar with dropdown menu
+
+**Dropdown Menu**
+- My Profile
+- Help and Support
+- About Us
+- Dark/Light Mode Toggle
+- Logout
+
+**User Interactions**
+- Theme toggle
+- Navigate via dropdown menu
+- Click DormScout to go to overview
+
+---
+
+### **Support Page**
+File: frontend/src/components/pages/Support/Support.jsx
+CSS: frontend/src/components/pages/Support/Support.css
+
+**Purpose:** FAQ, contact information, and support request form.
+
+**Key Features**
+- **FAQ Section:**
+  1. How do I book a dorm?
+  2. Can I cancel my booking?
+  3. How do I contact landlords?
+  4. How do I list my dorm?
+- **Expandable FAQ Items:** Click to reveal answer
+- **Contact Information:**
+  - Email: support@dormscout.com
+  - Phone: +63 (32) 123-4567
+  - Address: Cebu City, Philippines
+- **Support Form:** Submit support inquiry
+  - Name, Email, Subject, Message
+  - Submission confirmation
+
+**Form Fields**
+- Name (text, required)
+- Email (email, required)
+- Subject (text, required)
+- Message (textarea, required)
+
+**State Management**
+- `expandedIndex` - which FAQ item is open
+- `formData` - form field values
+- `submitted` - success state
+- `showDropdown` - user menu visibility
+
+**User Interactions**
+- Click FAQ question to expand answer
+- Fill out support form
+- Submit support request
+- See confirmation message
+- Form auto-resets after submission
+
+**Dark Mode Support**
+- Theme colors for backgrounds, text, inputs
+
+**Styling**
+- Expandable accordion for FAQs
+- Clean contact information display with icons
+- Professional form styling
+
+---
+
+## **Admin Panel**
+
+File: frontend/src/components/pages/Admin/AdminPage.jsx
+CSS: frontend/src/components/pages/Admin/AdminPage.css
+
+### **Purpose/Description**
+Administrative dashboard for managing all platform data - users, listings, bookings, bookmarks, reports, reviews, and notifications.
+
+### **Key Features**
+- **Admin Authentication:** Email/password login with storage check
+- **Multi-section Dashboard:**
+  - Overview (summary statistics)
+  - Users management
+  - Listings management
+  - Bookings management
+  - Bookmarks management
+  - Reports management
+  - Reviews management
+  - Notifications management
+  - Settings
+- **Data Tables:** Display data in sortable, searchable tables
+- **Search/Filter:** Per-section filtering and searching
+- **Quick Stats:** Summary cards for key metrics
+- **Status Badges:** Visual status indicators
+
+### **Sidebar Navigation**
+- Overview (LayoutDashboard)
+- Users (Users icon)
+- Listings (ClipboardList)
+- Bookings (CalendarDays)
+- Bookmarks (Star)
+- Reports (FileWarning)
+- Reviews (Star)
+- Notifications (Bell)
+- Settings (SettingsIcon)
+
+### **Admin Login**
+- Email and password form
+- Local validation (no backend auth)
+- Login state stored in localStorage: `dormscout_admin_logged_in`
+- Error message display
+
+### **Overview Section**
+- **Summary Cards:**
+  - Total Users
+  - Total Listings
+  - Total Bookings
+  - Total Bookmarks
+  - Total Reports
+  - Pending Reports count
+  - Active Listings count
+
+### **Users Section**
+- **Display:** Table of all users
+- **Columns:**
+  - Name
+  - Email
+  - Role (tenant/landlord)
+  - Status
+  - Actions
+- **Search:** By name or email
+- **Actions:**
+  - View details (modal)
+  - Delete user (with confirmation)
+
+### **Listings Section**
+- **Display:** Table of all listings
+- **Columns:**
+  - Title
+  - Address
+  - Price
+  - Landlord
+  - Status
+  - University
+  - Actions
+- **Search:** By title, address, landlord name, university
+- **Filter:** By university
+- **Actions:**
+  - View details
+  - Edit
+  - Delete
+
+### **Bookings Section**
+- **Display:** Table of all bookings
+- **Columns:**
+  - Tenant Name
+  - Listing Title
+  - Status
+  - Move-in Date
+  - Booking Date
+  - Actions
+- **Search:** By tenant, listing, status, date
+- **Filters:** By status (all/pending/confirmed/rejected)
+- **Actions:**
+  - View details
+  - Change status
+  - Delete
+
+### **Reports Section**
+- **Display:** Table of all reports
+- **Columns:**
+  - Reporter
+  - Report Type
+  - Subject
+  - Reason
+  - Status
+  - Submitted Date
+  - Actions
+- **Filter:** By status (all/pending/resolved)
+- **Actions:**
+  - View details with evidence
+  - Mark resolved
+  - Delete
+
+### **Data Persistence**
+All admin data loaded from localStorage:
+- `dormScoutUsers` - user list
+- `dormscout_listings` - listings
+- `dormscout_bookings` - bookings
+- `dormscout_bookmarks` - bookmarks
+- `dormscout_reports` - reports
+- `dormscout_reviews` - reviews
+- `dormscout_notifications` - notifications
+
+**Real-time Updates**
+- Listens to storage events
+- Auto-refreshes data when changed
+- Updates on section navigation
+
+### **Helper Functions**
+- `safeParse()` - safe JSON parsing
+- `toDisplayDate()` - date formatting
+- `getRole()` - extract user role
+- `getStatusClass()` - status CSS class
+- `truncate()` - text truncation for display
+
+### **Status Styling**
+- **Good Status** (accepted, confirmed, resolved, active, read): Green
+- **Pending Status**: Yellow/Amber
+- **Bad Status** (rejected, etc.): Red
+
+### **State Management**
+- `isLoggedIn` - admin auth state
+- `email`, `password` - login form
+- `darkMode` - theme preference
+- `activeSection` - current admin section
+- Search/filter fields per section
+- Data arrays: users, listings, bookings, etc.
+
+### **Security Notes**
+- ⚠️ **No real authentication** - local storage check only
+- ⚠️ **No password hashing** - demo purposes only
+- ⚠️ **All data in browser localStorage** - not secure for production
+- ⚠️ **No role-based access control** - any admin can access all sections
+
+---
+
+## **Key State Management Patterns**
+
+### **AuthContext**
+- User registration and login
+- User logout
+- Profile updates
+- Booking/listing CRUD operations
+- Activity logging
+- Cross-tab sync via localStorage
+
+### **BookingContext**
+- Booking creation and status updates
+- Tenant acceptance/rejection
+- Real-time notification subscription
+- Notification management
+- Chat message storage
+- Tenant management
+
+### **Local Component State**
+- Form inputs
+- UI state (modals, dropdowns, expanded items)
+- Theme/mode preferences
+- Search and filter values
+
+---
+
+## **localStorage Keys Summary**
+
+// User & Auth
+'dormScoutUser'                 // Currently logged-in user
+'dormScoutUsers'                // All registered users
+'userType'                      // Current user type (tenant/landlord)
+
+// Bookings
+'bookings'                      // Confirmed/rejected bookings (shared)
+'dormscout_bookings'            // Alternative bookings storage
+'dormscout_my_bookings'         // User's personal bookings
+
+// Listings
+'dormscout_listings'            // All available listings
+'dormscout_landlord_profile'    // Landlord profile/business info
+
+// Bookmarks
+'dormscout_bookmarks'           // User's saved listings
+
+// Messaging
+'messaging_conversations'       // Conversation threads
+'messaging_messages'            // Message history
+
+// Notifications
+'dormscout_notifications'       // Notification objects
+
+// Reviews
+'dormscout_reviews'             // Review objects
+'dormscout_listing_reviews'     // Reviews by listing ID
+
+// Reports
+'dormscout_reports'             // User reports
+
+// Preferences
+'darkMode'                      // Theme preference
+'admin_darkMode'                // Admin panel theme
+
+// Admin
+'dormscout_admin_logged_in'     // Admin login state
+
+---
+
+## **Common Error Scenarios for Testing**
+
+1. **Authentication:**
+   - Login with wrong password → Error message
+   - Login with non-existent email → Error message
+   - Login with wrong user type → Error message
+   - Register with duplicate email → Error message
+
+2. **Bookings:**
+   - Book without selecting move-in date → Validation error
+   - Cancel booking with missing reason → Should still work (optional)
+   - View bookings when none exist → Empty state
+
+3. **Listings:**
+   - Create listing without image → Validation error
+   - Pinning location outside Cebu City → Alert
+   - Update listing with invalid price → Validation error
+   - Delete listing with active tenants → Should cascade
+
+4. **Messaging:**
+   - Send message to non-existent user → Conversation created
+   - Message sent when offline → Status remains "sent"
+   - Receive duplicate conversations → Auto-merged/deduped
+
+5. **Storage:**
+   - localStorage quota exceeded → Graceful failure (console error)
+   - Corrupt JSON in storage → Safe fallback to empty array
+   - Cross-tab sync failure → May show stale data
+
+---
+
+## **Performance Considerations**
+
+- Listings filtered/searched on client-side (no backend search)
+- Distance calculations use Haversine formula (relatively fast)
+- Map re-renders only when markers change
+- Image data URLs stored in localStorage (large payload)
+- Notification subscription listeners may accumulate (unsubscribe on unmount)
+
+---
+
+## **Future Enhancement Opportunities**
+
+- Backend API integration (replace localStorage with real endpoints)
+- User authentication/authorization improvements
+- Real-time message push notifications
+- Image optimization and CDN hosting
+- Advanced search/filtering with indexing
+- User rating/trust scores
+- Payment integration for bookings
+- Email notifications
+- SMS notifications
+- Calendar UI for date selection
+- Property tour booking
+- Roommate matching algorithm
+
+---
+
+This comprehensive functional specification should serve as a valuable debugging and testing reference for the DormScout platform!
