@@ -95,12 +95,13 @@ const FileUpload = ({
 }) => {
   const [preview, setPreview] = useState(currentImage || null);
   const fileInputRef = useRef(null);
+  const [fileError, setFileError] = useState('');
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('File size must be less than 5MB');
+        setFileError('File size must be less than 5MB');
         return;
       }
       const reader = new FileReader();
@@ -153,6 +154,10 @@ const FileUpload = ({
       <p style={{ color: colors.secondaryText, fontSize: '0.8rem', marginTop: '8px' }}>
         Supported: JPG, PNG (Max 5MB)
       </p>
+
+      {fileError && (
+        <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>{fileError}</p>
+      )}
     </div>
   );
 };

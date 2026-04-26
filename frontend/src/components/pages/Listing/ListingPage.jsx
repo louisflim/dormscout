@@ -84,7 +84,6 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
   const [listings, setListings]           = useState([]);
   const [editingId, setEditingId]         = useState(null);
 
-  // ✅ FIX: All hooks called at component top level (not inside helper functions)
   const { getPendingCount, notifyListingChange } = useBooking();
   const { user, addListing, updateListing, removeListing: authRemoveListing } = useAuth();
 
@@ -95,6 +94,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
   const [viewMode, setViewMode]           = useState(mode);
   const [selectedId, setSelectedId]       = useState(null);
   const [landlordProfile, setLandlordProfile] = useState(getLandlordProfile);
+  const [locationError, setLocationError] = useState('');
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef  = useRef(null);
@@ -160,7 +160,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
       if (lat < CEBU_BOUNDS.minLat || lat > CEBU_BOUNDS.maxLat || lng < CEBU_BOUNDS.minLng || lng > CEBU_BOUNDS.maxLng) {
-        alert('Please pin a location within Cebu City only.'); return;
+        setLocationError('Please pin a location within Cebu City only.'); return;
       }
       setForm(f => ({ ...f, lat, lng }));
       if (markerRef.current) markerRef.current.setLatLng(e.latlng);
@@ -473,6 +473,11 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 </div>
 
                 <div className="listing-map-hint">
+                  {locationError && (
+                    <p style={{ color: '#dc3545', fontSize: '0.8rem', marginTop: '4px', fontWeight: 600 }}>
+                      ❌ {locationError}
+                    </p>
+                  )}
                   <p className="listing-map-hint-text">Click on the map to pin the location.</p>
                   <span className="listing-cebu-badge">⚠️ Cebu City Only</span>
                 </div>

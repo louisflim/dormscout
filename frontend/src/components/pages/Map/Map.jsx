@@ -153,6 +153,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
   const { createBooking, getPendingCount, subscribeToBookings, bookings } = useBooking();
   const { user, addBooking } = useAuth();
+  const [bookingError, setBookingError] = useState('');
   const navigate = useNavigate();
   const isLandlord = user?.userType === 'landlord';
   const theme = darkMode ? 'dark' : 'light';
@@ -258,7 +259,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   };
 
   const handleConfirmBooking = (listing) => {
-    if (!moveInDate) { alert('Please select a move-in date.'); return; }
+    if (!moveInDate) { setBookingError('Please select a move-in date.'); return; }
 
     // Check if tenant already has an active/pending booking
     if (user?.userType === 'tenant') {
@@ -270,7 +271,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         return activeStatuses.has(status) && (sameTenantById || sameTenantByEmail);
       });
       if (activeBooking) {
-        alert('❌ You already have an active booking. Please cancel it before booking another dorm.');
+        setBookingError('❌ You already have an active booking. Please cancel it before booking another dorm.');
         return;
       }
     }
@@ -282,15 +283,15 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     // Strict gender check - BLOCK if policy doesn't match gender
     if (policy && policy !== 'Both') {
       if (!userGender) {
-        alert('❌ Please update your profile with your gender information.');
+        setBookingError('❌ Please update your profile with your gender information.');
         return;
       }
       if (policy === 'Girls Only' && userGender === 'Male') {
-        alert('❌ This dorm is for GIRLS ONLY. You are a male and cannot book this property.');
+        setBookingError('❌ This dorm is for GIRLS ONLY.');
         return;
       }
       if (policy === 'Boys Only' && userGender === 'Female') {
-        alert('❌ This dorm is for BOYS ONLY. You are a female and cannot book this property.');
+        setBookingError('❌ This dorm is for BOYS ONLY.');
         return;
       }
     }
@@ -724,6 +725,11 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
                   {bookingStep === 'booking' && (
                     <div className="map-booking-box">
+                       {bookingError && (
+                         <p style={{ color: '#dc3545', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 600 }}>
+                          ❌ {bookingError}
+                         </p>
+                       )}
                       <h4>📅 Select Move-in Date</h4>
                       <input
                         type="date"
