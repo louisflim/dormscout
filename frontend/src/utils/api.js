@@ -39,7 +39,7 @@ export const userAPI = {
 };
 
 // Listing API calls
-export const listingAPI = {
+export const listingsAPI = {
   createListing: (listing, landlordId) =>
     fetch(`${API_BASE_URL}/listings?landlordId=${landlordId}`, {
       method: 'POST',
@@ -71,7 +71,7 @@ export const listingAPI = {
 };
 
 // Booking API calls
-export const bookingAPI = {
+export const bookingsAPI = {
   createBooking: (booking, tenantId, listingId) =>
     fetch(`${API_BASE_URL}/bookings?tenantId=${tenantId}&listingId=${listingId}`, {
       method: 'POST',
