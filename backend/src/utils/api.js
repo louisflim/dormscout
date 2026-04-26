@@ -1,177 +1,97 @@
-const API_BASE = 'http://localhost:8080/api';
+import axios from 'axios';
 
-// ─── Helper: Make API calls ───────────────────────────────
-async function fetchAPI(endpoint, options = {}) {
-  const url = `${API_BASE}${endpoint}`;
+const API_BASE_URL = 'http://localhost:8080/api';
 
-  const config = {
+const api = axios.create({
+    baseURL: API_BASE_URL,
     headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
+        'Content-Type': 'application/json',
     },
-    ...options,
-  };
+});
 
-  // Don't set body for GET/DELETE requests
-  if (!config.body && (options.method === 'POST' || options.method === 'PUT')) {
-    delete config.body;
-  }
+api.interceptors.request.use((config) => {
+    const token = sessionStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
 
-  try {
-    const response = await fetch(url, config);
-    const data = await response.json();
+export const userAPI = {
+    register: async (userData) => {
+        try {
+            console.log('🔄 API: Sending register request to /users/register...');
+            console.log('📦 Request data:', userData);
 
-    return {
-      ok: response.ok,
-      status: response.status,
-      data,
-    };
-  } catch (error) {
-    console.error('API Error:', error);
-    throw error;
-  }
-}
+            const response = await api.post('/users/register', userData);
 
-// ═══════════════════════════════════════════════════════════
-// AUTH API
-// ═══════════════════════════════════════════════════════════
+            console.log('✅ API: Register response received');
+            console.log('📦 Full response data:', response.data);
+            console.log('📦 user in response:', response.data.user);
+            console.log('📦 userType in response:', response.data.user?.userType);
 
-export const authAPI = {
-  register: async (userData) => {
-    // userData: { email, password, firstName, lastName, phone, userType }
-    return fetchAPI('/users/register', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
-  },
+            return {
+                success: true,
+                user: response.data.user
+            };
+        } catch (error) {
+            console.error('❌ API: Register error:', error);
+            console.error('❌ API: Error response:', error.response?.data);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Registration failed'
+            };
+        }
+    },
 
-  login: async (email, password) => {
-    // LoginRequest: { email, password }
-    return fetchAPI('/users/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-  },
+    login: async (email, password) => {
+        try {
+            console.log('🔄 API: Sending login request to /users/login...');
+            console.log('📧 Email:', email);
 
-  getUserById: async (id) => {
-    return fetchAPI(`/users/${id}`);
-  },
+            const response = await api.post('/users/login', { email, password });
 
-  getUserByEmail: async (email) => {
-    return fetchAPI(`/users/email/${email}`);
-  },
+            console.log('✅ API: Login response received');
+            console.log('📦 Full response data:', response.data);
+            console.log('📦 user in response:', response.data.user);
+            console.log('📦 userType in response:', response.data.user?.userType);
 
-  updateUser: async (id, updates) => {
-    return fetchAPI(`/users/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    });
-  },
+            return {
+                success: true,
+                user: response.data.user
+            };
+        } catch (error) {
+            console.error('❌ API: Login error:', error);
+            console.error('❌ API: Error response:', error.response?.data);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Login failed'
+            };
+        }
+    },
 
-  deleteUser: async (id) => {
-    return fetchAPI(`/users/${id}`, { method: 'DELETE' });
-  },
+    getUserById: async (id) => {
+        try {
+            console.log('🔄 API: Fetching user by ID:', id);
+            const response = await api.get(`/users/${id}`);
+            console.log('📦 getUserById response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: getUserById error:', error);
+            return null;
+        }
+    },
+
+    // ✅ CORRECT: /users/{id}
+    updateUser: async (id, userData) => {
+        try {
+            const response = await api.put(`/users/${id}`, userData);
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: updateUser error:', error);
+            return null;
+        }
+    },
 };
 
-// ═══════════════════════════════════════════════════════════
-// LISTINGS API
-// ═══════════════════════════════════════════════════════════
-
-export const listingsAPI = {
-  // Get all listings
-  getAll: async () => {
-    return fetchAPI('/listings');
-  },
-
-  // Get active listings only
-  getActive: async () => {
-    return fetchAPI('/listings/active');
-  },
-
-  // Get single listing by ID
-  getById: async (id) => {
-    return fetchAPI(`/listings/${id}`);
-  },
-
-  // Get listings by landlord
-  getByLandlord: async (landlordId) => {
-    return fetchAPI(`/listings/landlord/${landlordId}`);
-  },
-
-  // Create listing (requires landlordId as query param)
-  create: async (listingData, landlordId) => {
-    return fetchAPI(`/listings?landlordId=${landlordId}`, {
-      method: 'POST',
-      body: JSON.stringify(listingData),
-    });
-  },
-
-  // Update listing
-  update: async (id, updates) => {
-    return fetchAPI(`/listings/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    });
-  },
-
-  // Delete listing
-  delete: async (id) => {
-    return fetchAPI(`/listings/${id}`, { method: 'DELETE' });
-  },
-};
-
-// ═══════════════════════════════════════════════════════════
-// BOOKINGS API
-// ═══════════════════════════════════════════════════════════
-
-export const bookingsAPI = {
-  // Get all bookings
-  getAll: async () => {
-    return fetchAPI('/bookings');
-  },
-
-  // Get booking by ID
-  getById: async (id) => {
-    return fetchAPI(`/bookings/${id}`);
-  },
-
-  // Get bookings by tenant
-  getByTenant: async (tenantId) => {
-    return fetchAPI(`/bookings/tenant/${tenantId}`);
-  },
-
-  // Get bookings by listing (for landlord)
-  getByListing: async (listingId) => {
-    return fetchAPI(`/bookings/listing/${listingId}`);
-  },
-
-  // Create booking (requires tenantId & listingId)
-  create: async (bookingData, tenantId, listingId) => {
-    return fetchAPI(`/bookings?tenantId=${tenantId}&listingId=${listingId}`, {
-      method: 'POST',
-      body: JSON.stringify(bookingData),
-    });
-  },
-
-  // Update booking status: 'pending', 'accepted', 'rejected'
-  updateStatus: async (id, status) => {
-    return fetchAPI(`/bookings/${id}/status?status=${status}`, {
-      method: 'PUT',
-    });
-  },
-
-  // Update booking (full update)
-  update: async (id, updates) => {
-    return fetchAPI(`/bookings/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    });
-  },
-
-  // Delete booking
-  delete: async (id) => {
-    return fetchAPI(`/bookings/${id}`, { method: 'DELETE' });
-  },
-};
-
-export default { authAPI, listingsAPI, bookingsAPI };
+export default api;
