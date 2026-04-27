@@ -11,6 +11,7 @@ import Notifications from '../Notifications/Notifications';
 import { useBooking } from '../../../context/BookingContext';
 import { useAuth } from '../../../context/AuthContext';
 import './Dashboard.css';
+import { listingsAPI, bookingsAPI } from '../../../utils/api';
 
 import {
   LayoutDashboard,
@@ -35,16 +36,6 @@ import {
   Plus,
   Bookmark,
 } from 'lucide-react';
-
-// ─── Helper Functions ────────────────────────────────────────────────────────
-
-function getRealUser() {
-  try {
-    return JSON.parse(localStorage.getItem('dormScoutUser') || 'null');
-  } catch {
-    return null;
-  }
-}
 
 const NAV_ITEMS = {
   landlord: [
@@ -145,22 +136,24 @@ function TenantOverview({ darkMode, onNavigate, user }) {
   const rowBg   = darkMode ? '#0f3460' : '#f9f9f9';
 
   const displayName    = user?.name?.split(' ')[0] || 'User';
-  const [bookings, setBookings] = React.useState(user?.bookings || []);
-  const { subscribeToBookings } = useBooking();
+  const [bookings, setBookings] = useState(user?.bookings || []);
 
-  // Subscribe to booking changes for real-time updates
   useEffect(() => {
-    const unsubscribe = subscribeToBookings(() => {
-      const updatedUser = getRealUser();
-      if (updatedUser?.bookings) {
-        setBookings(updatedUser.bookings);
-      }
-    });
-    return unsubscribe;
-  }, [subscribeToBookings]);
+    if (!user?.id) return;
 
-  const activeBooking  = bookings.find(b => b.status === 'accepted');
-  const pendingBookings= bookings.filter(b => b.status === 'pending');
+    bookingsAPI.getBookingsByTenant(user.id)
+      .then(response => {
+        const data = Array.isArray(response) ? response : (response.data || []);
+        setBookings(data);
+      })
+      .catch(err => {
+        console.error('Failed to load bookings:', err);
+        setBookings([]);
+      });
+  }, [user?.id]);
+
+  const activeBooking   = bookings.find(b => b.status === 'accepted');
+  const pendingBookings = bookings.filter(b => b.status === 'pending');
   const activities     = user?.activities || [];
   const totalBookings  = bookings.length;
   const activeCount    = activeBooking ? 1 : 0;
@@ -365,68 +358,40 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
 
   const displayName = user?.name?.split(' ')[0] || 'Landlord';
 
-  // Read listings from localStorage
   const [listings, setListings] = useState([]);
   const [activities, setActivities] = useState([]);
 
-  const userId = user?.id ? String(user.id) : null;
-
-  // Load listings from localStorage
   useEffect(() => {
-    const loadListings = () => {
-      try {
-        const allListings = JSON.parse(localStorage.getItem('dormscout_listings') || '[]');
+    if (!user?.id) return;
 
-        const myListings = allListings.filter(l => {
-          const listingLandlordId = l.landlordId ? String(l.landlordId) : null;
-
-          if (userId && listingLandlordId && listingLandlordId === userId) {
-            return true;
-          }
-
-          if (listingLandlordId === 'unknown' && user?.email) {
-            return l.landlordEmail === user.email;
-          }
-
-          if (user?.email && l.landlordEmail === user.email) {
-            return true;
-          }
-
-          return false;
-        });
-
-        setListings(myListings);
-      } catch (_) {
+    listingsAPI.getListingsByLandlord(user.id)
+      .then(response => {
+        const data = Array.isArray(response) ? response : (response.data || []);
+        setListings(data);
+      })
+      .catch(err => {
+        console.error('Failed to load listings:', err);
         setListings([]);
-      }
+      });
+
+    const handleUpdate = () => {
+      listingsAPI.getListingsByLandlord(user.id)
+        .then(response => {
+          const data = Array.isArray(response) ? response : (response.data || []);
+          setListings(data);
+        })
+        .catch(() => {});
     };
 
-    loadListings();
-
-    const handleUpdate = () => loadListings();
     window.addEventListener('dormscout:listingUpdated', handleUpdate);
-    window.addEventListener('dormscout:listingsUpdated', handleUpdate);
-    window.addEventListener('storage', handleUpdate);
 
-    return () => {
-      window.removeEventListener('dormscout:listingUpdated', handleUpdate);
-      window.removeEventListener('dormscout:listingsUpdated', handleUpdate);
-      window.removeEventListener('storage', handleUpdate);
-    };
-  }, [userId, user?.email]);
+    return () => window.removeEventListener('dormscout:listingUpdated', handleUpdate);
+  }, [user?.id]);
 
-  // Load activities
   useEffect(() => {
     const loadActivities = () => {
       if (user?.activities && user.activities.length > 0) {
         setActivities(user.activities);
-      } else {
-        try {
-          const storedActivities = JSON.parse(localStorage.getItem(`dormscout_activities_${user?.id}`) || '[]');
-          setActivities(storedActivities);
-        } catch (_) {
-          setActivities([]);
-        }
       }
     };
 
@@ -438,10 +403,8 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
     return () => window.removeEventListener('dormscout:profileUpdated', handleUpdate);
   }, [user?.id, user?.activities]);
 
-  // Calculate stats
   const totalRoomsAvailable = listings.reduce((sum, l) => sum + (parseInt(l.availableRooms) || 0), 0);
 
-  // Room type breakdown
   const roomTypeStats = listings.reduce((acc, l) => {
     const roomType = l.rooms || 'Unknown';
     if (!acc[roomType]) {
@@ -488,10 +451,7 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
       createdAt: new Date().toISOString(),
     };
 
-    const storedActivities = JSON.parse(localStorage.getItem(`dormscout_activities_${user?.id}`) || '[]');
-    const updatedActivities = [newActivity, ...storedActivities].slice(0, 20);
-    localStorage.setItem(`dormscout_activities_${user?.id}`, JSON.stringify(updatedActivities));
-    setActivities(updatedActivities);
+    setActivities(prev => [newActivity, ...prev].slice(0, 20));
   };
 
   const handleReject = (request) => {
@@ -507,10 +467,7 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
       createdAt: new Date().toISOString(),
     };
 
-    const storedActivities = JSON.parse(localStorage.getItem(`dormscout_activities_${user?.id}`) || '[]');
-    const updatedActivities = [newActivity, ...storedActivities].slice(0, 20);
-    localStorage.setItem(`dormscout_activities_${user?.id}`, JSON.stringify(updatedActivities));
-    setActivities(updatedActivities);
+    setActivities(prev => [newActivity, ...prev].slice(0, 20));
   };
 
   return (
@@ -569,7 +526,6 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
         </div>
       )}
 
-      {/* My Listings Section with Cards */}
       <div className="overview-card-new" style={{ background: cardBg }}>
         <div className="overview-card-header">
           <ClipboardList size={16} color="#E8622E" />
@@ -589,7 +545,6 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
           </div>
         ) : (
           <>
-            {/* Stats Row */}
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
               <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 12, background: rowBg }}>
                 <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#5BADA8' }}>{listings.length}</p>
@@ -605,7 +560,6 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
               </div>
             </div>
 
-            {/* Room Types Breakdown */}
             {Object.keys(roomTypeStats).length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <p style={{ margin: '0 0 8px 0', fontSize: 12, fontWeight: 600, color: text }}>Room Types</p>
@@ -630,7 +584,6 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
               </div>
             )}
 
-            {/* Listing Cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {listings.slice(0, 3).map((listing) => (
                 <div
@@ -648,7 +601,6 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
                   onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
                   onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
-                  {/* Listing Image */}
                   <div style={{
                     width: 80,
                     height: 80,
@@ -677,7 +629,6 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
                     )}
                   </div>
 
-                  {/* Listing Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
                       <p style={{
@@ -820,22 +771,22 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
 }
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
-
-export default function Dashboard({ userType: propUserType, darkMode = false, setDarkMode }) {
+export default function Dashboard({ darkMode = false, setDarkMode }) {
   const [editListingData, setEditListingData] = useState(null);
-  const [showDropdown,    setShowDropdown]    = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const dropdownRef = useRef(null);
-  const navigate    = useNavigate();
-  const location    = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { getUnreadCount } = useBooking();
-  const { user, logout }   = useAuth();
+  const { user, logout, userType: authUserType } = useAuth();
 
-  const userType   = propUserType || user?.userType || localStorage.getItem('userType') || 'tenant';
-  const isLandlord = userType === 'landlord';
-  const theme      = darkMode ? 'dark' : 'light';
+  // FIX: Normalize userType to lowercase for comparison
+  const normalizedUserType = authUserType?.toLowerCase() || 'tenant';
+  const isLandlord = normalizedUserType === 'landlord';
 
-  // Derive active section directly from the URL pathname — no useEffect needed
+  const theme = darkMode ? 'dark' : 'light';
+
   const getActiveSectionFromPath = () => {
     const path = location.pathname.replace('/', '');
     const validSections = ['overview', 'map', 'listing', 'booking', 'bookmarks', 'notifications', 'messages', 'settings', 'reviews'];
@@ -843,17 +794,6 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
   };
 
   const activeNav = getActiveSectionFromPath();
-
-  useEffect(() => {
-    const handleProfileUpdate = () => {
-      // AuthContext already updates the user object via localStorage
-      // Force a re-render by reading the updated user
-    };
-
-    window.addEventListener('dormscout:profileUpdated', handleProfileUpdate);
-    return () => window.removeEventListener('dormscout:profileUpdated', handleProfileUpdate);
-  }, []);
-
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -864,9 +804,9 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDropdown]);
 
-  const isOverview  = activeNav === 'overview';
-  const subLabel    = SECTION_LABELS[activeNav] || 'Dashboard';
-  const subDesc     = activeNav === 'messages'
+  const isOverview = activeNav === 'overview';
+  const subLabel = SECTION_LABELS[activeNav] || 'Dashboard';
+  const subDesc = activeNav === 'messages'
     ? SECTION_DESCRIPTIONS.messages
     : activeNav === 'listing'
       ? ''
@@ -877,15 +817,15 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
 
   const handleLogout = () => {
     logout();
-    localStorage.removeItem('dormScoutUser');
-    localStorage.removeItem('userType');
-    localStorage.removeItem('loginUserType');
-    window.location.href = '/';
+    navigate('/');
   };
+
+  // FIX: Use normalizedUserType for nav items
+  const navItems = normalizedUserType === 'landlord' ? NAV_ITEMS.landlord : NAV_ITEMS.tenant;
+  const unreadCount = getUnreadCount ? getUnreadCount(normalizedUserType) : 0;
 
   return (
     <div className={`dashboard-wrapper ${theme}`}>
-
       {/* Navbar */}
       <nav className="dashboard-nav">
         <button
@@ -926,8 +866,7 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
                 <Info size={15} /> About Us
               </div>
               <div className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
-                onClick={() => { setDarkMode && setDarkMode(!darkMode); setShowDropdown(false); }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px' }}>
+                onClick={() => { setDarkMode && setDarkMode(!darkMode); setShowDropdown(false); }}>
                 {darkMode ? <Sun size={15} /> : <Moon size={15} />}
                 <span style={{ marginLeft: 8 }}>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
               </div>
@@ -943,31 +882,44 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
       <div className="dashboard-layout">
 
         {/* Sidebar */}
-        <div className="dashboard-sidebar">
-          {NAV_ITEMS[userType]?.map((item) => {
-            const isActive  = activeNav === item.id;
+        <aside className="dashboard-sidebar" role="navigation" aria-label="Main navigation">
+          <div style={{
+            padding: '8px 12px',
+            marginBottom: '12px',
+            background: isLandlord ? 'rgba(232,98,46,0.1)' : 'rgba(91,0,168,0.1)',
+            borderRadius: '8px',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: isLandlord ? '#E8622E' : '#5BADA8',
+            textAlign: 'center'
+          }}>
+            {isLandlord ? '🏢 Landlord' : '🏠 Tenant'}
+          </div>
+
+          {navItems.map((item) => {
+            const isActive = activeNav === item.id;
             const iconColor = isActive ? '#ffffff' : '#E8622E';
             return (
               <button
                 key={item.id}
                 className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
                 onClick={() => navigate(`/${item.id}`)}
+                aria-current={isActive ? 'page' : undefined}
               >
                 <span className="sidebar-nav-icon">
                   {NAV_ICON[item.id] ? NAV_ICON[item.id](iconColor) : <LayoutDashboard size={18} color={iconColor} />}
                 </span>
-                {item.label}
-                {item.id === 'notifications' && getUnreadCount(userType) > 0 && (
-                  <span className="sidebar-badge">{getUnreadCount(userType)}</span>
+                <span className="sidebar-nav-label">{item.label}</span>
+                {item.id === 'notifications' && unreadCount > 0 && (
+                  <span className="sidebar-badge">{unreadCount}</span>
                 )}
               </button>
             );
           })}
-        </div>
+        </aside>
 
         {/* Content */}
         <div className="dashboard-content">
-          {/* Only render the subheader (small heading) for main sections except overview */}
           {!isOverview && (
             <div className="dashboard-subheader">
               <h4>{subLabel}</h4>
@@ -977,7 +929,7 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
 
           <div className="dashboard-main">
             {activeNav === 'map' ? (
-              <Map darkMode={darkMode} userType={userType}
+              <Map darkMode={darkMode} userType={normalizedUserType}
                 onEditListing={(listing) => { setEditListingData(listing); navigate('/listing'); }} />
             ) : activeNav === 'listing' && isLandlord ? (
               <ListingPage darkMode={darkMode} editListingData={editListingData} onEditHandled={() => setEditListingData(null)} />
@@ -986,17 +938,17 @@ export default function Dashboard({ userType: propUserType, darkMode = false, se
             ) : activeNav === 'bookmarks' && !isLandlord ? (
               <BookmarkPage darkMode={darkMode} />
             ) : activeNav === 'notifications' ? (
-              <Notifications darkMode={darkMode} userType={userType} />
+              <Notifications darkMode={darkMode} userType={normalizedUserType} />
             ) : activeNav === 'reviews' ? (
-              <Reviews userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+              <Reviews userType={normalizedUserType} darkMode={darkMode} setDarkMode={setDarkMode} />
             ) : activeNav === 'messages' ? (
-              <Messaging darkMode={darkMode} userType={userType} contactLandlord={location.state?.contactLandlord} contactTenant={location.state?.contactTenant} />
+              <Messaging darkMode={darkMode} userType={normalizedUserType} contactLandlord={location.state?.contactLandlord} contactTenant={location.state?.contactTenant} />
             ) : activeNav === 'settings' ? (
-              <Settings darkMode={darkMode} setDarkMode={setDarkMode} userType={userType} />
+              <Settings darkMode={darkMode} setDarkMode={setDarkMode} userType={normalizedUserType} />
             ) : (
               isLandlord
                 ? <LandlordOverview darkMode={darkMode} onNavigate={(s) => navigate(`/${s}`)} user={user} />
-                : <TenantOverview   darkMode={darkMode} onNavigate={(s) => navigate(`/${s}`)} user={user} />
+                : <TenantOverview darkMode={darkMode} onNavigate={(s) => navigate(`/${s}`)} user={user} />
             )}
           </div>
         </div>
