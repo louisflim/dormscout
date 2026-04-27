@@ -165,13 +165,8 @@ function TenantOverview({ darkMode, onNavigate, user }) {
       });
   }, [user?.id]);
 
-<<<<<<< Updated upstream
-  const activeBooking   = bookings.find(b => b.status === 'accepted');
-  const pendingBookings = bookings.filter(b => b.status === 'pending');
-=======
   const activeBooking  = bookings.find(b => ['accepted', 'approved', 'active'].includes(String(b.status || '').toLowerCase()));
   const pendingBookings = bookings.filter(b => String(b.status || '').toLowerCase() === 'pending');
->>>>>>> Stashed changes
   const activities     = user?.activities || [];
   const totalBookings  = bookings.length;
   const activeCount    = activeBooking ? 1 : 0;
@@ -799,19 +794,11 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   const { getUnreadCount } = useBooking();
   const { user, logout, userType: authUserType } = useAuth();
 
-<<<<<<< Updated upstream
-  // FIX: Normalize userType to lowercase for comparison
-  const normalizedUserType = authUserType?.toLowerCase() || 'tenant';
-  const isLandlord = normalizedUserType === 'landlord';
-
-  const theme = darkMode ? 'dark' : 'light';
-=======
   // Single source of truth: authenticated user role
   const userType = React.useMemo(() => user?.userType || 'tenant', [user?.userType]);
 
   const isLandlord = userType === 'landlord';
   const theme      = darkMode ? 'dark' : 'light';
->>>>>>> Stashed changes
 
   const getActiveSectionFromPath = () => {
     const path = location.pathname.replace('/', '');
@@ -820,16 +807,6 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   };
 
   const activeNav = getActiveSectionFromPath();
-
-<<<<<<< Updated upstream
-=======
-  useEffect(() => {
-    const handleProfileUpdate = () => {};
-    window.addEventListener('dormscout:profileUpdated', handleProfileUpdate);
-    return () => window.removeEventListener('dormscout:profileUpdated', handleProfileUpdate);
-  }, []);
-
->>>>>>> Stashed changes
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target))
@@ -855,9 +832,8 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
     navigate('/');
   };
 
-  // FIX: Use normalizedUserType for nav items
-  const navItems = normalizedUserType === 'landlord' ? NAV_ITEMS.landlord : NAV_ITEMS.tenant;
-  const unreadCount = getUnreadCount ? getUnreadCount(normalizedUserType) : 0;
+  const navItems = userType === 'landlord' ? NAV_ITEMS.landlord : NAV_ITEMS.tenant;
+  const unreadCount = getUnreadCount ? getUnreadCount(userType) : 0;
 
   return (
     <div className={`dashboard-wrapper ${theme}`}>
