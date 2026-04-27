@@ -26,7 +26,7 @@ export default function Register({ setUserType }) {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const { register } = useAuth();
+    const { login } = useAuth();
     const navigate = useNavigate();
 
     const registerFields = [
@@ -52,17 +52,14 @@ export default function Register({ setUserType }) {
             setError('Please enter your first and last name');
             return;
         }
-
         if (formData.password.length < 6) {
             setError('Password must be at least 6 characters');
             return;
         }
-
         if (userType === 'tenant' && !school) {
             setError('Please select your school');
             return;
         }
-
         if (!gender) {
             setError('Please select your gender');
             return;
@@ -70,30 +67,37 @@ export default function Register({ setUserType }) {
 
         setLoading(true);
 
-        const userData = {
-            firstName,
-            lastName,
-            email: formData.email,
-            phone: formData.phone,
-            password: formData.password,
-            userType: userType.toUpperCase(),
-            gender,
-            school: userType === 'tenant' ? school : null,
-        };
-
         try {
-            const result = await register(userData);
+            const response = await fetch('http://localhost:8080/api/users/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    firstName,
+                    lastName,
+                    email: formData.email,
+                    password: formData.password,
+                    phone: formData.phone,
+                    userType,
+                    gender,
+                    school: userType === 'tenant' ? school : null,
+                }),
+            });
+
+            const result = await response.json();
 
             if (result.success) {
-                // AuthContext already saves user/userType to localStorage
-                if (setUserType) setUserType(result.user.userType);
+                localStorage.setItem('dormScoutUser', JSON.stringify(result.user));
+                localStorage.setItem('user', JSON.stringify(result.user));
+                localStorage.setItem('userType', userType);
+                if (setUserType) setUserType(userType);
+                await login(formData.email, formData.password);
                 navigate('/overview');
             } else {
                 setError(result.message);
-                setLoading(false);
             }
         } catch (err) {
-            setError('Something went wrong. Please try again.');
+            setError('Cannot connect to server. Make sure backend is running.');
+        } finally {
             setLoading(false);
         }
     };

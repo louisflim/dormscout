@@ -8,7 +8,23 @@ export function AuthProvider({ children }) {
     const [userType, setUserType] = useState(null);
     const [loading, setLoading] = useState(false);
 
+<<<<<<< Updated upstream
     const login = useCallback(async (email, password) => {
+=======
+    // Check for existing user on app load
+    useEffect(() => {
+        const storedUser = localStorage.getItem('dormScoutUser') || localStorage.getItem('user');
+        const storedUserType = localStorage.getItem('userType');
+
+        if (storedUser) {
+            setUser(JSON.parse(storedUser));
+            setUserType(storedUserType);
+        }
+        setLoading(false);
+    }, []);
+
+    const login = async (email, password) => {
+>>>>>>> Stashed changes
         try {
             setLoading(true);
             console.log('🔄 AuthContext: Starting login...');
@@ -26,6 +42,14 @@ export function AuthProvider({ children }) {
                 setUser(userData);
                 setUserType(userData.userType);
 
+<<<<<<< Updated upstream
+=======
+                // Save to localStorage
+                localStorage.setItem('user', JSON.stringify(userData));
+                localStorage.setItem('dormScoutUser', JSON.stringify(userData));
+                localStorage.setItem('userType', userData.userType);
+
+>>>>>>> Stashed changes
                 return { success: true, user: userData };
             } else {
                 return { success: false, message: result.message };
@@ -56,6 +80,14 @@ export function AuthProvider({ children }) {
                 setUser(newUser);
                 setUserType(newUser.userType);
 
+<<<<<<< Updated upstream
+=======
+                // Save to localStorage
+                localStorage.setItem('user', JSON.stringify(newUser));
+                localStorage.setItem('dormScoutUser', JSON.stringify(newUser));
+                localStorage.setItem('userType', newUser.userType);
+
+>>>>>>> Stashed changes
                 return { success: true, user: newUser };
             } else {
                 return { success: false, message: result.message };
@@ -71,9 +103,66 @@ export function AuthProvider({ children }) {
     const logout = useCallback(() => {
         setUser(null);
         setUserType(null);
+<<<<<<< Updated upstream
     }, []);
+=======
+        localStorage.removeItem('user');
+        localStorage.removeItem('dormScoutUser');
+        localStorage.removeItem('userType');
+    };
+>>>>>>> Stashed changes
+
+    const addBooking = (bookingData) => {
+        setUser((prev) => {
+            if (!prev) return prev;
+            const next = {
+                ...prev,
+                bookings: [bookingData, ...(prev.bookings || [])],
+            };
+            localStorage.setItem('user', JSON.stringify(next));
+            localStorage.setItem('dormScoutUser', JSON.stringify(next));
+            return next;
+        });
+    };
+
+    const updateBookingStatus = () => ({ success: true });
+    const addActivity = () => ({ success: true });
+
+    const updateUser = async (updates) => {
+        if (!user?.id) return { success: false, message: 'User not found' };
+        try {
+            const result = await userAPI.update(user.id, updates);
+            if (result.ok) {
+                const nextUser = { ...user, ...(result.data || updates) };
+                setUser(nextUser);
+                localStorage.setItem('user', JSON.stringify(nextUser));
+                localStorage.setItem('dormScoutUser', JSON.stringify(nextUser));
+                return { success: true, user: nextUser };
+            }
+            return { success: false, message: result.message || 'Update failed' };
+        } catch (error) {
+            console.error('Update user error:', error);
+            return { success: false, message: 'Connection error. Please try again.' };
+        }
+    };
+
+    const deleteAccount = async () => {
+        if (!user?.id) return { success: false, message: 'User not found' };
+        try {
+            const result = await userAPI.delete(user.id);
+            if (result.ok) {
+                logout();
+                return { success: true };
+            }
+            return { success: false, message: result.message || 'Delete failed' };
+        } catch (error) {
+            console.error('Delete account error:', error);
+            return { success: false, message: 'Connection error. Please try again.' };
+        }
+    };
 
     return (
+<<<<<<< Updated upstream
         <AuthContext.Provider value={{
             user,
             userType,
@@ -84,6 +173,23 @@ export function AuthProvider({ children }) {
             setUser,
             setUserType
         }}>
+=======
+        <AuthContext.Provider
+            value={{
+                user,
+                userType,
+                login,
+                register,
+                logout,
+                loading,
+                addBooking,
+                updateBookingStatus,
+                addActivity,
+                updateUser,
+                deleteAccount,
+            }}
+        >
+>>>>>>> Stashed changes
             {children}
         </AuthContext.Provider>
     );

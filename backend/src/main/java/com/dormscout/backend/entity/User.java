@@ -3,6 +3,8 @@ package com.dormscout.backend.entity;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -22,6 +24,7 @@ public class User {
     private String email;
 
     @Column(nullable = false)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     @Column(nullable = false)
@@ -38,6 +41,11 @@ public class User {
     private String businessName;
     private String businessPermit;
     private boolean isVerified;
+    private String verificationStatus;
+    private String verificationDecision;
+
+    @Column(name = "verification_reviewed_at")
+    private LocalDateTime verificationReviewedAt;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -46,15 +54,20 @@ public class User {
     private LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "landlord", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<Listing> listings = new ArrayList<>();
 
     @OneToMany(mappedBy = "tenant", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<Booking> bookings = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (verificationStatus == null || verificationStatus.isBlank()) {
+            verificationStatus = "none";
+        }
     }
 
     @PreUpdate

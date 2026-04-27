@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../context/AuthContext';
 import { useBooking } from '../../../context/BookingContext';
-import { bookingsAPI, listingsAPI } from '../../../utils/api';
+import { bookingsAPI } from '../../../utils/api';
 import './BookingPage.css';
 
 const defaultIcon = L.icon({
@@ -35,10 +35,26 @@ function statusStyle(status) {
   if (s === 'confirmed' || s === 'accepted' || s === 'active') {
     return { label: 'Confirmed', bg: '#d1fae5', color: '#065f46' };
   }
+  if (s === 'cancelled') {
+    return { label: 'Cancelled', bg: '#e5e7eb', color: '#374151' };
+  }
   if (s === 'rejected') {
     return { label: 'Rejected', bg: '#fee2e2', color: '#991b1b' };
   }
   return { label: 'Pending', bg: '#fef9c3', color: '#92400e' };
+}
+
+function normalizeImages(imagesValue) {
+  if (Array.isArray(imagesValue)) return imagesValue.filter(Boolean);
+  if (!imagesValue) return [];
+  if (typeof imagesValue === 'string') {
+    try {
+      const parsed = JSON.parse(imagesValue);
+      if (Array.isArray(parsed)) return parsed.filter(Boolean);
+    } catch (_) {}
+    return imagesValue.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
 }
 
 export default function BookingPage({ darkMode = false }) {
@@ -46,12 +62,12 @@ export default function BookingPage({ darkMode = false }) {
   const { user } = useAuth();
   const { cancelBooking: contextCancelBooking, subscribeToBookings } = useBooking();
   const [bookings, setBookings] = useState([]);
-  const [listings, setListings] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelMoveOutDate, setCancelMoveOutDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const dk = darkMode;
   const theme      = dk ? 'dark' : 'light';
@@ -65,50 +81,34 @@ export default function BookingPage({ darkMode = false }) {
   const loadBookings = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
+    setActionError('');
 
     try {
-      // Get user's bookings
-      const response = await bookingsAPI.getBookingsByTenant(user.id);
-      let userBookings = Array.isArray(response) ? response : (response.data || []);
-
-      // If API returns wrapped response
-      if (userBookings.success !== undefined) {
-        userBookings = userBookings.data || [];
+      const result = await bookingsAPI.getByTenant(user.id);
+      if (result.ok) {
+        const mapped = result.data.map((b) => ({
+          ...b,
+          id: b.id,
+          listingId: b.listing?.id,
+          listingName: b.listing?.title || 'Unknown',
+          listingAddress: b.listing?.address || '',
+          price: b.listing?.price || 0,
+          status: b.status,
+          bookedOn: b.createdAt,
+          moveInDate: b.checkInDate,
+          landlordName: b.listing?.landlord?.firstName || 'Landlord',
+          landlordId: b.listing?.landlord?.id || null,
+          lat: b.listing?.latitude,
+          lng: b.listing?.longitude,
+          university: b.listing?.university,
+          listingImages: normalizeImages(b.listing?.images),
+        }));
+        setBookings(mapped);
       }
-
-      // Get all listings for listing details
-      const listingsResponse = await listingsAPI.getAll();
-      const allListings = Array.isArray(listingsResponse) ? listingsResponse : (listingsResponse.data || []);
-
-      // Merge booking data with listing data
-      const mergedBookings = userBookings.map(booking => {
-        const listing = allListings.find(l => l.id === booking.listingId || l.id === booking.listing?.id);
-        return {
-          ...booking,
-          listingName: booking.listingName || listing?.title || 'Property',
-          listingAddress: booking.listingAddress || listing?.address || '',
-          price: booking.price || listing?.price || 0,
-          landlordId: listing?.landlordId || listing?.landlord?.id || null,
-          landlordName: booking.landlordName || listing?.landlordName || 'Landlord',
-          lat: booking.lat || listing?.lat,
-          lng: booking.lng || listing?.lng,
-          university: listing?.university,
-          tags: listing?.tags || [],
-          description: listing?.description,
-          listingImages: booking.listingImages || listing?.images || [],
-        };
-      });
-
-      setBookings(mergedBookings);
-      setListings(allListings);
     } catch (error) {
       console.error('Failed to load bookings:', error);
-      // Fallback to localStorage
-      try {
-        const stored = JSON.parse(localStorage.getItem('bookings') || '[]');
-        const myBookings = stored.filter(b => String(b.tenantId) === String(user.id));
-        setBookings(myBookings);
-      } catch (_) {}
+      setActionError('Failed to load bookings from server.');
+      setBookings([]);
     } finally {
       setLoading(false);
     }
@@ -130,30 +130,21 @@ export default function BookingPage({ darkMode = false }) {
   const handleCancelBooking = async () => {
     if (!selectedBooking) return;
     setLoading(true);
+    setActionError('');
 
     try {
-      const response = await bookingsAPI.delete(selectedBooking.id);
+      const response = await contextCancelBooking(selectedBooking.id);
 
-      if (response.success || response.ok) {
-        // Update available rooms on listing
-        if (selectedBooking.listingId) {
-          const listing = listings.find(l => l.id === selectedBooking.listingId);
-          if (listing) {
-            const newAvailable = (parseInt(listing.availableRooms) || 0) + 1;
-            await listingsAPI.update(selectedBooking.listingId, { availableRooms: newAvailable });
-          }
-        }
-
-        // Call context cancel
-        contextCancelBooking(selectedBooking.id);
-
-        setBookings(prev => prev.filter(b => String(b.id) !== String(selectedBooking.id)));
+      if (response.success) {
+        setBookings(prev => prev.map((b) =>
+          String(b.id) === String(selectedBooking.id) ? { ...b, status: 'cancelled' } : b
+        ));
       } else {
-        alert(response.message || 'Failed to cancel booking');
+        setActionError(response.message || 'Failed to cancel booking');
       }
     } catch (error) {
       console.error('Cancel booking error:', error);
-      alert('Failed to cancel booking');
+      setActionError('Failed to cancel booking');
     } finally {
       setCancelModal(false);
       setCancelReason('');
@@ -171,6 +162,19 @@ export default function BookingPage({ darkMode = false }) {
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <div className={`booking-wrapper ${theme}`}>
+      {actionError && (
+        <div style={{
+          marginBottom: '12px',
+          background: '#fee2e2',
+          border: '1px solid #fecaca',
+          color: '#991b1b',
+          borderRadius: '8px',
+          padding: '10px 12px',
+          fontSize: '13px',
+        }}>
+          {actionError}
+        </div>
+      )}
       {loading && bookings.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40 }}>Loading bookings...</div>
       ) : bookings.length === 0 ? (

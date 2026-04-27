@@ -259,9 +259,6 @@
   border: 3px solid transparent; /* border-color set inline per instance */
 }
 
-Now add these CSS styles to your `Messaging.css`:
-
-```css
 /* ═══════════════════════════════════════════════════════════ */
 /* TYPOGRAPHY & INDICATORS */
 /* ═══════════════════════════════════════════════════════════ */

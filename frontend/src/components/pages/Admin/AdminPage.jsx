@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  userAPI,
+  listingsAPI,
+  bookingsAPI,
+  reportsAPI,
+  reviewsAPI,
+  bookmarksAPI,
+  supportMessagesAPI,
+} from '../../../utils/api';
 import './AdminPage.css';
 import {
   LayoutDashboard,
@@ -24,37 +33,19 @@ import {
 const ADMIN_LOGIN_KEY = 'dormscout_admin_logged_in';
 const ADMIN_DARKMODE_KEY = 'admin_darkMode';
 
-const STORAGE_KEYS = {
-  users: 'dormScoutUsers',
-  listings: 'dormscout_listings',
-  bookings: 'dormscout_bookings',
-  bookmarks: 'dormscout_bookmarks',
-  reports: 'dormscout_reports',
-  reviews: 'dormscout_reviews',
-  notifications: 'dormscout_notifications',
-};
-
 const SIDEBAR_ITEMS = [
   { id: 'overview',   label: 'Overview',    icon: LayoutDashboard },
   { id: 'users',      label: 'Users',       icon: Users           },
   { id: 'listings',   label: 'Listings',    icon: ClipboardList   },
   { id: 'bookings',   label: 'Bookings',    icon: CalendarDays    },
+  { id: 'verifications', label: 'Verifications', icon: CheckCircle2 },
   { id: 'bookmarks',  label: 'Bookmarks',   icon: Star            },
   { id: 'reports',    label: 'Reports',     icon: FileWarning     },
   { id: 'reviews',    label: 'Reviews',     icon: Star            },
+  { id: 'support',    label: 'Support',     icon: Bell            },
   { id: 'notifications', label: 'Notifications', icon: Bell      },
   { id: 'settings',   label: 'Settings',    icon: SettingsIcon    },
 ];
-
-const safeParse = (value, fallback = []) => {
-  if (!value) return fallback;
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-};
 
 const toDisplayDate = (value) => {
   if (!value) return 'N/A';
@@ -85,6 +76,27 @@ const truncate = (text, max = 80) => {
   return `${value.slice(0, max)}...`;
 };
 
+const toDisplayValue = (value, fallback = 'N/A') => {
+  if (value === null || value === undefined || value === '') return fallback;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const joined = value.map((v) => toDisplayValue(v, '')).filter(Boolean).join(', ');
+    return joined || fallback;
+  }
+  if (typeof value === 'object') {
+    const fullName = [value.firstName, value.lastName].filter(Boolean).join(' ').trim();
+    if (fullName) return fullName;
+    if (value.name) return String(value.name);
+    if (value.title) return String(value.title);
+    if (value.email) return String(value.email);
+    if (value.id !== undefined && value.id !== null) return `#${value.id}`;
+    return fallback;
+  }
+  return fallback;
+};
+
 export default function AdminPage() {
   const navigate = useNavigate();
 
@@ -103,6 +115,7 @@ export default function AdminPage() {
   const [bookmarks, setBookmarks] = useState([]);
   const [reports, setReports] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [supportMessages, setSupportMessages] = useState([]);
   const [notifications, setNotifications] = useState([]);
 
   const [userQuery, setUserQuery] = useState('');
@@ -111,28 +124,107 @@ export default function AdminPage() {
   const [bookingQuery, setBookingQuery] = useState('');
   const [reportFilter, setReportFilter] = useState('all');
 
-  const loadData = () => {
-    setUsers(safeParse(localStorage.getItem(STORAGE_KEYS.users), []));
-    setListings(safeParse(localStorage.getItem(STORAGE_KEYS.listings), []));
-    setBookings(safeParse(localStorage.getItem(STORAGE_KEYS.bookings), []));
-    setBookmarks(safeParse(localStorage.getItem(STORAGE_KEYS.bookmarks), []));
-    setReports(safeParse(localStorage.getItem(STORAGE_KEYS.reports), []));
-    setReviews(safeParse(localStorage.getItem(STORAGE_KEYS.reviews), []));
-    setNotifications(safeParse(localStorage.getItem(STORAGE_KEYS.notifications), []));
+  const loadAdminData = async () => {
+    try {
+      const [usersRes, listingsRes, bookingsRes, reportsRes, reviewsRes, bookmarksRes, supportRes] =
+        await Promise.all([
+          userAPI.getAll(),
+          listingsAPI.getAll(),
+          bookingsAPI.getAll(),
+          reportsAPI.getAll(),
+          reviewsAPI.getAll(),
+          bookmarksAPI.getAll(),
+          supportMessagesAPI.getAll(),
+        ]);
+
+      const usersData = Array.isArray(usersRes.data) ? usersRes.data : [];
+      const listingsData = Array.isArray(listingsRes.data) ? listingsRes.data : [];
+      const bookingsDataRaw = Array.isArray(bookingsRes.data) ? bookingsRes.data : [];
+      const reportsData = Array.isArray(reportsRes.data) ? reportsRes.data : [];
+      const reviewsData = Array.isArray(reviewsRes.data) ? reviewsRes.data : [];
+      const bookmarksDataRaw = Array.isArray(bookmarksRes.data) ? bookmarksRes.data : [];
+      const supportData = Array.isArray(supportRes.data) ? supportRes.data : [];
+
+      const bookingsData = bookingsDataRaw.map((b) => ({
+        ...b,
+        tenantName: b.tenantName || [b.tenant?.firstName, b.tenant?.lastName].filter(Boolean).join(' ') || 'N/A',
+        listingTitle: b.listingTitle || b.listing?.title || 'N/A',
+      }));
+
+      const bookmarksData = bookmarksDataRaw.map((bm) => ({
+        ...bm,
+        tenantId: bm.tenantId || bm.tenant?.id,
+        listingId: bm.listingId || bm.listing?.id,
+        listingTitle: bm.listingTitle || bm.listing?.title || 'N/A',
+        listingAddress: bm.listingAddress || bm.listing?.address || 'N/A',
+        listingPrice: bm.listingPrice || bm.listing?.price || null,
+        savedAt: bm.savedAt || bm.createdAt,
+      }));
+
+      const backendNotifications = [
+        ...bookingsData
+          .filter((b) => ['pending', 'cancelled'].includes(String(b.status || '').toLowerCase()))
+          .map((b) => ({
+            id: `booking-${b.id}-${String(b.status || '').toLowerCase()}`,
+            title: String(b.status || '').toLowerCase() === 'cancelled' ? 'Booking Cancelled' : 'Booking Pending',
+            message: `${b.tenantName || 'Tenant'} - ${b.listingTitle || 'Listing'}`,
+            type: 'booking',
+            forRole: 'admin',
+            createdAt: b.updatedAt || b.createdAt,
+            read: false,
+          })),
+        ...reportsData
+          .filter((r) => String(r.status || 'pending').toLowerCase() === 'pending')
+          .map((r) => ({
+            id: `report-${r.id}`,
+            title: 'Pending Report',
+            message: `${r.subject || r.reportType || 'Report'} needs review`,
+            type: 'report',
+            forRole: 'admin',
+            createdAt: r.submittedAt || r.createdAt,
+            read: false,
+          })),
+        ...supportData
+          .filter((s) => String(s.status || 'pending').toLowerCase() === 'pending')
+          .map((s) => ({
+            id: `support-${s.id}`,
+            title: 'New Support Message',
+            message: `${s.subject || 'Support request'} from ${s.name || s.email || 'user'}`,
+            type: 'support',
+            forRole: 'admin',
+            createdAt: s.createdAt,
+            read: false,
+          })),
+        ...usersData
+          .filter((u) => String(u.verificationStatus || '').toLowerCase() === 'pending')
+          .map((u) => ({
+            id: `verification-${u.id}`,
+            title: 'Business Verification Request',
+            message: `${[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Landlord'} submitted verification request.`,
+            type: 'verification',
+            forRole: 'admin',
+            createdAt: u.updatedAt || u.createdAt,
+            read: false,
+          })),
+      ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+      setUsers(usersData);
+      setListings(listingsData);
+      setBookings(bookingsData);
+      setReports(reportsData);
+      setReviews(reviewsData);
+      setBookmarks(bookmarksData);
+      setSupportMessages(supportData);
+      setNotifications(backendNotifications);
+    } catch (err) {
+      console.error('Failed to load admin data', err);
+    }
   };
 
   useEffect(() => {
     if (!isLoggedIn) return;
-    loadData();
+    loadAdminData();
   }, [isLoggedIn, activeSection]);
-
-  useEffect(() => {
-    const onStorage = () => {
-      if (isLoggedIn) loadData();
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [isLoggedIn]);
 
   useEffect(() => {
     localStorage.setItem(ADMIN_DARKMODE_KEY, darkMode ? 'true' : 'false');
@@ -167,7 +259,7 @@ export default function AdminPage() {
     const q = userQuery.trim().toLowerCase();
     if (!q) return users;
     return users.filter((u) => {
-      const name = String(u.name || '').toLowerCase();
+      const name = String(u.firstName || u.name || '').toLowerCase() + ' ' + String(u.lastName || '').toLowerCase();
       const em = String(u.email || '').toLowerCase();
       return name.includes(q) || em.includes(q);
     });
@@ -206,6 +298,14 @@ export default function AdminPage() {
     return reports.filter((r) => String(r.status || 'pending').toLowerCase() === reportFilter);
   }, [reports, reportFilter]);
 
+  const verificationRequests = useMemo(() => {
+    return users.filter((u) => {
+      const role = getRole(u);
+      const status = String(u.verificationStatus || '').toLowerCase();
+      return role === 'landlord' && ['pending', 'approved', 'rejected'].includes(status);
+    });
+  }, [users]);
+
   const handleLogin = (e) => {
     e.preventDefault();
     if (email.trim() === 'admin' && password === 'admin') {
@@ -226,41 +326,50 @@ export default function AdminPage() {
     setActiveSection('overview');
   };
 
-  const updateStorage = (key, nextValue) => {
-    localStorage.setItem(key, JSON.stringify(nextValue));
-    loadData();
-  };
-
   const removeByMatcher = (items, matcher) => items.filter((item, idx) => !matcher(item, idx));
 
-  const deleteUser = (target, index) => {
-    const next = removeByMatcher(users, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
-      }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.users, next);
+  const deleteUser = async (target, index) => {
+    const id = target?.id ?? users[index]?.id;
+    if (id === undefined || id === null) return;
+    try {
+      await userAPI.delete(id);
+      await loadAdminData();
+    } catch (err) {
+      console.error('Failed to delete user', err);
+    }
   };
 
-  const deleteListing = (target, index) => {
-    const next = removeByMatcher(listings, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
-      }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.listings, next);
+  const reviewUserVerification = async (target, index, status) => {
+    const id = target?.id ?? users[index]?.id;
+    if (id === undefined || id === null) return;
+    try {
+      await userAPI.reviewVerification(id, status);
+      await loadAdminData();
+    } catch (err) {
+      console.error(`Failed to ${status} verification`, err);
+    }
   };
 
-  const deleteReview = (target, index) => {
-    const next = removeByMatcher(reviews, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
-      }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.reviews, next);
+  const deleteListing = async (target, index) => {
+    const id = target?.id ?? listings[index]?.id;
+    if (id === undefined || id === null) return;
+    try {
+      await listingsAPI.delete(id);
+      await loadAdminData();
+    } catch (err) {
+      console.error('Failed to delete listing', err);
+    }
+  };
+
+  const deleteReview = async (target, index) => {
+    const id = target?.id ?? reviews[index]?.id;
+    if (id === undefined || id === null) return;
+    try {
+      await reviewsAPI.delete(id);
+      await loadAdminData();
+    } catch (err) {
+      console.error('Failed to delete review', err);
+    }
   };
 
   const deleteNotification = (target, index) => {
@@ -270,68 +379,99 @@ export default function AdminPage() {
       }
       return idx === index;
     });
-    updateStorage(STORAGE_KEYS.notifications, next);
+    setNotifications(next);
   };
 
   const clearNotifications = () => {
     if (!window.confirm('Clear all notifications?')) return;
-    updateStorage(STORAGE_KEYS.notifications, []);
+    setNotifications([]);
   };
 
-  const dismissReport = (target, index) => {
-    const next = removeByMatcher(reports, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
-      }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.reports, next);
+  const dismissReport = async (target, index) => {
+    const id = target?.id ?? reports[index]?.id;
+    if (id === undefined || id === null) return;
+    try {
+      await reportsAPI.delete(id);
+      await loadAdminData();
+    } catch (err) {
+      console.error('Failed to dismiss report', err);
+    }
   };
 
-  const resolveReport = (target, index) => {
-    const next = reports.map((r, idx) => {
-      const isTarget =
-        target?.id !== undefined && r?.id !== undefined
-          ? String(r.id) === String(target.id)
-          : idx === index;
-      if (!isTarget) return r;
-      return {
-        ...r,
-        status: 'resolved',
-        resolvedAt: new Date().toISOString(),
-      };
-    });
-    updateStorage(STORAGE_KEYS.reports, next);
+  const resolveReport = async (target, index) => {
+    const id = target?.id ?? reports[index]?.id;
+    if (id === undefined || id === null) return;
+    try {
+      await reportsAPI.updateStatus(id, 'resolved');
+      await loadAdminData();
+    } catch (err) {
+      console.error('Failed to resolve report', err);
+    }
   };
 
   const clearAllReports = () => {
     if (!window.confirm('This will remove all reports. Continue?')) return;
-    updateStorage(STORAGE_KEYS.reports, []);
+    Promise.all(reports.map((r) => reportsAPI.delete(r.id)))
+      .then(() => loadAdminData())
+      .catch((err) => console.error('Failed to clear reports', err));
   };
 
   const clearAllBookings = () => {
     if (!window.confirm('This will remove all bookings. Continue?')) return;
-    updateStorage(STORAGE_KEYS.bookings, []);
+    Promise.all(bookings.map((b) => bookingsAPI.delete(b.id)))
+      .then(() => loadAdminData())
+      .catch((err) => console.error('Failed to clear bookings', err));
   };
 
-  const deleteBookmark = (target, index) => {
-    const next = removeByMatcher(bookmarks, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
+  const deleteBookmark = async (target, index) => {
+    const bookmark = target || bookmarks[index];
+    if (!bookmark) return;
+    try {
+      if (bookmark.id !== undefined && bookmark.id !== null) {
+        await bookmarksAPI.deleteById(bookmark.id);
+      } else if (bookmark.tenantId !== undefined && bookmark.listingId !== undefined) {
+        await bookmarksAPI.delete(bookmark.tenantId, bookmark.listingId);
       }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.bookmarks, next);
+      await loadAdminData();
+    } catch (err) {
+      console.error('Failed to delete bookmark', err);
+    }
   };
 
   const clearAllBookmarks = () => {
     if (!window.confirm('This will remove all bookmarks. Continue?')) return;
-    updateStorage(STORAGE_KEYS.bookmarks, []);
+    Promise.all(bookmarks.map((bm) => bookmarksAPI.deleteById(bm.id)))
+      .then(() => loadAdminData())
+      .catch((err) => console.error('Failed to clear bookmarks', err));
   };
 
   const clearAllListings = () => {
     if (!window.confirm('This will remove all listings. Continue?')) return;
-    updateStorage(STORAGE_KEYS.listings, []);
+    Promise.all(listings.map((l) => listingsAPI.delete(l.id)))
+      .then(() => loadAdminData())
+      .catch((err) => console.error('Failed to clear listings', err));
+  };
+
+  const resolveSupport = async (target, index) => {
+    const id = target?.id ?? supportMessages[index]?.id;
+    if (id === undefined || id === null) return;
+    try {
+      await supportMessagesAPI.updateStatus(id, 'resolved');
+      await loadAdminData();
+    } catch (err) {
+      console.error('Failed to resolve support message', err);
+    }
+  };
+
+  const dismissSupport = async (target, index) => {
+    const id = target?.id ?? supportMessages[index]?.id;
+    if (id === undefined || id === null) return;
+    try {
+      await supportMessagesAPI.delete(id);
+      await loadAdminData();
+    } catch (err) {
+      console.error('Failed to delete support message', err);
+    }
   };
 
   if (!isLoggedIn) {
@@ -464,18 +604,24 @@ export default function AdminPage() {
                       <th>Email</th>
                       <th>Role</th>
                       <th>School</th>
+                      <th>Verification</th>
                       <th>Created At</th>
                       <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredUsers.length === 0 ? (
-                      <tr><td colSpan={6} className="admin-empty">No users found.</td></tr>
+                      <tr><td colSpan={7} className="admin-empty">No users found.</td></tr>
                     ) : filteredUsers.map((u, idx) => {
                       const role = getRole(u);
+                      const verificationStatus = String(u.verificationStatus || 'none').toLowerCase();
+                      const isVerified = Boolean(u.isVerified);
                       return (
                         <tr key={u.id || u.email || `user-${idx}`}>
-                          <td>{u.name || 'N/A'}</td>
+                          <td>
+                            {u.firstName ? `${u.firstName} ${u.lastName || ''}`.trim() : (u.name || 'N/A')}
+                            {isVerified ? <span title="Verified" style={{ marginLeft: '6px', color: '#16a34a' }}>✔</span> : null}
+                          </td>
                           <td>{u.email || 'N/A'}</td>
                           <td>
                             <span className={`admin-badge ${role === 'landlord' ? 'role-landlord' : 'role-tenant'}`}>
@@ -483,9 +629,66 @@ export default function AdminPage() {
                             </span>
                           </td>
                           <td>{role === 'tenant' ? (u.school || u.university || 'N/A') : 'N/A'}</td>
+                          <td>
+                            {role === 'landlord' ? (
+                              <span className={`admin-badge ${verificationStatus === 'approved' ? 'is-good' : verificationStatus === 'pending' ? 'is-pending' : 'is-bad'}`}>
+                                {verificationStatus}
+                              </span>
+                            ) : 'N/A'}
+                          </td>
                           <td>{toDisplayDate(u.createdAt)}</td>
                           <td>
                             <button className="admin-icon-btn danger" onClick={() => deleteUser(u, idx)}>
+                              <Trash2 size={15} /> Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === 'support' ? (
+            <section>
+              <h2 className="admin-section-title">Support Messages</h2>
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Subject</th>
+                      <th>Message</th>
+                      <th>Status</th>
+                      <th>Created At</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {supportMessages.length === 0 ? (
+                      <tr><td colSpan={7} className="admin-empty">No support messages found.</td></tr>
+                    ) : supportMessages.map((s, idx) => {
+                      const status = String(s.status || 'pending').toLowerCase();
+                      return (
+                        <tr key={s.id || `support-${idx}`}>
+                          <td>{toDisplayValue(s.name)}</td>
+                          <td>{toDisplayValue(s.email)}</td>
+                          <td>{toDisplayValue(s.subject)}</td>
+                          <td>{truncate(s.message, 100)}</td>
+                          <td>
+                            <span className={`admin-badge ${getStatusClass(status)}`}>{status}</span>
+                          </td>
+                          <td>{toDisplayDate(s.createdAt)}</td>
+                          <td>
+                            {status === 'pending' ? (
+                              <button className="admin-icon-btn success" onClick={() => resolveSupport(s, idx)}>
+                                <CheckCircle2 size={15} /> Resolve
+                              </button>
+                            ) : null}
+                            <button className="admin-icon-btn danger" onClick={() => dismissSupport(s, idx)}>
                               <Trash2 size={15} /> Delete
                             </button>
                           </td>
@@ -525,12 +728,12 @@ export default function AdminPage() {
               <div className="admin-listing-grid">
                 {filteredListings.length === 0 ? <p className="admin-empty">No listings available.</p> : filteredListings.map((l, idx) => (
                   <article className="admin-listing-card" key={l.id || `${l.title}-${l.address}-${idx}`}>
-                    <h4>{l.title || 'Untitled Listing'}</h4>
-                    <p><strong>Address:</strong> {l.address || 'N/A'}</p>
+                    <h4>{toDisplayValue(l.title, 'Untitled Listing')}</h4>
+                    <p><strong>Address:</strong> {toDisplayValue(l.address)}</p>
                     <p><strong>Price:</strong> {l.price ? `PHP ${l.price}` : 'N/A'}</p>
-                    <p><strong>Landlord Name:</strong> {l.landlordName || l.landlord || 'N/A'}</p>
-                    <p><strong>University:</strong> {l.university || l.school || 'N/A'}</p>
-                    <p><strong>Gender Policy:</strong> {l.genderPolicy || 'N/A'}</p>
+                    <p><strong>Landlord Name:</strong> {toDisplayValue(l.landlordName || l.landlord)}</p>
+                    <p><strong>University:</strong> {toDisplayValue(l.university || l.school)}</p>
+                    <p><strong>Gender Policy:</strong> {toDisplayValue(l.genderPolicy)}</p>
                     <p>
                       <strong>Status:</strong>{' '}
                       <span className={`admin-badge ${getStatusClass(l.status || 'active')}`}>
@@ -576,8 +779,8 @@ export default function AdminPage() {
                       <tr><td colSpan={5} className="admin-empty">No bookings found.</td></tr>
                     ) : filteredBookings.map((b) => (
                       <tr key={b.id || `${b.tenantName}-${b.listingTitle}-${b.createdAt}`}>
-                        <td>{b.tenantName || 'N/A'}</td>
-                        <td>{b.listingTitle || 'N/A'}</td>
+                        <td>{toDisplayValue(b.tenantName || b.tenant)}</td>
+                        <td>{toDisplayValue(b.listingTitle || b.listing?.title || b.listing)}</td>
                         <td>{toDisplayDate(b.moveInDate)}</td>
                         <td>
                           <span className={`admin-badge ${getStatusClass(b.status)}`}>
@@ -587,6 +790,66 @@ export default function AdminPage() {
                         <td>{toDisplayDate(b.bookedOn || b.createdAt)}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === 'verifications' ? (
+            <section>
+              <div className="admin-section-head">
+                <h2 className="admin-section-title">Landlord Verification Requests</h2>
+              </div>
+
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Landlord Name</th>
+                      <th>Email</th>
+                      <th>Business Name</th>
+                      <th>Permit Number</th>
+                      <th>Status</th>
+                      <th>Requested At</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {verificationRequests.length === 0 ? (
+                      <tr><td colSpan={7} className="admin-empty">No verification requests yet.</td></tr>
+                    ) : verificationRequests.map((u, idx) => {
+                      const status = String(u.verificationStatus || 'pending').toLowerCase();
+                      const isApproved = status === 'approved' || Boolean(u.isVerified);
+                      return (
+                      <tr key={u.id || `verify-${idx}`}>
+                        <td>
+                          {toDisplayValue(u.firstName ? `${u.firstName} ${u.lastName || ''}`.trim() : u.name)}
+                          {isApproved ? <span title="Verified" style={{ marginLeft: '6px', color: '#16a34a' }}>✔</span> : null}
+                        </td>
+                        <td>{toDisplayValue(u.email)}</td>
+                        <td>{toDisplayValue(u.businessName)}</td>
+                        <td>{toDisplayValue(u.businessPermit)}</td>
+                        <td>
+                          <span className={`admin-badge ${status === 'approved' ? 'is-good' : status === 'pending' ? 'is-pending' : 'is-bad'}`}>{status}</span>
+                        </td>
+                        <td>{toDisplayDate(u.updatedAt || u.createdAt)}</td>
+                        <td>
+                          {status === 'pending' ? (
+                            <>
+                              <button className="admin-icon-btn success" onClick={() => reviewUserVerification(u, idx, 'approved')}>
+                                <CheckCircle2 size={15} /> Approve
+                              </button>
+                              <button className="admin-icon-btn" style={{ marginLeft: 8 }} onClick={() => reviewUserVerification(u, idx, 'rejected')}>
+                                <XCircle size={15} /> Reject
+                              </button>
+                            </>
+                          ) : (
+                            <span style={{ color: '#6b7280' }}>Reviewed</span>
+                          )}
+                        </td>
+                      </tr>
+                    );})}
                   </tbody>
                 </table>
               </div>
@@ -711,10 +974,10 @@ export default function AdminPage() {
                       const rating = Number(rv.rating || 0);
                       return (
                         <tr key={rv.id || `${rv.author}-${rv.createdAt}-${idx}`}>
-                          <td>{rv.author || rv.name || 'N/A'}</td>
-                          <td>{rv.dorm || rv.listingTitle || rv.property || 'N/A'}</td>
+                          <td>{toDisplayValue(rv.author || rv.name || rv.tenant)}</td>
+                          <td>{toDisplayValue(rv.dorm || rv.listingTitle || rv.property || rv.listing)}</td>
                           <td>{'★'.repeat(Math.max(0, Math.min(5, rating)))}{'☆'.repeat(5 - Math.max(0, Math.min(5, rating)))}</td>
-                          <td>{Array.isArray(rv.tags) ? rv.tags.join(', ') : (rv.tags || 'N/A')}</td>
+                          <td>{toDisplayValue(rv.tags)}</td>
                           <td>{truncate(rv.body || rv.comment || rv.review, 90)}</td>
                           <td>{toDisplayDate(rv.date || rv.createdAt)}</td>
                           <td>

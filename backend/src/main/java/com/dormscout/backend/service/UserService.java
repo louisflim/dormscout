@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.List;
 
@@ -76,6 +77,41 @@ public class UserService {
             if (updates.getPhone() != null) {
                 user.setPhone(updates.getPhone());
             }
+            if (updates.getEmail() != null) {
+                user.setEmail(updates.getEmail());
+            }
+            if (updates.getGender() != null) {
+                user.setGender(updates.getGender());
+            }
+            if (updates.getSchool() != null) {
+                user.setSchool(updates.getSchool());
+            }
+            if (updates.getCourse() != null) {
+                user.setCourse(updates.getCourse());
+            }
+            if (updates.getYearLevel() != null) {
+                user.setYearLevel(updates.getYearLevel());
+            }
+            if (updates.getStudentId() != null) {
+                user.setStudentId(updates.getStudentId());
+            }
+            if (updates.getBusinessName() != null) {
+                user.setBusinessName(updates.getBusinessName());
+            }
+            if (updates.getBusinessPermit() != null) {
+                user.setBusinessPermit(updates.getBusinessPermit());
+            }
+            if (updates.getVerificationStatus() != null) {
+                user.setVerificationStatus(updates.getVerificationStatus());
+                if ("pending".equalsIgnoreCase(updates.getVerificationStatus())) {
+                    user.setVerified(false);
+                    user.setVerificationDecision(null);
+                    user.setVerificationReviewedAt(null);
+                }
+            }
+            if (updates.getPassword() != null && !updates.getPassword().isBlank()) {
+                user.setPassword(passwordEncoder.encode(updates.getPassword()));
+            }
 
             return userRepository.save(user);
         }
@@ -85,6 +121,23 @@ public class UserService {
 
     public List<User> getAllUsers() {
         return userRepository.findAll();
+    }
+
+    public User reviewVerification(Long id, String status, String decision) {
+        User user = userRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String normalizedStatus = status == null ? "" : status.trim().toLowerCase();
+        if (!"approved".equals(normalizedStatus) && !"rejected".equals(normalizedStatus)) {
+            throw new RuntimeException("Invalid verification status");
+        }
+
+        user.setVerificationStatus(normalizedStatus);
+        user.setVerificationDecision(decision);
+        user.setVerificationReviewedAt(LocalDateTime.now());
+        user.setVerified("approved".equals(normalizedStatus));
+
+        return userRepository.save(user);
     }
 
     public void deleteUser(Long id) {
@@ -98,7 +151,14 @@ public class UserService {
                 user.getFirstName(),
                 user.getLastName(),
                 user.getPhone(),
-                user.getUserType()
+                user.getUserType(),
+                user.getGender(),
+                user.getSchool(),
+                user.getBusinessName(),
+                user.getBusinessPermit(),
+                user.isVerified(),
+                user.getVerificationStatus(),
+                user.getVerificationDecision()
         );
     }
 }

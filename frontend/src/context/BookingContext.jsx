@@ -25,19 +25,50 @@ export function BookingProvider({ children }) {
   const [listings,      setListings]      = useState([]);
   const [loading,       setLoading]       = useState(false);
 
-  // ── Load initial data ────────────────────────────────────
-  useEffect(() => {
-    const storedNotifs = localStorage.getItem('dormscout_notifications');
-    if (storedNotifs) {
-      try { setNotifications(JSON.parse(storedNotifs)); } catch (_) {}
-    }
+  const normalizeBooking = useCallback((booking) => {
+    if (!booking) return booking;
+    const tenantFirst = booking.tenant?.firstName || '';
+    const tenantLast = booking.tenant?.lastName || '';
+    const tenantName = `${tenantFirst} ${tenantLast}`.trim();
+    return {
+      ...booking,
+      listingId: booking.listingId ?? booking.listing?.id ?? null,
+      listingTitle: booking.listingTitle ?? booking.listing?.title ?? booking.dormName ?? '',
+      tenantId: booking.tenantId ?? booking.tenant?.id ?? null,
+      tenantName: booking.tenantName ?? tenantName ?? booking.tenant?.name ?? 'Tenant',
+      tenantEmail: booking.tenantEmail ?? booking.tenant?.email ?? '',
+      tenantPhone: booking.tenantPhone ?? booking.tenant?.phone ?? '',
+      moveInDate: booking.moveInDate ?? booking.checkInDate ?? null,
+    };
   }, []);
+
+  useEffect(() => {
+    localStorage.removeItem('dormscout_bookings');
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const result = await bookingsAPI.getAll();
+        if (!mounted || !result.ok) return;
+        const rows = Array.isArray(result.data) ? result.data : [];
+        setBookings(rows.map(normalizeBooking));
+      } catch (_) {
+        // keep empty state if backend is unavailable
+      }
+    })();
+    return () => { mounted = false; };
+  }, [normalizeBooking]);
 
   // ── Persist notifications ─────────────────────────────────
   useEffect(() => {
-    localStorage.setItem('dormscout_notifications', JSON.stringify(notifications));
     notifyNotificationChange();
   }, [notifications]);
+
+  useEffect(() => {
+    notifyBookingChange();
+  }, [bookings]);
 
   // ── Helper: Update listing available rooms ──────────────
   const _updateListingAvailableRooms = useCallback(async (listingId, delta) => {
@@ -63,16 +94,26 @@ export function BookingProvider({ children }) {
     setLoading(true);
     try {
       const bookingData = {
-        moveInDate: moveInDate,
+        checkInDate: moveInDate,
         status: 'pending',
       };
 
       const response = await bookingsAPI.create(bookingData, tenantInfo.id, listing.id);
 
-      if (response.ok && response.data.success) {
-        const newBooking = response.data.booking;
+      const created = response.data?.booking || response.data;
+      if (response.ok && created) {
+        const newBooking = normalizeBooking(created);
 
-        setBookings(prev => [...prev, newBooking]);
+        setBookings(prev => [newBooking, ...prev]);
+
+        addNotification({
+          type:      'new_booking',
+          title:     'New Booking Request',
+          message:   `A tenant requested a booking for "${listing.title}".`,
+          bookingId: newBooking.id,
+          listingId: listing.id,
+          forRole:   'landlord',
+        });
 
         addNotification({
           type:      'new_booking',
@@ -87,7 +128,7 @@ export function BookingProvider({ children }) {
 
         return { success: true, booking: newBooking };
       } else {
-        return { success: false, message: response.data.message || 'Booking failed' };
+        return { success: false, message: response.data?.message || response.message || 'Booking failed' };
       }
     } catch (error) {
       console.error('Create booking error:', error);
@@ -95,7 +136,7 @@ export function BookingProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [_updateListingAvailableRooms]);
+  }, [_updateListingAvailableRooms, normalizeBooking]);
 
   // ── Accept Booking (Landlord) ────────────────────────────
   const acceptBooking = useCallback(async (bookingId) => {
@@ -107,7 +148,7 @@ export function BookingProvider({ children }) {
         const updatedBooking = response.data.booking;
 
         setBookings(prev => prev.map(b =>
-          b.id === bookingId ? { ...b, status: 'accepted' } : b
+          b.id === bookingId ? normalizeBooking({ ...b, ...updatedBooking, status: 'accepted' }) : b
         ));
 
         setTenants(prev => [...prev, {
@@ -140,7 +181,7 @@ export function BookingProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [normalizeBooking]);
 
   // ── Reject Booking (Landlord) ────────────────────────────
   const rejectBooking = useCallback(async (bookingId) => {
@@ -149,8 +190,9 @@ export function BookingProvider({ children }) {
       const response = await bookingsAPI.updateStatus(bookingId, 'rejected');
 
       if (response.ok && response.data.success) {
+        const updatedBooking = response.data.booking;
         setBookings(prev => prev.map(b =>
-          b.id === bookingId ? { ...b, status: 'rejected' } : b
+          b.id === bookingId ? normalizeBooking({ ...b, ...updatedBooking, status: 'rejected' }) : b
         ));
 
         // Restore available rooms
@@ -177,18 +219,21 @@ export function BookingProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [bookings, _updateListingAvailableRooms]);
+  }, [bookings, _updateListingAvailableRooms, normalizeBooking]);
 
   // ── Cancel Booking (Tenant) ─────────────────────────────
   const cancelBooking = useCallback(async (bookingId) => {
     setLoading(true);
     try {
-      const response = await bookingsAPI.delete(bookingId);
+      const response = await bookingsAPI.updateStatus(bookingId, 'cancelled');
 
       if (response.ok && response.data.success) {
         const booking = bookings.find(b => b.id === bookingId);
+        const updatedBooking = response.data.booking;
 
-        setBookings(prev => prev.filter(b => b.id !== bookingId));
+        setBookings(prev => prev.map(b =>
+          b.id === bookingId ? normalizeBooking({ ...b, ...updatedBooking, status: 'cancelled' }) : b
+        ));
         setTenants(prev => prev.filter(t => t.bookingId !== bookingId));
 
         if (booking?.listing?.id) {
@@ -197,9 +242,10 @@ export function BookingProvider({ children }) {
 
         addNotification({
           type:    'booking_cancelled',
-          title:   'Booking Cancelled',
-          message: `You cancelled your booking.`,
+          title:   'Booking Cancelled by Tenant',
+          message: `${booking?.tenantName || 'A tenant'} cancelled booking for ${booking?.listingTitle || booking?.listing?.title || 'your listing'}.`,
           forRole: 'landlord',
+          bookingId,
         });
 
         return { success: true };
@@ -212,7 +258,7 @@ export function BookingProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [bookings, _updateListingAvailableRooms]);
+  }, [bookings, _updateListingAvailableRooms, normalizeBooking]);
 
   // ── Remove Tenant (Landlord) ────────────────────────────
   const removeTenant = useCallback(async (tenantRecordId) => {
@@ -247,6 +293,10 @@ export function BookingProvider({ children }) {
       setLoading(false);
     }
   }, [tenants, _updateListingAvailableRooms]);
+
+  function deleteRejectedBooking(bookingId) {
+    setBookings(prev => prev.filter(b => !(String(b.id) === String(bookingId) && String(b.status || '').toLowerCase() === 'rejected')));
+  }
 
   // ── Add Notification ────────────────────────────────────
   function addNotification(notif) {
@@ -313,12 +363,12 @@ export function BookingProvider({ children }) {
 
   // ── Getters ───────────────────────────────────────────────
   function getBookingsForListing(listingId) {
-    return bookings.filter(b => b.listing?.id === listingId || b.listingId === listingId);
+    return bookings.filter(b => String(b.listing?.id ?? b.listingId) === String(listingId));
   }
   function getPendingCount(listingId) {
     return bookings.filter(b =>
-      (b.listing?.id === listingId || b.listingId === listingId) &&
-      b.status === 'pending'
+      String(b.listing?.id ?? b.listingId) === String(listingId) &&
+      String(b.status || '').toLowerCase() === 'pending'
     ).length;
   }
   function getNotifications(role) {
@@ -343,6 +393,7 @@ export function BookingProvider({ children }) {
       rejectBooking,
       cancelBooking,
       removeTenant,
+      deleteRejectedBooking,
       addNotification,
       markNotificationRead,
       deleteNotification,

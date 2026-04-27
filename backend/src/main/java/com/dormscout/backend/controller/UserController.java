@@ -15,7 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001", "http://localhost:3002"})
 public class UserController {
     @Autowired
     private UserService userService;
@@ -105,6 +105,26 @@ public class UserController {
             return ResponseEntity.ok(userDTO);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @PutMapping("/{id}/verification")
+    public ResponseEntity<?> reviewVerification(@PathVariable Long id,
+                                                @RequestParam String status,
+                                                @RequestParam(required = false) String decision) {
+        try {
+            User updatedUser = userService.reviewVerification(id, status, decision);
+            UserDTO userDTO = userService.convertToDTO(updatedUser);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Verification status updated",
+                    "user", userDTO
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                     "success", false,
                     "message", e.getMessage()
             ));

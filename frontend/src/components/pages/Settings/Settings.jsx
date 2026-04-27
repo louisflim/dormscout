@@ -339,6 +339,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   const [businessName,    setBusinessName]    = useState(user?.businessName || '');
   const [businessPermit,  setBusinessPermit]  = useState(user?.businessPermit || '');
   const [isVerified,      setIsVerified]      = useState(user?.isVerified || false);
+  const [verificationStatus, setVerificationStatus] = useState(user?.verificationStatus || 'none');
   const [profileImage,    setProfileImage]    = useState(user?.profileImage || null);
 
   // App settings
@@ -366,6 +367,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
         setBusinessName(saved.businessName || '');
         setBusinessPermit(saved.businessPermit || '');
         setIsVerified(saved.isVerified || false);
+        setVerificationStatus(saved.verificationStatus || 'none');
         setProfileImage(saved.profileImage || null);
       }
       initialSyncDone.current = true;
@@ -382,6 +384,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       setBusinessName(user.businessName || '');
       setBusinessPermit(user.businessPermit || '');
       setIsVerified(user.isVerified || false);
+      setVerificationStatus(user.verificationStatus || 'none');
       setProfileImage(user.profileImage || null);
       setEmailNotifications(user.settings?.emailNotifications !== false);
       setInAppNotifications(user.settings?.inAppNotifications !== false);
@@ -622,10 +625,9 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     setIsLoading(true);
 
     try {
-      // 1. Get current user
-      const currentUser = JSON.parse(localStorage.getItem('dormScoutUser') || '{}');
+      const currentUser = user || {};
 
-      // 2. Verify current password matches
+      // Verify current password matches
       if (currentUser.password !== currentPassword) {
         setPasswordErrors({ currentPassword: 'Current password is incorrect' });
         setPasswordMessage({ text: 'Current password is incorrect', type: 'error' });
@@ -633,26 +635,12 @@ export default function Settings({ userType: propUserType, darkMode = false, set
         return;
       }
 
-      // 3. Update password in all users list
-      const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
-      const updatedUsers = users.map(u => {
-        if (u.id === currentUser.id || u.email === currentUser.email) {
-          return { ...u, password: newPassword };
-        }
-        return u;
-      });
-      localStorage.setItem('dormScoutUsers', JSON.stringify(updatedUsers));
-
-      // 4. Update current user in localStorage
-      const updatedCurrentUser = { ...currentUser, password: newPassword };
-      localStorage.setItem('dormScoutUser', JSON.stringify(updatedCurrentUser));
-
-      // 5. Update AuthContext
+      // Persist password change via backend/AuthContext
       if (user) {
         updateUser({ password: newPassword });
       }
 
-      // 6. Clear fields
+      // Clear fields
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -707,25 +695,28 @@ export default function Settings({ userType: propUserType, darkMode = false, set
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsVerified(true);
-      if (user) {
-        updateUser({
-          isVerified: true,
+    Promise.resolve(updateUser({
+      businessName,
+      businessPermit,
+      isVerified: false,
+      verificationStatus: 'pending',
+    }))
+      .then(() => {
+        setIsVerified(false);
+        setVerificationStatus('pending');
+        localStorage.setItem('dormscout_landlord_profile', JSON.stringify({
+          ...(JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}')),
+          isVerified: false,
+          verificationStatus: 'pending',
           businessName,
           businessPermit,
-        });
-      }
-
-      localStorage.setItem('dormscout_landlord_profile', JSON.stringify({
-        isVerified: true,
-        businessName,
-        businessPermit
-      }));
-
-      setIsLoading(false);
-      setVerifyMessage({ text: 'Business verified successfully! ✓', type: 'success' });
-    }, 1500);
+        }));
+        setVerifyMessage({ text: 'Verification request submitted. Please wait for admin approval.', type: 'success' });
+      })
+      .catch(() => {
+        setVerifyMessage({ text: 'Failed to submit verification request.', type: 'error' });
+      })
+      .finally(() => setIsLoading(false));
   }
 
   async function handleDeleteAccount() {
@@ -887,6 +878,21 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                   <span style={{ color: '#16a34a', fontWeight: 700 }}>Verified Business</span>
                 </div>
               )}
+              {!isVerified && verificationStatus === 'pending' && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '12px',
+                  padding: '12px 16px',
+                  background: 'rgba(245,158,11,0.1)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(245,158,11,0.3)'
+                }}>
+                  <span style={{ fontSize: '1.1rem' }}>⏳</span>
+                  <span style={{ color: '#b45309', fontWeight: 700 }}>Verification Pending Admin Review</span>
+                </div>
+              )}
               <div className="settings-grid-2 settings-grid-2--mb">
                 <InputField
                   label="Business Name"
@@ -906,12 +912,14 @@ export default function Settings({ userType: propUserType, darkMode = false, set
               <p style={{ color: colors.secondaryText, marginBottom: '12px' }}>
                 {isVerified
                   ? 'Your business has been verified. To update details, please contact support.'
-                  : 'Fill in your business details to be verified as a legitimate landlord'
+                  : verificationStatus === 'pending'
+                    ? 'Your verification request is under review by admin.'
+                    : 'Fill in your business details to request verification as a legitimate landlord'
                 }
               </p>
 
               {/* Verify Button and Message */}
-              {!isVerified && (
+              {!isVerified && verificationStatus !== 'pending' && (
                 <div>
                   <button
                     className="btn-primary btn-primary--mt"

@@ -144,7 +144,20 @@ function TenantOverview({ darkMode, onNavigate, user }) {
     bookingsAPI.getBookingsByTenant(user.id)
       .then(response => {
         const data = Array.isArray(response) ? response : (response.data || []);
-        setBookings(data);
+        const mapped = data.map((b) => {
+          const landlordName = [b.listing?.landlord?.firstName, b.listing?.landlord?.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          return {
+            ...b,
+            dormName: b.listing?.title || b.dormName || 'Unknown Listing',
+            room: b.listing?.totalRooms ? `${b.listing.totalRooms} room(s)` : 'N/A',
+            landlord: landlordName || b.landlord || 'N/A',
+            price: b.listing?.price ?? b.price ?? null,
+          };
+        });
+        setBookings(mapped);
       })
       .catch(err => {
         console.error('Failed to load bookings:', err);
@@ -152,8 +165,13 @@ function TenantOverview({ darkMode, onNavigate, user }) {
       });
   }, [user?.id]);
 
+<<<<<<< Updated upstream
   const activeBooking   = bookings.find(b => b.status === 'accepted');
   const pendingBookings = bookings.filter(b => b.status === 'pending');
+=======
+  const activeBooking  = bookings.find(b => ['accepted', 'approved', 'active'].includes(String(b.status || '').toLowerCase()));
+  const pendingBookings = bookings.filter(b => String(b.status || '').toLowerCase() === 'pending');
+>>>>>>> Stashed changes
   const activities     = user?.activities || [];
   const totalBookings  = bookings.length;
   const activeCount    = activeBooking ? 1 : 0;
@@ -418,9 +436,9 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
   useEffect(() => {
     function updatePendingRequests() {
       try {
-        const myListingIds = listings.map(l => l.id);
+        const myListingIds = listings.map(l => String(l.id));
         const myRequests   = contextBookings.filter(
-          b => myListingIds.includes(b.listingId) && b.status === 'pending'
+          b => myListingIds.includes(String(b.listingId ?? b.listing?.id)) && String(b.status || '').toLowerCase() === 'pending'
         );
         setRequests(myRequests);
       } catch (_) {
@@ -781,11 +799,19 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   const { getUnreadCount } = useBooking();
   const { user, logout, userType: authUserType } = useAuth();
 
+<<<<<<< Updated upstream
   // FIX: Normalize userType to lowercase for comparison
   const normalizedUserType = authUserType?.toLowerCase() || 'tenant';
   const isLandlord = normalizedUserType === 'landlord';
 
   const theme = darkMode ? 'dark' : 'light';
+=======
+  // Single source of truth: authenticated user role
+  const userType = React.useMemo(() => user?.userType || 'tenant', [user?.userType]);
+
+  const isLandlord = userType === 'landlord';
+  const theme      = darkMode ? 'dark' : 'light';
+>>>>>>> Stashed changes
 
   const getActiveSectionFromPath = () => {
     const path = location.pathname.replace('/', '');
@@ -795,6 +821,15 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
 
   const activeNav = getActiveSectionFromPath();
 
+<<<<<<< Updated upstream
+=======
+  useEffect(() => {
+    const handleProfileUpdate = () => {};
+    window.addEventListener('dormscout:profileUpdated', handleProfileUpdate);
+    return () => window.removeEventListener('dormscout:profileUpdated', handleProfileUpdate);
+  }, []);
+
+>>>>>>> Stashed changes
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target))

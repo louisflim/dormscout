@@ -15,7 +15,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/bookmarks")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001", "http://localhost:3002"})
 public class BookmarkController {
     @Autowired
     private BookmarkService bookmarkService;
@@ -54,6 +54,11 @@ public class BookmarkController {
         }
     }
 
+    @GetMapping
+    public ResponseEntity<?> getAllBookmarks() {
+        return ResponseEntity.ok(bookmarkService.getAllBookmarks());
+    }
+
     @GetMapping("/tenant/{tenantId}")
     public ResponseEntity<?> getBookmarksByTenant(@PathVariable Long tenantId) {
         Optional<User> tenantOpt = userService.findById(tenantId);
@@ -83,6 +88,18 @@ public class BookmarkController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                 "success", false, "message", e.getMessage()
+            ));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> removeBookmarkById(@PathVariable Long id) {
+        try {
+            bookmarkService.deleteBookmarkById(id);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Bookmark removed"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "success", false, "message", "Bookmark not found"
             ));
         }
     }

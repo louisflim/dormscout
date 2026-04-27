@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
+import { messagesAPI, userAPI, bookingsAPI } from '../../../utils/api';
 import './Messaging.css';
 
 const PRIMARY = '#E8622E';
@@ -129,6 +130,12 @@ function formatMessageTime(timestamp) {
   });
 }
 
+function toEpoch(value) {
+  if (!value) return Date.now();
+  const ts = new Date(value).getTime();
+  return Number.isNaN(ts) ? Date.now() : ts;
+}
+
 // ═══════════════════════════════════════════════════════════
 // DESKTOP NOTIFICATIONS
 // ═══════════════════════════════════════════════════════════
@@ -194,7 +201,6 @@ function StatusIndicator({ status, darkMode }) {
 // ═══════════════════════════════════════════════════════════
 export default function Messaging({ darkMode = false, userType = 'tenant', contactLandlord = null, contactTenant = null }) {
   const role = userType;
-  const otherRole = role === 'tenant' ? 'landlord' : 'tenant';
   const contactHandledRef = useRef(false);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -222,139 +228,118 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     if (!contactLandlord) return;
     contactHandledRef.current = true;
 
-    const landlord = { ...contactLandlord };
-    
-    // If name is still "Landlord", try to fetch the actual name from users database using landlordId
-    if ((landlord.name === 'Landlord' || !landlord.name) && landlord.id) {
-      try {
-        const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
-        const landlordUser = users.find(u => u.id === landlord.id);
-        if (landlordUser && landlordUser.name) {
-          landlord.name = landlordUser.name;
-          landlord.avatar = landlordUser.name.split(' ').map(n => n[0]).join('');
+    (async () => {
+      const landlord = { ...contactLandlord };
+      if ((landlord.name === 'Landlord' || !landlord.name) && landlord.id) {
+        const userResult = await userAPI.getById(landlord.id);
+        if (userResult.ok && userResult.data?.name) {
+          landlord.name = userResult.data.name;
+          landlord.avatar = userResult.data.name.split(' ').map(n => n[0]).join('');
         }
-      } catch (e) {
-        // ignore
       }
-    }
-    
-    let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
-    const roleConvs = currentConvs[role] || {};
 
-    // Strategy: Try to find existing conversation using:
-    // 1. landlord.id as exact key (most reliable)
-    // 2. landlordId field in conversation objects
-    // 3. Name matching (for backwards compatibility)
-    let convId = null;
+      let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
+      const roleConvs = currentConvs[role] || {};
 
-    // Step 1: Direct ID match
-    if (landlord.id && roleConvs[landlord.id]) {
-      convId = String(landlord.id);
-    }
-    
-    // Step 2: Search by landlordId field
-    if (!convId && landlord.id) {
-      convId = Object.keys(roleConvs).find(id => roleConvs[id].landlordId === landlord.id);
-    }
-    
-    // Step 3: Search by name (backwards compatibility)
-    if (!convId && landlord.name && landlord.name !== 'Landlord') {
-      convId = Object.keys(roleConvs).find(id => roleConvs[id].name === landlord.name);
-    }
+      let convId = null;
+      if (landlord.id && roleConvs[landlord.id]) convId = String(landlord.id);
+      if (!convId && landlord.id) convId = Object.keys(roleConvs).find(id => roleConvs[id].landlordId === landlord.id);
+      if (!convId && landlord.name && landlord.name !== 'Landlord') convId = Object.keys(roleConvs).find(id => roleConvs[id].name === landlord.name);
 
-    if (!convId) {
-      // Create new conversation using landlord's ID as key
-      convId = landlord.id || (Math.max(...Object.keys(roleConvs).map(Number).filter(n => !isNaN(n)), 0) + 1);
-      const newConversations = { ...currentConvs };
-      newConversations[role] = {
-        ...roleConvs,
-        [convId]: {
-          id: convId,
-          landlordId: landlord.id || null,
-          name: landlord.name || 'Landlord',
-          avatar: landlord.avatar || (landlord.name || 'L').split(' ').map(n => n[0]).join(''),
-          online: true,
-          lastMessage: 'Start a conversation',
-          timestamp: Date.now(),
-          unread: 0,
-        }
-      };
-      setConversations(newConversations);
-      Storage.set(STORAGE_KEYS.conversations, newConversations);
-    } else {
-      // Update conversation name if it changed (e.g., from "Landlord" to actual name)
-      const existingConv = roleConvs[convId];
-      if (existingConv && landlord.name && existingConv.name !== landlord.name) {
-        const updatedConversations = { ...currentConvs };
-        updatedConversations[role] = {
+      if (!convId) {
+        convId = landlord.id || (Math.max(...Object.keys(roleConvs).map(Number).filter(n => !isNaN(n)), 0) + 1);
+        const newConversations = { ...currentConvs };
+        newConversations[role] = {
           ...roleConvs,
           [convId]: {
-            ...existingConv,
-            name: landlord.name,
+            id: convId,
+            landlordId: landlord.id || null,
+            name: landlord.name || 'Landlord',
             avatar: landlord.avatar || (landlord.name || 'L').split(' ').map(n => n[0]).join(''),
-            landlordId: landlord.id || existingConv.landlordId,
+            online: true,
+            lastMessage: 'Start a conversation',
+            timestamp: Date.now(),
+            unread: 0,
           }
         };
-        setConversations(updatedConversations);
-        Storage.set(STORAGE_KEYS.conversations, updatedConversations);
+        setConversations(newConversations);
+        Storage.set(STORAGE_KEYS.conversations, newConversations);
+      } else {
+        const existingConv = roleConvs[convId];
+        if (existingConv && landlord.name && existingConv.name !== landlord.name) {
+          const updatedConversations = { ...currentConvs };
+          updatedConversations[role] = {
+            ...roleConvs,
+            [convId]: {
+              ...existingConv,
+              name: landlord.name,
+              avatar: landlord.avatar || (landlord.name || 'L').split(' ').map(n => n[0]).join(''),
+              landlordId: landlord.id || existingConv.landlordId,
+            }
+          };
+          setConversations(updatedConversations);
+          Storage.set(STORAGE_KEYS.conversations, updatedConversations);
+        }
       }
-    }
-    setSelectedConvId(convId);
+      setSelectedConvId(convId);
+    })();
   }, [contactLandlord, role]);
 
   // Handle contact TENANT navigation (landlord side)
   useEffect(() => {
     if (!contactTenant || role !== 'landlord') return;
 
-    const tenant = { ...contactTenant };
-    if ((tenant.name === 'Tenant' || !tenant.name) && tenant.id) {
-      try {
-        const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
-        const tenantUser = users.find(u => u.id === tenant.id);
-        if (tenantUser?.name) {
-          tenant.name = tenantUser.name;
-          tenant.avatar = tenantUser.name.split(' ').map(n => n[0]).join('');
+    (async () => {
+      const tenant = { ...contactTenant };
+      if ((tenant.name === 'Tenant' || !tenant.name) && tenant.id) {
+        const userResult = await userAPI.getById(tenant.id);
+        if (userResult.ok && userResult.data?.name) {
+          tenant.name = userResult.data.name;
+          tenant.avatar = userResult.data.name.split(' ').map(n => n[0]).join('');
         }
-      } catch (e) { /* ignore */ }
-    }
+      }
 
-    let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
-    const roleConvs = currentConvs['landlord'] || {};
+      let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
+      const roleConvs = currentConvs['landlord'] || {};
 
-    let convId = null;
-    if (tenant.id && roleConvs[tenant.id]) convId = String(tenant.id);
-    if (!convId && tenant.id) convId = Object.keys(roleConvs).find(id => roleConvs[id].tenantId === tenant.id);
-    if (!convId && tenant.name && tenant.name !== 'Tenant') convId = Object.keys(roleConvs).find(id => roleConvs[id].name === tenant.name);
+      let convId = null;
+      if (tenant.id && roleConvs[tenant.id]) convId = String(tenant.id);
+      if (!convId && tenant.id) convId = Object.keys(roleConvs).find(id => roleConvs[id].tenantId === tenant.id);
+      if (!convId && tenant.name && tenant.name !== 'Tenant') convId = Object.keys(roleConvs).find(id => roleConvs[id].name === tenant.name);
 
-    if (!convId) {
-      convId = tenant.id || (Math.max(...Object.keys(roleConvs).map(Number).filter(n => !isNaN(n)), 0) + 1);
-      const newConversations = { ...currentConvs };
-      newConversations['landlord'] = {
-        ...roleConvs,
-        [convId]: {
-          id: convId,
-          tenantId: tenant.id || null,
-          name: tenant.name || 'Tenant',
-          avatar: tenant.avatar || (tenant.name || 'T').split(' ').map(n => n[0]).join(''),
-          online: true,
-          lastMessage: 'Start a conversation',
-          timestamp: Date.now(),
-          unread: 0,
-        }
-      };
-      setConversations(newConversations);
-      Storage.set(STORAGE_KEYS.conversations, newConversations);
-    }
-    setSelectedConvId(convId);
+      if (!convId) {
+        convId = tenant.id || (Math.max(...Object.keys(roleConvs).map(Number).filter(n => !isNaN(n)), 0) + 1);
+        const newConversations = { ...currentConvs };
+        newConversations['landlord'] = {
+          ...roleConvs,
+          [convId]: {
+            id: convId,
+            tenantId: tenant.id || null,
+            name: tenant.name || 'Tenant',
+            avatar: tenant.avatar || (tenant.name || 'T').split(' ').map(n => n[0]).join(''),
+            online: true,
+            lastMessage: 'Start a conversation',
+            timestamp: Date.now(),
+            unread: 0,
+          }
+        };
+        setConversations(newConversations);
+        Storage.set(STORAGE_KEYS.conversations, newConversations);
+      }
+      setSelectedConvId(convId);
+    })();
   }, [contactTenant, role]);
 
   // Seed landlord's conversation list from bookings
   useEffect(() => {
     if (role !== 'landlord' || !user) return;
-    try {
-      const allBookings = JSON.parse(localStorage.getItem('dormscout_bookings') || '[]');
-      const myListingIds = new Set((user.listings || []).map(l => String(l.id)));
-      const myBookings = allBookings.filter(b => myListingIds.has(String(b.listingId)));
+    (async () => {
+      const result = await bookingsAPI.getAll();
+      if (!result.ok || !Array.isArray(result.data)) return;
+
+      const myBookings = result.data.filter(
+        b => String(b.listing?.landlord?.id) === String(user.id)
+      );
       if (myBookings.length === 0) return;
 
       let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
@@ -362,15 +347,17 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       let hasChanges = false;
 
       myBookings.forEach(booking => {
-        const key = String(booking.tenantId);
+        const key = String(booking.tenant?.id || booking.tenantId || '');
+        if (!key) return;
         if (!landlordConvs[key]) {
+          const tenantName = `${booking.tenant?.firstName || ''} ${booking.tenant?.lastName || ''}`.trim() || booking.tenant?.name || 'Tenant';
           landlordConvs[key] = {
             id: key,
-            tenantId: booking.tenantId,
-            name: booking.tenantName,
-            avatar: booking.tenantAvatar || (booking.tenantName || 'T').charAt(0),
+            tenantId: booking.tenant?.id || booking.tenantId || null,
+            name: tenantName,
+            avatar: (tenantName || 'T').charAt(0),
             online: false,
-            lastMessage: `Booking for ${booking.listingTitle}`,
+            lastMessage: `Booking for ${booking.listing?.title || 'Listing'}`,
             timestamp: new Date(booking.createdAt).getTime() || Date.now(),
             unread: 0,
           };
@@ -383,7 +370,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
         setConversations(currentConvs);
         Storage.set(STORAGE_KEYS.conversations, currentConvs);
       }
-    } catch (e) { /* ignore */ }
+    })();
   }, [role, user]);
 
 
@@ -403,6 +390,96 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   const roleMessages = useMemo(() => allMessages[role] || {}, [allMessages, role]);
   const messages = useMemo(() => roleMessages[selectedConvId] || [], [roleMessages, selectedConvId]);
   const selectedConv = roleConversations[selectedConvId];
+
+  useEffect(() => {
+    const loadBackendMessages = async () => {
+      if (!user?.id) return;
+
+      try {
+        const result = await messagesAPI.getAll();
+        if (!result.ok || !Array.isArray(result.data)) return;
+
+        const mine = result.data.filter(
+          (m) => String(m.sender?.id) === String(user.id) || String(m.receiver?.id) === String(user.id)
+        );
+
+        const nextConversations = {};
+        const nextMessages = {};
+
+        mine.forEach((m) => {
+          const sentByMe = String(m.sender?.id) === String(user.id);
+          const otherUser = sentByMe ? m.receiver : m.sender;
+          if (!otherUser?.id) return;
+
+          const convId = String(otherUser.id);
+          const ts = toEpoch(m.createdAt);
+
+          const mapped = {
+            id: m.id,
+            sender: sentByMe ? 'sent' : 'received',
+            text: m.content,
+            timestamp: ts,
+            status: sentByMe ? (m.isRead ? 'read' : 'delivered') : undefined,
+          };
+
+          nextMessages[convId] = [...(nextMessages[convId] || []), mapped];
+
+          const previous = nextConversations[convId];
+          const name = [otherUser.firstName, otherUser.lastName].filter(Boolean).join(' ').trim() || otherUser.name || 'User';
+          if (!previous || ts > previous.timestamp) {
+            nextConversations[convId] = {
+              id: convId,
+              [role === 'tenant' ? 'landlordId' : 'tenantId']: otherUser.id,
+              name,
+              avatar: name.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'U',
+              online: false,
+              lastMessage: m.content,
+              timestamp: ts,
+              unread: 0,
+            };
+          }
+        });
+
+        Object.keys(nextMessages).forEach((k) => {
+          nextMessages[k].sort((a, b) => a.timestamp - b.timestamp);
+        });
+
+        setConversations((prev) => {
+          const merged = {
+            ...prev,
+            [role]: {
+              ...(prev[role] || {}),
+              ...nextConversations,
+            },
+          };
+          Storage.set(STORAGE_KEYS.conversations, merged);
+          return merged;
+        });
+
+        setAllMessages((prev) => {
+          const merged = {
+            ...prev,
+            [role]: {
+              ...(prev[role] || {}),
+              ...nextMessages,
+            },
+          };
+          Storage.set(STORAGE_KEYS.messages, merged);
+          return merged;
+        });
+
+        setSelectedConvId((prevId) => {
+          if (prevId) return prevId;
+          const latest = Object.values(nextConversations).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+          return latest?.id || prevId;
+        });
+      } catch (error) {
+        console.error('Failed to load backend messages:', error);
+      }
+    };
+
+    loadBackendMessages();
+  }, [role, user?.id]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -452,7 +529,10 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   // SEND MESSAGE
   // ═══════════════════════════════════════════════════════════
   const sendMessage = useCallback(() => {
-    if (!messageInput.trim() || !selectedConv) return;
+    if (!messageInput.trim() || !selectedConv || !user?.id) return;
+
+    const receiverId = selectedConv.landlordId || selectedConv.tenantId || selectedConv.senderId || selectedConv.id;
+    if (!receiverId) return;
 
     const now = Date.now();
 
@@ -465,113 +545,65 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       status: 'sent',
     };
 
-    // Update messages for current role
     const updatedMessages = [...messages, newMessage];
-    const newAllMessages = { ...allMessages };
-    newAllMessages[role] = { ...roleMessages, [selectedConvId]: updatedMessages };
+    const optimisticAllMessages = { ...allMessages, [role]: { ...roleMessages, [selectedConvId]: updatedMessages } };
+    setAllMessages(optimisticAllMessages);
+    Storage.set(STORAGE_KEYS.messages, optimisticAllMessages);
 
-    // Also deliver message to the OTHER role's side
-    const senderName = user?.name || user?.firstName || (role === 'tenant' ? 'Tenant' : 'Landlord');
-    const senderAvatar = senderName.split(' ').map(n => n[0]).join('') || 'U';
-    const senderId = user?.id;
-    const otherConvs = conversations[otherRole] || {};
-    const updatedOtherConversations = { ...conversations };
-
-    // Find or create the mirrored conversation on the other side using sender's ID
-    let mirrorConvId = senderId 
-      ? (otherConvs[senderId] ? senderId : Object.keys(otherConvs).find(id => otherConvs[id].senderId === senderId || otherConvs[id].name === senderName))
-      : Object.keys(otherConvs).find(id => otherConvs[id].name === senderName);
-    
-    if (!mirrorConvId) {
-      // Use sender's ID if available, otherwise generate numeric ID
-      mirrorConvId = senderId || (Math.max(...Object.keys(otherConvs).map(id => {
-        const n = Number(id);
-        return isNaN(n) ? 0 : n;
-      }), 0) + 1);
-      
-      updatedOtherConversations[otherRole] = {
-        ...otherConvs,
-        [mirrorConvId]: {
-          id: mirrorConvId,
-          senderId: senderId || null,
-          name: senderName,
-          avatar: senderAvatar,
-          online: true,
+    const optimisticConversations = {
+      ...conversations,
+      [role]: {
+        ...(conversations[role] || {}),
+        [selectedConvId]: {
+          ...selectedConv,
           lastMessage: messageInput,
           timestamp: now,
-          unread: 1,
-        }
-      };
-    } else {
-      const prev = otherConvs[mirrorConvId];
-      updatedOtherConversations[otherRole] = {
-        ...otherConvs,
-        [mirrorConvId]: {
-          ...prev,
-          lastMessage: messageInput,
-          timestamp: now,
-          unread: (prev.unread || 0) + 1,
-        }
-      };
-    }
-
-    // Add as 'received' on the other side
-    const otherMessages = newAllMessages[otherRole] || {};
-    const otherConvMessages = otherMessages[mirrorConvId] || [];
-    newAllMessages[otherRole] = {
-      ...otherMessages,
-      [mirrorConvId]: [...otherConvMessages, { id: now + 1, sender: 'received', text: messageInput, timestamp: now }]
+        },
+      },
     };
-
-    setAllMessages(newAllMessages);
-    Storage.set(STORAGE_KEYS.messages, newAllMessages);
-
-    // Update last message in conversation for current role
-    updatedOtherConversations[role] = {
-      ...(updatedOtherConversations[role] || {}),
-      [selectedConvId]: {
-        ...selectedConv,
-        lastMessage: messageInput,
-        timestamp: now,
-      }
-    };
-    setConversations(updatedOtherConversations);
-    Storage.set(STORAGE_KEYS.conversations, updatedOtherConversations);
-
-    // Clear input
+    setConversations(optimisticConversations);
+    Storage.set(STORAGE_KEYS.conversations, optimisticConversations);
     setMessageInput('');
 
-    // Show notification if enabled
-    if (notificationEnabled) {
-      showDesktopNotification('Message sent', messageInput.substring(0, 50));
-    }
+    messagesAPI
+      .send(
+        {
+          content: messageInput,
+          conversationId: `${Math.min(Number(user.id), Number(receiverId))}_${Math.max(Number(user.id), Number(receiverId))}`,
+          isRead: false,
+        },
+        user.id,
+        receiverId
+      )
+      .then((result) => {
+        if (!result.ok) throw new Error(result.data?.message || 'Failed to send');
 
-    // Mark as delivered after 1 second
-    setTimeout(() => {
-      const latest = Storage.get(STORAGE_KEYS.messages) || newAllMessages;
-      const msgs = [...(latest[role]?.[selectedConvId] || [])];
-      const lastMsg = msgs.find(m => m.id === now);
-      if (lastMsg) {
-        lastMsg.status = 'delivered';
-        latest[role] = { ...latest[role], [selectedConvId]: msgs };
-        setAllMessages({ ...latest });
-        Storage.set(STORAGE_KEYS.messages, latest);
-      }
-    }, 1000);
+        const sent = result.data?.data;
+        if (sent?.id) {
+          const finalized = (Storage.get(STORAGE_KEYS.messages) || optimisticAllMessages);
+          const curr = [...(finalized[role]?.[selectedConvId] || [])];
+          const idx = curr.findIndex((m) => m.id === now);
+          if (idx >= 0) {
+            curr[idx] = {
+              ...curr[idx],
+              id: sent.id,
+              timestamp: toEpoch(sent.createdAt),
+              status: 'delivered',
+            };
+            finalized[role] = { ...(finalized[role] || {}), [selectedConvId]: curr };
+            setAllMessages({ ...finalized });
+            Storage.set(STORAGE_KEYS.messages, finalized);
+          }
+        }
 
-    // Mark as read after 2 seconds
-    setTimeout(() => {
-      const latest = Storage.get(STORAGE_KEYS.messages) || newAllMessages;
-      const msgs = [...(latest[role]?.[selectedConvId] || [])];
-      const lastMsg = msgs.find(m => m.id === now);
-      if (lastMsg) {
-        lastMsg.status = 'read';
-        latest[role] = { ...latest[role], [selectedConvId]: msgs };
-        setAllMessages({ ...latest });
-        Storage.set(STORAGE_KEYS.messages, latest);
-      }
-    }, 2000);
-  }, [messageInput, selectedConv, selectedConvId, role, otherRole, messages, allMessages, roleMessages, conversations, notificationEnabled, user]);
+        if (notificationEnabled) {
+          showDesktopNotification('Message sent', messageInput.substring(0, 50));
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to send message:', error);
+      });
+  }, [messageInput, selectedConv, selectedConvId, role, messages, allMessages, roleMessages, conversations, notificationEnabled, user]);
 
   // ═══════════════════════════════════════════════════════════
   // DELETE MESSAGE

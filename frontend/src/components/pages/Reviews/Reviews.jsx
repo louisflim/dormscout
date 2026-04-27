@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import { reviewsAPI } from '../../../utils/api';
 import './Reviews.css';
 
 const DORMS = [
@@ -484,24 +485,40 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
     });
   };
 
-  const handleSubmitReview = ({ rating, body, tags }) => {
-    const newReview = {
-      id: Date.now(),
-      dormId: selectedDorm,
-      author: 'You',
-      avatar: 'ME',
-      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      rating,
-      tags,
-      body,
-      helpful: 0,
-      userMarkedHelpful: false,
-    };
-    setReviews(prev => {
-      const updated = [newReview, ...prev];
-      Storage.set(STORAGE_KEY, updated);
-      return updated;
-    });
+  const handleSubmitReview = async ({ rating, body, tags }) => {
+    if (!user?.id || !selectedDorm) return;
+
+    try {
+      const result = await reviewsAPI.create(
+        { rating, body, tags: tags.join(',') },
+        user.id,
+        selectedDorm
+      );
+
+      if (result.ok) {
+        const newReview = {
+          id: result.data.data.id,
+          dormId: selectedDorm,
+          author: user.name || 'You',
+          avatar: (user.name || 'Y').charAt(0),
+          date: new Date().toLocaleDateString('en-US', {
+            year: 'numeric', month: 'long', day: 'numeric'
+          }),
+          rating,
+          tags,
+          body,
+          helpful: 0,
+          userMarkedHelpful: false,
+        };
+        setReviews(prev => {
+          const updated = [newReview, ...prev];
+          Storage.set(STORAGE_KEY, updated);
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to submit review', err);
+    }
   };
 
   return (

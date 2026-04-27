@@ -26,28 +26,37 @@ export default function Login({ setUserType }) {
         setLoading(true);
 
         try {
-            const result = await login(email, password);
+            const response = await fetch('http://localhost:8080/api/users/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            });
+
+            const result = await response.json();
 
             if (result.success) {
                 const realUserType = result.user.userType;
 
-                // Validate userType matches the login page
-                if (realUserType && realUserType.toUpperCase() !== urlUserType.toUpperCase()) {
+                if (realUserType !== urlUserType) {
                     setError(
-                        `This account is registered as a ${realUserType.toLowerCase()}. Please use the ${realUserType.toLowerCase()} login page.`
+                        `This account is registered as a ${realUserType}. Please use the ${realUserType} login page.`
                     );
                     setLoading(false);
                     return;
                 }
 
+                localStorage.setItem('dormScoutUser', JSON.stringify(result.user));
+                localStorage.setItem('user', JSON.stringify(result.user));
+                localStorage.setItem('userType', realUserType);
                 if (setUserType) setUserType(realUserType);
+                await login(email, password);
                 navigate('/overview');
             } else {
                 setError(result.message);
-                setLoading(false);
             }
         } catch (err) {
-            setError('Something went wrong. Please try again.');
+            setError('Cannot connect to server. Make sure backend is running.');
+        } finally {
             setLoading(false);
         }
     };

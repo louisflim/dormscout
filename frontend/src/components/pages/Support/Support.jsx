@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../context/AuthContext';
+import { supportMessagesAPI } from '../../../utils/api';
 import './Support.css';
 import {
   User,
@@ -57,6 +59,7 @@ const CONTACT_INFO = [
 
 export default function Support({ darkMode = false, setDarkMode }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
   const isDark = typeof setDarkMode === 'function' ? Boolean(darkMode) : localDarkMode;
   const colors   = isDark ? COLORS.dark : COLORS.light;
@@ -65,6 +68,7 @@ export default function Support({ darkMode = false, setDarkMode }) {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [formData,      setFormData]      = useState({ name: '', email: '', subject: '', message: '' });
   const [submitted,     setSubmitted]     = useState(false);
+  const [submitError,   setSubmitError]   = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
@@ -91,11 +95,26 @@ export default function Support({ darkMode = false, setDarkMode }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
-    setFormData({ name: '', email: '', subject: '', message: '' });
-    setTimeout(() => setSubmitted(false), 3000);
+    setSubmitError('');
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        subject: formData.subject.trim(),
+        message: formData.message.trim(),
+      };
+      const res = await supportMessagesAPI.create(payload, user?.id);
+      if (!res.ok) {
+        throw new Error(res.message || 'Failed to send support message');
+      }
+      setSubmitted(true);
+      setFormData({ name: '', email: '', subject: '', message: '' });
+      setTimeout(() => setSubmitted(false), 3000);
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to send support message. Please try again.');
+    }
   };
 
   const toggleTheme = () => {
@@ -263,6 +282,12 @@ export default function Support({ darkMode = false, setDarkMode }) {
           {submitted && (
             <div className="contact-form__success">
               ✓ Thank you! We've received your message and will get back to you soon.
+            </div>
+          )}
+
+          {submitError && (
+            <div className="contact-form__success" style={{ background: 'rgba(220,38,38,0.1)', color: '#b91c1c', borderColor: 'rgba(220,38,38,0.25)' }}>
+              {submitError}
             </div>
           )}
 

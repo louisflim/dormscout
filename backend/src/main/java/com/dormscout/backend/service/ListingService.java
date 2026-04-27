@@ -68,6 +68,18 @@ public class ListingService {
             if (updates.getDescription() != null) {
                 listing.setDescription(updates.getDescription());
             }
+            if (updates.getUniversity() != null) {
+                listing.setUniversity(updates.getUniversity());
+            }
+            if (updates.getGenderPolicy() != null) {
+                listing.setGenderPolicy(updates.getGenderPolicy());
+            }
+            if (updates.getTags() != null) {
+                listing.setTags(updates.getTags());
+            }
+            if (updates.getImages() != null) {
+                listing.setImages(updates.getImages());
+            }
             if (updates.getStatus() != null) {
                 listing.setStatus(updates.getStatus());
             }

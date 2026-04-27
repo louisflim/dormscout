@@ -4,12 +4,58 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITIES, findNearestUniversity, getDistanceFromUniversity } from '../../../constants/universities';
+<<<<<<< Updated upstream
 import { listingsAPI, bookingsAPI } from '../../../utils/api';
 import './Map.css';
 
 const PRIMARY = '#E8622E';
 const BLUE = '#2563EB';
 const CENTER = [10.3157, 123.8854];
+=======
+import { listingsAPI } from '../../../utils/api';
+import './Map.css';
+
+const PRIMARY       = '#E8622E';
+const BLUE          = '#2563EB';
+const CENTER        = [10.3157, 123.8854];
+const BOOKMARK_KEY  = 'dormscout_bookmarks';
+
+function getBookmarks() {
+  try { return JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]'); } catch (_) { return []; }
+}
+
+function isBookmarked(listingId) {
+  return getBookmarks().some(b => String(b.listingId) === String(listingId));
+}
+
+function toggleBookmark(listing, user) {
+  const bookmarks = getBookmarks();
+  const existsIdx = bookmarks.findIndex(b => String(b.listingId) === String(listing.id));
+  if (existsIdx !== -1) {
+    bookmarks.splice(existsIdx, 1);
+  } else {
+    bookmarks.push({
+      id: Date.now(),
+      listingId: listing.id,
+      listingTitle: listing.title,
+      listingAddress: listing.address,
+      listingPrice: listing.price,
+      listingImages: listing.images || [],
+      lat: listing.lat,
+      lng: listing.lng,
+      university: listing.university,
+      landlordName: listing.landlordName || '',
+      genderPolicy: listing.genderPolicy || '',
+      tags: listing.tags || [],
+      description: listing.description || '',
+      tenantId: user?.id || null,
+      savedAt: new Date().toISOString(),
+    });
+  }
+  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks));
+  return existsIdx === -1; // true = was just added
+}
+>>>>>>> Stashed changes
 
 const orangePinIcon = L.divIcon({
   className: '',
@@ -57,6 +103,37 @@ const matchesUni = (u, s) =>
   (u.name && u.name.toLowerCase().includes(s)) ||
   (u.abbr && u.abbr.toLowerCase().includes(s));
 
+<<<<<<< Updated upstream
+=======
+function getReviewStats(listingId) {
+  try {
+    const all = JSON.parse(localStorage.getItem('dormscout_listing_reviews') || '{}');
+    const reviews = all[listingId] || [];
+    if (!reviews.length) return { avg: 0, count: 0 };
+    const avg = reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length;
+    return { avg, count: reviews.length };
+  } catch (_) { return { avg: 0, count: 0 }; }
+}
+
+function StarDisplay({ rating, count, mutedColor = '#888' }) {
+  const full  = Math.floor(rating);
+  const half  = rating - full >= 0.5;
+  const empty = 5 - full - (half ? 1 : 0);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+      <span style={{ color: '#f59e0b', fontSize: '1rem', letterSpacing: '1px' }}>
+        {'★'.repeat(full)}
+        {half ? '½' : ''}
+        {'☆'.repeat(empty < 0 ? 0 : empty)}
+      </span>
+      <span style={{ fontSize: '0.82rem', color: mutedColor }}>
+        {count > 0 ? `${rating.toFixed(1)} (${count} review${count !== 1 ? 's' : ''})` : 'No reviews yet'}
+      </span>
+    </div>
+  );
+}
+
+>>>>>>> Stashed changes
 export default function Map({ darkMode = false, userType = 'tenant', onEditListing }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -65,6 +142,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
   const [listings, setListings] = useState([]);
   const [selectedListing, setSelectedListing] = useState(null);
+<<<<<<< Updated upstream
   const [search, setSearch] = useState('');
   const [bookingStep, setBookingStep] = useState('info');
   const [moveInDate, setMoveInDate] = useState('');
@@ -74,6 +152,21 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [genderPolicyFilter, setGenderPolicyFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
+=======
+  const [bookmarked, setBookmarked]         = useState(false);
+  const [search, setSearch]               = useState('');
+  const [bookingStep, setBookingStep]     = useState('info');
+  const [moveInDate, setMoveInDate]       = useState('');
+  const [pendingCounts, setPendingCounts] = useState({});
+  const [maxDistance, setMaxDistance]       = useState(100);
+  const [maxPrice, setMaxPrice]             = useState(200000);
+  const [schoolFilter, setSchoolFilter]     = useState('all');
+  const [genderPolicyFilter, setGenderPolicyFilter] = useState('all');
+  const [showFilters, setShowFilters]       = useState(false);
+
+  const { getPendingCount, subscribeToBookings, createBooking } = useBooking();
+  const { user, addBooking } = useAuth();
+>>>>>>> Stashed changes
   const [bookingError, setBookingError] = useState('');
 
   const { user } = useAuth();
@@ -97,6 +190,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         setLoading(false);
       }
     }
+<<<<<<< Updated upstream
     loadListings();
   }, []);
 
@@ -108,6 +202,43 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     };
     window.addEventListener('dormscout:listingUpdated', handleUpdate);
     return () => window.removeEventListener('dormscout:listingUpdated', handleUpdate);
+=======
+
+    updatePendingCounts();
+    const unsubscribe = subscribeToBookings(updatePendingCounts);
+
+    return () => unsubscribe();
+  }, [listings, getPendingCount, subscribeToBookings]);
+
+  useEffect(() => {
+    const loadListings = async () => {
+      try {
+        const result = await listingsAPI.getAll();
+        if (result.ok) {
+          const arr = (Array.isArray(result.data) ? result.data : []).map((listing) => {
+            const landlord = listing?.landlord || {};
+            const landlordName = listing?.landlordName
+              || [landlord.firstName, landlord.lastName].filter(Boolean).join(' ').trim()
+              || '';
+
+            return {
+              ...listing,
+              landlordId: listing?.landlordId ?? landlord?.id ?? null,
+              landlordName,
+              landlordBusiness: listing?.landlordBusiness ?? landlord?.businessName ?? '',
+              landlordVerified: Boolean(listing?.landlordVerified ?? landlord?.isVerified),
+            };
+          });
+          setListings(arr);
+        } else {
+          setListings([]);
+        }
+      } catch (err) {
+        setListings([]);
+      }
+    };
+    loadListings();
+>>>>>>> Stashed changes
   }, []);
 
   useEffect(() => {
@@ -187,6 +318,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   };
 
   const handleConfirmBooking = async (listing) => {
+<<<<<<< Updated upstream
     if (!moveInDate) {
       setBookingError('Please select a move-in date.');
       return;
@@ -212,6 +344,59 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       console.error('Booking error:', error);
       setBookingError('Failed to create booking. Please try again.');
       setBookingStep('info');
+=======
+    setBookingError('');
+    if (!moveInDate) { setBookingError('Please select a move-in date.'); return; }
+
+    const userGender = user?.gender;
+    const policy = listing?.genderPolicy;
+    if (policy && policy !== 'Both' && policy !== 'Mixed') {
+      if (!userGender) {
+        setBookingError('Please update your profile with your gender information.');
+        return;
+      }
+      if (policy === 'Girls Only' && userGender === 'Male') {
+        setBookingError('This dorm is for GIRLS ONLY.');
+        return;
+      }
+      if (policy === 'Boys Only' && userGender === 'Female') {
+        setBookingError('This dorm is for BOYS ONLY.');
+        return;
+      }
+    }
+
+    setBookingStep('confirming');
+
+    try {
+      const result = await createBooking(listing, moveInDate, user);
+
+      if (result.success && result.booking) {
+        if (user) {
+          addBooking({
+            id: result.booking.id,
+            dormName: listing.title,
+            address: listing.address,
+            price: listing.price,
+            moveInDate,
+            lat: listing.lat || listing.latitude,
+            lng: listing.lng || listing.longitude,
+            university: listing.university,
+            status: 'pending',
+            listingId: listing.id,
+            landlordId: listing.landlordId || null,
+            landlordName: listing.landlordName || 'Landlord',
+          });
+        }
+        setBookingStep('success');
+      } else {
+        setBookingStep('info');
+        setBookingError(result.message || 'Failed to create booking');
+      }
+    } catch (err) {
+      console.error('Failed to create booking', err);
+      setBookingStep('info');
+      setBookingError('Cannot connect to server. Make sure backend is running.');
+>>>>>>> Stashed changes
     }
   };
 
@@ -316,10 +501,16 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                     <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>💰 Max Price</span>
                     <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#E8622E', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>₱{maxPrice.toLocaleString()}</span>
                   </div>
-                  <input type="range" min="0" max="50000" step="1000" value={maxPrice}
+                  <input type="range" min="0" max="200000" step="1000" value={maxPrice}
                     onChange={(e) => setMaxPrice(Number(e.target.value))}
                     style={{ width: '100%', accentColor: '#E8622E', cursor: 'pointer' }}
                   />
+<<<<<<< Updated upstream
+=======
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', opacity: 0.4 }}>
+                    <span>₱0</span><span>₱200k</span>
+                  </div>
+>>>>>>> Stashed changes
                 </div>
 
                 {!isLandlord && (
@@ -428,8 +619,40 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                 openModal(listing);
               }}
             >
+<<<<<<< Updated upstream
               <div className="map-listing-card-title">{listing.title}</div>
               <div className="map-listing-card-address">{listing.address}</div>
+=======
+              <div className="map-listing-card-title">
+                {listing.title}
+                {listing.landlordVerified && (
+                  <span title="Verified Landlord" style={{ marginLeft: '6px', color: '#16a34a', fontSize: '0.85rem' }}>✅</span>
+                )}
+              </div>
+              {listing.landlordBusiness && (
+                <div style={{ fontSize: '0.78rem', color: darkMode ? '#f4b183' : '#E8622E', fontWeight: 600, marginBottom: '2px' }}>
+                  🏢 {listing.landlordBusiness}
+                </div>
+              )}
+              <div className="map-listing-card-address">{listing.address}</div>
+              {(() => {
+                const { avg, count } = getReviewStats(listing.id);
+                if (!count) return null;
+                return (
+                  <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginTop: '2px' }}>
+                    {'★'.repeat(Math.floor(avg))}{'☆'.repeat(5 - Math.floor(avg))}{' '}
+                    <span style={{ color: darkMode ? '#cbd5e1' : '#888' }}>({count})</span>
+                  </div>
+                );
+              })()}
+              <div className="map-listing-card-pending">
+                {pendingCounts[listing.id] > 0 && (
+                  <span className="map-listing-card-pending-count">
+                    {pendingCounts[listing.id]} pending booking{pendingCounts[listing.id] !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+>>>>>>> Stashed changes
             </button>
           ))
         )}
@@ -444,6 +667,50 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
               <h2 className="map-modal-title">{selectedListing.title}</h2>
               <p className="map-modal-address">{selectedListing.address}</p>
 
+<<<<<<< Updated upstream
+=======
+              {/* Owner / Business Info */}
+              {(() => {
+                const ownerName = selectedListing.landlordName
+                  || [selectedListing.landlord?.firstName, selectedListing.landlord?.lastName].filter(Boolean).join(' ').trim();
+                const biz       = selectedListing.landlordBusiness || selectedListing.landlord?.businessName;
+                const verified  = Boolean(selectedListing.landlordVerified || selectedListing.landlord?.isVerified);
+                const policy    = selectedListing.genderPolicy;
+                if (!ownerName && !biz) return null;
+                return (
+                  <div style={{ margin: '4px 0 10px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', justifyContent: 'space-between' }}>
+                      <div>
+                        {ownerName && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontWeight: 600, color: darkMode ? '#eaeaea' : '#1f2937' }}>
+                            <span>👤 {ownerName}</span>
+                            {verified && <span title="Verified Landlord" style={{ color: '#16a34a', fontSize: '1rem' }}>✅</span>}
+                          </div>
+                        )}
+                        {biz && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: darkMode ? '#cbd5e1' : '#666' }}>
+                            <span>🏢 {biz}</span>
+                            {verified && !ownerName && <span title="Verified Business" style={{ color: '#16a34a' }}>✅</span>}
+                          </div>
+                        )}
+                      </div>
+                      {policy && policy !== 'Both' && (
+                        <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', marginTop: '2px' }}>
+                          ⚠️ {policy}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Stars & Reviews */}
+              {(() => {
+                const { avg, count } = getReviewStats(selectedListing.id);
+                return <div style={{ marginBottom: '12px' }}><StarDisplay rating={avg} count={count} mutedColor={darkMode ? '#cbd5e1' : '#888'} /></div>;
+              })()}
+
+>>>>>>> Stashed changes
               <div className="map-modal-details-grid">
                 <div>
                   <p className="map-modal-detail-label">Price</p>
@@ -474,9 +741,18 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                         📅 Book This Property
                       </button>
                       <button className="map-btn-contact" onClick={() => {
+                        const landlordName = selectedListing.landlordName
+                          || [selectedListing.landlord?.firstName, selectedListing.landlord?.lastName].filter(Boolean).join(' ').trim()
+                          || 'Landlord';
                         const landlord = {
+<<<<<<< Updated upstream
                           id: selectedListing.landlordId,
                           name: selectedListing.landlordName || 'Landlord',
+=======
+                          id: selectedListing.landlordId ?? selectedListing.landlord?.id ?? null,
+                          name: landlordName,
+                          avatar: landlordName.split(' ').map(n => n[0]).join(''),
+>>>>>>> Stashed changes
                         };
                         navigate('/messages', { state: { contactLandlord: landlord } });
                       }}>
@@ -539,10 +815,18 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                     className="map-btn-delete"
                     onClick={async () => {
                       if (window.confirm('Delete this listing?')) {
+<<<<<<< Updated upstream
                         await listingsAPI.deleteListing(selectedListing.id);
                         setListings(listings.filter(l => l.id !== selectedListing.id));
                         setSelectedListing(null);
                         window.dispatchEvent(new Event('dormscout:listingUpdated'));
+=======
+                        const result = await listingsAPI.delete(selectedListing.id);
+                        if (result.ok) {
+                          setListings((prev) => prev.filter((l) => l.id !== selectedListing.id));
+                          setSelectedListing(null);
+                        }
+>>>>>>> Stashed changes
                       }
                     }}
                   >

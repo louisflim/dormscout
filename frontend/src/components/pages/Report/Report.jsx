@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { User, HelpCircle, Info, Moon, Sun, LogOut } from 'lucide-react';
+import { reportsAPI } from '../../../utils/api';
+import { useAuth } from '../../../context/AuthContext';
 import './Report.css';
 
 const TENANT_REPORT_TYPES = ['Listing', 'Landlord'];
@@ -11,8 +13,6 @@ const REASONS_MAP = {
   Landlord: ['Harassment or Discrimination', 'Scam or Fraud', 'Unresponsive or Unprofessional', 'Unsafe Living Conditions', 'Other'],
   Tenant:   ['Property Damage', 'Non-Payment / Late Payment', 'Harassment or Threats', 'Violation of House Rules', 'Other'],
 };
-
-const STORAGE_KEY = 'dormscout_reports';
 
 const COLORS = {
   light: {
@@ -38,10 +38,11 @@ const COLORS = {
 export default function Report({ userType = 'tenant', darkMode = false, setDarkMode }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const stateUserType = location.state?.userType;
   const stateSubject  = location.state?.subject || '';
 
-  const resolvedUserType = stateUserType || userType;
+  const resolvedUserType = stateUserType || user?.userType || userType;
   const [localDarkMode, setLocalDarkMode] = useState(() => {
     try {
       return typeof darkMode === 'boolean' ? darkMode : localStorage.getItem('darkMode') === 'true';
@@ -121,25 +122,27 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
-    // Convert image to data URL for storage
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const report = {
-        id:          Date.now(),
-        reporterType: resolvedUserType,
         reportType,
-        subject:     subject.trim(),
+        subject: subject.trim(),
         reason,
         description: description.trim(),
-        evidence:    reader.result,
-        submittedAt: new Date().toISOString(),
-        status:      'pending',
+        evidence: reader.result,
+        status: 'pending',
       };
       try {
-        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([report, ...existing]));
-      } catch (_) {}
-      setSubmitted(true);
+        const result = await reportsAPI.file(report, JSON.parse(localStorage.getItem('dormScoutUser') || '{}')?.id);
+        if (result.ok) {
+          setSubmitted(true);
+        } else {
+          alert('Failed to submit report: ' + (result.data?.message || result.message));
+        }
+      } catch (err) {
+        console.error('Failed to file report', err);
+        alert('Cannot connect to server. Make sure backend is running.');
+      }
     };
     reader.readAsDataURL(imageFile);
   }

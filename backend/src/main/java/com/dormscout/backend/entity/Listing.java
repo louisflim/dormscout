@@ -3,6 +3,8 @@ package com.dormscout.backend.entity;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,6 +38,16 @@ public class Listing {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    private String university;
+
+    private String genderPolicy;
+
+    @Column(columnDefinition = "TEXT")
+    private String tags;
+
+    @Column(columnDefinition = "TEXT")
+    private String images;
+
     private String status; // "Active", "Inactive"
 
     @Column(name = "created_at")
@@ -45,11 +57,13 @@ public class Listing {
     private LocalDateTime updatedAt;
 
     // Relationships
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "landlord_id", nullable = false)
+    @JsonIgnoreProperties({"password", "listings", "bookings", "createdAt", "updatedAt"})
     private User landlord;
 
     @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<Booking> bookings = new ArrayList<>();
 
     @PrePersist

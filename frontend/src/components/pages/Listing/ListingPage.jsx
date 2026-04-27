@@ -11,6 +11,7 @@ import './ListingPage.css';
 const BLUE = '#2563EB';
 const CEBU_CENTER = [10.3157, 123.8854];
 const CEBU_BOUNDS = { minLat: 10.25, maxLat: 10.45, minLng: 123.82, maxLng: 123.95 };
+const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
 
 const defaultIcon = L.icon({
     iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -112,9 +113,15 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     const [selectedId, setSelectedId] = useState(null);
     const [locationError, setLocationError] = useState('');
 
+<<<<<<< Updated upstream
     const mapContainerRef = useRef(null);
     const mapInstanceRef = useRef(null);
     const markerRef = useRef(null);
+=======
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef  = useRef(null);
+  const markerRef       = useRef(null);
+>>>>>>> Stashed changes
 
     const theme = darkMode ? 'dark' : 'light';
 
@@ -126,6 +133,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         if (editListingData) { startEdit(editListingData); if (onEditHandled) onEditHandled(); }
     }, [editListingData, onEditHandled]);
 
+<<<<<<< Updated upstream
     // Load listings from backend API
     useEffect(() => {
         if (!user?.id) return;
@@ -170,6 +178,26 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
 
         const container = mapContainerRef.current;
         if (!container || mapInstanceRef.current) return;
+=======
+  useEffect(() => {
+    const loadListings = async () => {
+      try {
+        const result = await listingsAPI.getByLandlord(user?.id);
+        if (result.ok) {
+          setListings(result.data);
+        }
+      } catch (err) {
+        setListings([]);
+      }
+    };
+
+    if (user?.id) loadListings();
+
+    return () => {
+      previewUrls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [user, previewUrls]);
+>>>>>>> Stashed changes
 
         try {
             const centerLat = form.lat || CEBU_CENTER[0];
@@ -199,11 +227,29 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
             map.on('click', (e) => {
                 const { lat, lng } = e.latlng;
 
+<<<<<<< Updated upstream
                 if (lat < CEBU_BOUNDS.minLat || lat > CEBU_BOUNDS.maxLat ||
                     lng < CEBU_BOUNDS.minLng || lng > CEBU_BOUNDS.maxLng) {
                     setLocationError('Please pin a location within Cebu City only.');
                     return;
                 }
+=======
+  function handleFileChange(e) {
+    const files = e.target.files; if (!files) return;
+    previewUrls.forEach((u) => URL.revokeObjectURL(u));
+    const selected = Array.from(files).slice(0, 3);
+    const oversized = selected.find((f) => f.size > MAX_IMAGE_SIZE_BYTES);
+    if (oversized) {
+      setErrors((prev) => ({ ...prev, images: 'Each image must be 2MB or less.' }));
+      setImageFiles([]);
+      setPreviewUrls([]);
+      return;
+    }
+    const allowed = selected;
+    setImageFiles(allowed); setPreviewUrls(allowed.map((f) => URL.createObjectURL(f)));
+    setErrors((prev) => ({ ...prev, images: undefined }));
+  }
+>>>>>>> Stashed changes
 
                 setLocationError('');
                 setForm(f => ({ ...f, lat, lng }));
@@ -214,6 +260,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                     markerRef.current = L.marker(e.latlng, { icon: defaultIcon }).addTo(map);
                 }
 
+<<<<<<< Updated upstream
                 fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
                     .then(res => res.json())
                     .then(data => { if (data?.display_name) setForm(f => ({ ...f, address: data.display_name })); })
@@ -445,14 +492,192 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         resetForm();
         setViewMode('manage');
         setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
+=======
+  async function handleAdd(e) {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    let finalImages = form.images || [];
+    if (imageFiles.length > 0) {
+      try {
+        const dataUrls = await filesToDataUrls(imageFiles);
+        finalImages = [...finalImages, ...dataUrls].slice(0, 3);
+      } catch (err) {
+        console.error('Failed to read images', err);
+      }
     }
 
+    const tagsArray = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+    try {
+      const listingData = {
+        title: form.title,
+        address: form.address,
+        price: parseFloat(form.price),
+        latitude: form.lat,
+        longitude: form.lng,
+        description: form.description,
+        totalRooms: parseInt(form.rooms, 10) || 1,
+        availableRooms: parseInt(form.availableRooms, 10) || 1,
+        university: form.university,
+        genderPolicy: form.genderPolicy,
+        tags: tagsArray.join(','),
+        images: JSON.stringify(finalImages),
+        status: 'Active',
+      };
+
+      const result = await listingsAPI.create(listingData, user.id);
+
+      if (result.ok) {
+        const created = (result.data && result.data.listing) || result.listing || result.data;
+        const newListing = {
+          ...created,
+          id: created.id,
+          lat: form.lat,
+          lng: form.lng,
+          images: finalImages,
+          tags: tagsArray,
+          landlordId: user?.id,
+          landlordName: user?.name,
+        };
+        const newListings = [newListing, ...listings];
+        setListings(newListings);
+        notifyListingChange();
+        resetForm();
+        setViewMode('board');
+      }
+    } catch (err) {
+      console.error('Failed to create listing', err);
+      setErrors({ general: 'Failed to create listing. Make sure backend is running.' });
+>>>>>>> Stashed changes
+    }
+
+<<<<<<< Updated upstream
     if (loading && listings.length === 0) {
         return (
             <div className={`listing-wrapper ${theme}`}>
                 <div style={{ padding: 40, textAlign: 'center' }}>
                     <div style={{ fontSize: '2rem' }}>⏳</div>
                     <p>Loading listings...</p>
+=======
+  async function handleUpdate(e) {
+    e.preventDefault(); if (!validateForm()) return;
+    setLoading(true);
+
+    try {
+      let finalImages = form.images || [];
+      if (imageFiles.length > 0) {
+        const dataUrls = await filesToDataUrls(imageFiles);
+        finalImages = [...finalImages, ...dataUrls].slice(0, 3);
+      }
+      const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
+      const originalListing = listings.find((l) => l.id === editingId);
+      const originalImages = Array.isArray(originalListing?.images) ? originalListing.images : [];
+      const imagesChanged = imageFiles.length > 0 || JSON.stringify(form.images || []) !== JSON.stringify(originalImages);
+
+      const updates = {
+        title: form.title,
+        address: form.address,
+        price: parseFloat(form.price) || 0,
+        totalRooms: parseInt(form.rooms, 10) || 1,
+        availableRooms: parseInt(form.availableRooms, 10) || 1,
+        description: form.description,
+        tags: tagsArray.join(','),
+        latitude: form.lat,
+        longitude: form.lng,
+        university: form.university,
+        genderPolicy: form.genderPolicy,
+      };
+
+      if (imagesChanged) {
+        updates.images = JSON.stringify(finalImages);
+      }
+
+      const response = await listingsAPI.update(editingId, updates);
+
+      if (response.success) {
+        const updatedListing = response.listing || response.data?.listing;
+        setListings(prev => prev.map(l => l.id === editingId ? {
+          ...l,
+          ...updates,
+          ...updatedListing,
+          rooms: updates.totalRooms,
+          lat: updates.latitude,
+          lng: updates.longitude,
+          tags: tagsArray,
+          images: finalImages,
+        } : l));
+        notifyListingChange();
+        resetForm();
+        setViewMode('board');
+      } else {
+        setErrors({ general: response.message || 'Failed to update listing' });
+      }
+    } catch (err) {
+      console.error('Update listing error:', err);
+      setErrors({ general: 'Failed to update listing' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function removeListing(id) {
+    if (!window.confirm('Delete this listing?')) return;
+    setLoading(true);
+
+    try {
+      const response = await listingsAPI.delete(id);
+      if (response.success) {
+        setListings(prev => prev.filter(l => l.id !== id));
+        notifyListingChange();
+        if (selectedId === id) setSelectedId(null);
+      } else {
+        setErrors({ general: response.message || 'Failed to delete listing' });
+      }
+    } catch (err) {
+      console.error('Delete listing error:', err);
+      setErrors({ general: 'Failed to delete listing' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startEdit(listing) {
+    setEditingId(listing.id);
+    setForm({
+      title: listing.title || '', address: listing.address || '', price: listing.price || '',
+      rooms: listing.rooms || '', availableRooms: listing.availableRooms || '',
+      description: listing.description || '', tags: (listing.tags || []).join(', '),
+      images: listing.images || [], lat: listing.lat || null, lng: listing.lng || null,
+      university: listing.university || '', genderPolicy: listing.genderPolicy || '',
+    });
+    if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; markerRef.current = null; }
+    setViewMode('manage'); window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function createNewListing() {
+    resetForm(); setViewMode('manage');
+    setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
+  }
+
+  if (loading && listings.length === 0) {
+    return <div style={{ padding: 40, textAlign: 'center' }}>Loading listings...</div>;
+  }
+
+  return (
+    <div className={`listing-wrapper ${theme}`}>
+      <div className="listing-layout">
+        <div className="listing-main">
+          {viewMode === 'board' ? (
+            <>
+              <h3 className="listing-section-title">My Listings</h3>
+              <p className="listing-section-subtitle">Manage your properties. Click a card to select.</p>
+
+              {listings.length === 0 ? (
+                <div className="listing-empty">
+                  <p>No listings yet.</p>
+                  <p>Create your first listing to get started!</p>
+>>>>>>> Stashed changes
                 </div>
             </div>
         );
