@@ -74,7 +74,8 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
   const [bookingError, setBookingError] = useState('');
-  const [isMounted, setIsMounted] = useState(false); // ⬅️ ADD THIS
+  const [isMounted, setIsMounted] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -159,6 +160,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       });
 
       console.log('🗺️ Map created successfully!');
+      setMapReady(true);
     }, 100);
 
     return () => clearTimeout(timer);
@@ -166,43 +168,57 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
   // Add markers for listings
   useEffect(() => {
-    if (!mapInstance.current) return;
-
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-
-    const s = search.toLowerCase();
-    const searchMatchesUniversity = search.trim() && UNIVERSITIES.some(u => matchesUni(u, s));
-    const baseFiltered = searchMatchesUniversity
-      ? listings.filter(l => l.university && l.university.toLowerCase().includes(s))
-      : listings.filter(l => !search.trim() || matchesSearch(l, s));
-
-    const finalFiltered = baseFiltered.filter(l => {
-      if (Number(l.price) > maxPrice) return false;
-      if (isLandlord) {
-        if (l.landlordId && user?.id && String(l.landlordId) !== String(user.id)) return false;
-        if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
-      } else {
-        const dist = user?.school
-          ? getDistanceFromUniversity(l.lat, l.lng, user.school)
-          : findNearestUniversity(l.lat, l.lng);
-        if (dist && dist.distance > maxDistance) return false;
-        if (schoolFilter === 'myschool' && user?.school) {
-          const listingUni = findNearestUniversity(l.lat, l.lng);
-          if (listingUni?.name !== user.school) return false;
-        }
+      if (!mapInstance.current || !mapReady) {
+          console.log('❌ Map not ready yet');
+          return;
       }
-      return true;
-    });
 
-    markersRef.current = finalFiltered
-      .filter(l => l.lat && l.lng)
-      .map((listing) => {
-        const marker = L.marker([listing.lat, listing.lng], { icon: orangePinIcon }).addTo(mapInstance.current);
-        marker.on('click', () => openModal(listing));
-        return marker;
+      console.log('🔄 Updating markers...');
+
+      // Clear existing markers
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current = [];
+
+      const s = search.toLowerCase();
+      const searchMatchesUniversity = search.trim() && UNIVERSITIES.some(u => matchesUni(u, s));
+      const baseFiltered = searchMatchesUniversity
+        ? listings.filter(l => l.university && l.university.toLowerCase().includes(s))
+        : listings.filter(l => !search.trim() || matchesSearch(l, s));
+
+      const finalFiltered = baseFiltered.filter(l => {
+        console.log('🔍 Checking listing:', l.title, '| landlord:', l.landlord, '| user.id:', user?.id);
+        if (Number(l.price) > maxPrice) return false;
+        if (isLandlord) {
+          if (l.landlord?.id && user?.id && String(l.landlord?.id) !== String(user.id)) return false;
+          if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
+        } else {
+          const dist = user?.school
+            ? getDistanceFromUniversity(l.latitude, l.longitude, user.school)
+            : findNearestUniversity(l.latitude, l.longitude);
+          if (dist && dist.distance > maxDistance) return false;
+          if (schoolFilter === 'myschool' && user?.school) {
+            const listingUni = findNearestUniversity(l.latitude, l.longitude);
+            if (listingUni?.name !== user.school) return false;
+          }
+        }
+        return true;
       });
-  }, [listings, search, maxDistance, maxPrice, schoolFilter, genderPolicyFilter, user, isLandlord]);
+
+      console.log('📍 Final filtered:', finalFiltered);
+
+      const withCoords = finalFiltered.filter(l => l.latitude && l.longitude);
+      console.log('📍 With coords:', withCoords);
+
+      markersRef.current = withCoords.map((listing, index) => {
+          console.log('📍 Adding marker', index, ':', listing.title, 'at', listing.latitude, listing.longitude);
+          const marker = L.marker([listing.latitude, listing.longitude], { icon: orangePinIcon }).addTo(mapInstance.current);
+          marker.on('click', () => openModal(listing));
+          return marker;
+      });
+
+      mapInstance.current.invalidateSize();
+      console.log('✅ Total markers:', markersRef.current.length);
+  }, [listings, user, isLandlord, maxDistance, maxPrice, schoolFilter, genderPolicyFilter, search, mapReady]);
 
   const handleUniversityClick = (uni) => {
     if (mapInstance.current && uni.coords) mapInstance.current.setView(uni.coords, 15);
@@ -256,15 +272,15 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     if (search.trim() && !matchesSearch(l, s)) return false;
     if (Number(l.price) > maxPrice) return false;
     if (isLandlord) {
-      if (l.landlordId && user?.id && String(l.landlordId) !== String(user.id)) return false;
+      if (l.landlord?.id && user?.id && String(l.landlord?.id) !== String(user.id)) return false;
       if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
     } else {
       const dist = user?.school
-        ? getDistanceFromUniversity(l.lat, l.lng, user.school)
-        : findNearestUniversity(l.lat, l.lng);
+        ? getDistanceFromUniversity(l.latitude, l.longitude, user.school)
+        : findNearestUniversity(l.latitude, l.longitude);
       if (dist && dist.distance > maxDistance) return false;
       if (schoolFilter === 'myschool' && user?.school) {
-        const listingUni = findNearestUniversity(l.lat, l.lng);
+        const listingUni = findNearestUniversity(l.latitude, l.longitude);
         if (listingUni?.name !== user.school) return false;
       }
     }
@@ -275,7 +291,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const noResults = filteredListings.length === 0 && filteredUnis.length === 0;
 
   const nearest = selectedListing
-    ? (user?.school ? getDistanceFromUniversity(selectedListing.lat, selectedListing.lng, user.school) : null) || findNearestUniversity(selectedListing.lat, selectedListing.lng)
+    ? (user?.school ? getDistanceFromUniversity(selectedListing.latitude, selectedListing.longitude, user.school) : null) || findNearestUniversity(selectedListing.latitude, selectedListing.longitude)
     : null;
 
   // Remove the debug useEffect from the top - it's not needed anymore
@@ -462,8 +478,8 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
               type="button"
               className="map-card-btn map-listing-card"
               onClick={() => {
-                if (listing.lat && listing.lng && mapInstance.current)
-                  mapInstance.current.setView([listing.lat, listing.lng], 15);
+                if (listing.latitude && listing.longitude && mapInstance.current)
+                  mapInstance.current.setView([listing.latitude, listing.longitude], 15);
                 openModal(listing);
               }}
             >
