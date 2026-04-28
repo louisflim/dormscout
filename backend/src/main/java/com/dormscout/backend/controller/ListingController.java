@@ -2,6 +2,7 @@ package com.dormscout.backend.controller;
 
 import com.dormscout.backend.entity.Listing;
 import com.dormscout.backend.entity.User;
+import com.dormscout.backend.response.ApiResponse;
 import com.dormscout.backend.service.ListingService;
 import com.dormscout.backend.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -24,28 +24,25 @@ public class ListingController {
     private UserService userService;
 
     @PostMapping
-    public ResponseEntity<?> createListing(@RequestBody Listing listing, @RequestParam Long landlordId) {
+    public ResponseEntity<ApiResponse<Listing>> createListing(@RequestBody Listing listing, @RequestParam Long landlordId) {
         try {
             Optional<User> landlordOpt = userService.findById(landlordId);
 
             if (!landlordOpt.isPresent()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                        "success", false,
-                        "message", "Landlord not found"
-                ));
+                return ResponseEntity.badRequest().body(
+                        ApiResponse.error("Landlord not found")
+                );
             }
 
             Listing createdListing = listingService.createListing(listing, landlordOpt.get());
-            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                    "success", true,
-                    "message", "Listing created successfully",
-                    "listing", createdListing
-            ));
+            return ResponseEntity.status(HttpStatus.CREATED).body(
+                    ApiResponse.success("Listing created successfully", createdListing)
+            );
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                    "success", false,
-                    "message", e.getMessage()
-            ));
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("Error: " + e.getClass().getSimpleName() + " - " + e.getMessage())
+            );
         }
     }
 
@@ -67,10 +64,9 @@ public class ListingController {
             return ResponseEntity.ok(listingOpt.get());
         }
 
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                "success", false,
-                "message", "Listing not found"
-        ));
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                ApiResponse.error("Listing not found")
+        );
     }
 
     @GetMapping("/landlord/{landlordId}")
@@ -79,52 +75,45 @@ public class ListingController {
             Optional<User> landlordOpt = userService.findById(landlordId);
 
             if (!landlordOpt.isPresent()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                        "success", false,
-                        "message", "Landlord not found"
-                ));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ApiResponse.error("Landlord not found")
+                );
             }
 
             List<Listing> listings = listingService.getListingsByLandlord(landlordOpt.get());
             return ResponseEntity.ok(listings);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                    "success", false,
-                    "message", e.getMessage()
-            ));
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ApiResponse.error(e.getMessage())
+            );
         }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateListing(@PathVariable Long id, @RequestBody Listing updates) {
+    public ResponseEntity<ApiResponse<Listing>> updateListing(@PathVariable Long id, @RequestBody Listing updates) {
         try {
             Listing updatedListing = listingService.updateListing(id, updates);
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Listing updated successfully",
-                    "listing", updatedListing
-            ));
+            return ResponseEntity.ok(
+                    ApiResponse.success("Listing updated successfully", updatedListing)
+            );
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                    "success", false,
-                    "message", e.getMessage()
-            ));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    ApiResponse.error(e.getMessage())
+            );
         }
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteListing(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> deleteListing(@PathVariable Long id) {
         try {
             listingService.deleteListing(id);
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Listing deleted successfully"
-            ));
+            return ResponseEntity.ok(
+                    ApiResponse.success("Listing deleted successfully", null)
+            );
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                    "success", false,
-                    "message", "Listing not found"
-            ));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    ApiResponse.error("Listing not found")
+            );
         }
     }
 }
