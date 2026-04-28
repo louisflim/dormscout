@@ -3,6 +3,7 @@ package com.dormscout.backend.controller;
 import com.dormscout.backend.entity.User;
 import com.dormscout.backend.service.UserService;
 import com.dormscout.backend.dto.LoginRequest;
+import com.dormscout.backend.dto.RegisterRequest;
 import com.dormscout.backend.dto.UserDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -21,9 +22,9 @@ public class UserController {
     private UserService userService;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody User user) {
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         try {
-            User registeredUser = userService.register(user);
+            User registeredUser = userService.register(request);  // Pass the DTO
             UserDTO userDTO = userService.convertToDTO(registeredUser);
             return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                     "success", true,
