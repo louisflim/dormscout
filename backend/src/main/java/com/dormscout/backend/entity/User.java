@@ -1,5 +1,6 @@
 package com.dormscout.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -22,6 +23,7 @@ public class User {
     private String email;
 
     @Column(nullable = false)
+    @JsonIgnore  // NEVER expose password in API responses
     private String password;
 
     @Column(nullable = false)
@@ -46,9 +48,11 @@ public class User {
     private LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "landlord", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore  // BREAKS CIRCULAR REFERENCE
     private List<Listing> listings = new ArrayList<>();
 
     @OneToMany(mappedBy = "tenant", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore  // Prevents circular reference with Booking → User
     private List<Booking> bookings = new ArrayList<>();
 
     @PrePersist
