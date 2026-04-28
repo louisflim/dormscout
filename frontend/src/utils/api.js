@@ -61,13 +61,10 @@ export const userAPI = {
     },
 };
 
-// ✅ ADD THIS - Listings API
 export const listingsAPI = {
     getAllListings: async () => {
         try {
-            console.log('🔄 API: Fetching all listings...');
             const response = await api.get('/listings');
-            console.log('📦 Listings response:', response.data);
             return response.data;
         } catch (error) {
             console.error('❌ API: getAllListings error:', error);
@@ -95,15 +92,24 @@ export const listingsAPI = {
         }
     },
 
-    createListing: async (listingData) => {
-        try {
-            const response = await api.post('/listings', listingData);
-            return response.data;
-        } catch (error) {
-            console.error('❌ API: createListing error:', error);
-            return null;
-        }
-    },
+    createListing: async (listingData, landlordId) => {
+            try {
+                const response = await api.post('/listings', listingData, {
+                    params: { landlordId }
+                });
+                return response.data;  // Clean JSON - no parsing needed now
+            } catch (error) {
+                console.error('❌ API: createListing error:', error);
+                let errorMessage = error.message;
+                if (error.response?.data?.message) {
+                    errorMessage = error.response.data.message;
+                }
+                return {
+                    success: false,
+                    message: errorMessage
+                };
+            }
+        },
 
     updateListing: async (id, listingData) => {
         try {
@@ -111,7 +117,7 @@ export const listingsAPI = {
             return response.data;
         } catch (error) {
             console.error('❌ API: updateListing error:', error);
-            return null;
+            return { success: false, message: error.message };
         }
     },
 
