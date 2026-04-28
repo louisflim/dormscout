@@ -2,6 +2,7 @@ package com.dormscout.backend.service;
 
 import com.dormscout.backend.entity.User;
 import com.dormscout.backend.repository.UserRepository;
+import com.dormscout.backend.dto.RegisterRequest;
 import com.dormscout.backend.dto.UserDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,19 +19,35 @@ public class UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    public User register(User user) {
+    public User register(RegisterRequest request) {
         // Check if user already exists
-        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already exists");
         }
 
-        // Encode password
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-
-        // Set default values
-        if (user.getFirstName() == null || user.getFirstName().isEmpty()) {
+        // Validate required fields
+        if (request.getFirstName() == null || request.getFirstName().trim().isEmpty()) {
             throw new RuntimeException("First name is required");
         }
+        if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
+            throw new RuntimeException("Password is required");
+        }
+
+        // Create new user from request
+        User user = new User();
+        user.setEmail(request.getEmail());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));  // Encode here
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setPhone(request.getPhone());
+        user.setUserType(request.getUserType());
+        user.setGender(request.getGender());
+        user.setSchool(request.getSchool());
+        user.setCourse(request.getCourse());
+        user.setYearLevel(request.getYearLevel());
+        user.setStudentId(request.getStudentId());
+        user.setBusinessName(request.getBusinessName());
+        user.setBusinessPermit(request.getBusinessPermit());
 
         return userRepository.save(user);
     }
