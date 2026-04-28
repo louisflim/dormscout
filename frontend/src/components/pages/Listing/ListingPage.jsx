@@ -111,6 +111,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     const [viewMode, setViewMode] = useState(mode);
     const [selectedId, setSelectedId] = useState(null);
     const [locationError, setLocationError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const mapContainerRef = useRef(null);
     const mapInstanceRef = useRef(null);
@@ -299,8 +300,12 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
 
     async function handleAdd(e) {
         e.preventDefault();
+        if (isSubmitting) return;
         if (!validateForm()) return;
+
+        setIsSubmitting(true);
         setLoading(true);
+        setErrors({});
 
         try {
             let finalImages = form.images || [];
@@ -308,7 +313,9 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 const dataUrls = await filesToDataUrls(imageFiles);
                 finalImages = [...finalImages, ...dataUrls].slice(0, 3);
             }
-            const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
+            const tagsArray = form.tags
+                ? form.tags.split(',').map((t) => t.trim()).filter(Boolean)
+                : [];
 
             const listingData = {
                 title: form.title,
@@ -319,36 +326,44 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 description: form.description,
                 tags: tagsArray,
                 images: finalImages,
-                lat: form.lat,
-                lng: form.lng,
+                latitude: form.lat,
+                longitude: form.lng,
                 university: form.university,
                 genderPolicy: form.genderPolicy,
             };
 
-            const response = await listingsAPI.create(listingData, user.id);
+            const response = await listingsAPI.createListing(listingData, user.id);
 
-            if (response.success) {
-                const newListing = response.listing || response.data?.listing;
+            if (response.success && response.data?.id) {
+                const newListing = response.data;
                 setListings(prev => [newListing, ...prev]);
                 notifyListingChange();
                 window.dispatchEvent(new Event('dormscout:listingUpdated'));
                 resetForm();
                 setViewMode('board');
             } else {
-                setErrors({ general: response.message || 'Failed to create listing' });
+                setErrors({ general: response?.message || 'Failed to create listing' });
             }
         } catch (err) {
             console.error('Create listing error:', err);
-            setErrors({ general: 'Failed to create listing' });
+            setErrors({ general: 'Failed to create listing: ' + err.message });
         } finally {
             setLoading(false);
+            setIsSubmitting(false);
         }
     }
 
     async function handleUpdate(e) {
         e.preventDefault();
+
+        // Guard against double submission - MUST BE FIRST CHECK
+        if (isSubmitting) return;
+
         if (!validateForm()) return;
+
+        setIsSubmitting(true);
         setLoading(true);
+        setErrors({});
 
         try {
             let finalImages = form.images || [];
@@ -356,7 +371,9 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 const dataUrls = await filesToDataUrls(imageFiles);
                 finalImages = [...finalImages, ...dataUrls].slice(0, 3);
             }
-            const tagsArray = form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
+            const tagsArray = form.tags
+                ? form.tags.split(',').map((t) => t.trim()).filter(Boolean)
+                : [];
 
             const updates = {
                 title: form.title,
@@ -367,28 +384,35 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 description: form.description,
                 tags: tagsArray,
                 images: finalImages,
-                lat: form.lat,
-                lng: form.lng,
+                latitude: form.lat,
+                longitude: form.lng,
                 university: form.university,
                 genderPolicy: form.genderPolicy,
             };
 
-            const response = await listingsAPI.update(editingId, updates);
+            console.log('📤 Sending update data:', updates);
 
-            if (response.success) {
+            const response = await listingsAPI.updateListing(editingId, updates);
+            console.log('📥 Update Response:', response);
+
+            // Handle response properly - matching backend format
+            const updatedListing = response?.listing;
+
+            if (updatedListing && updatedListing.id) {
                 setListings(prev => prev.map(l => l.id === editingId ? { ...l, ...updates } : l));
                 notifyListingChange();
                 window.dispatchEvent(new Event('dormscout:listingUpdated'));
                 resetForm();
                 setViewMode('board');
             } else {
-                setErrors({ general: response.message || 'Failed to update listing' });
+                setErrors({ general: response?.message || 'Failed to update listing' });
             }
         } catch (err) {
             console.error('Update listing error:', err);
-            setErrors({ general: 'Failed to update listing' });
+            setErrors({ general: 'Failed to update listing: ' + err.message });
         } finally {
             setLoading(false);
+            setIsSubmitting(false);
         }
     }
 
@@ -397,14 +421,15 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         setLoading(true);
 
         try {
-            const response = await listingsAPI.delete(id);
-            if (response.success) {
+            // ✅ FIX: Use 'deleteListing' instead of 'delete'
+            const success = await listingsAPI.deleteListing(id);
+            if (success) {
                 setListings(prev => prev.filter(l => l.id !== id));
                 notifyListingChange();
                 window.dispatchEvent(new Event('dormscout:listingUpdated'));
                 if (selectedId === id) setSelectedId(null);
             } else {
-                alert(response.message || 'Failed to delete listing');
+                alert('Failed to delete listing');
             }
         } catch (err) {
             console.error('Delete listing error:', err);
