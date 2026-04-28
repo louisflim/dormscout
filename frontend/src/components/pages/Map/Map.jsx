@@ -61,7 +61,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersRef = useRef([]);
-  const uniMarkersRef = useRef([]);
 
   const [listings, setListings] = useState([]);
   const [selectedListing, setSelectedListing] = useState(null);
@@ -75,6 +74,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
   const [bookingError, setBookingError] = useState('');
+  const [isMounted, setIsMounted] = useState(false); // ⬅️ ADD THIS
 
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -83,6 +83,13 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const isLandlord = normalizedUserType === 'landlord';
   const theme = darkMode ? 'dark' : 'light';
 
+  // ⬅️ SET MOUNTED STATE AFTER RENDER
+  useEffect(() => {
+    setIsMounted(true);
+    console.log('✅ Component mounted');
+  }, []);
+
+  // Load listings (unchanged)
   useEffect(() => {
     async function loadListings() {
       try {
@@ -110,25 +117,54 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     return () => window.removeEventListener('dormscout:listingUpdated', handleUpdate);
   }, []);
 
+  // ⬅️ FIXED: Map initialization - wait for mount
   useEffect(() => {
-    if (!mapRef.current) return;
-    mapInstance.current = L.map(mapRef.current, { center: CENTER, zoom: 13, scrollWheelZoom: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(mapInstance.current);
-    uniMarkersRef.current = UNIVERSITIES.map((uni) => {
-      const marker = L.marker(uni.coords, { icon: makeBlueLabel(uni.abbr) }).addTo(mapInstance.current);
-      marker.bindPopup(`<b>${uni.name}</b>`);
-      marker.on('click', () => handleUniversityClick(uni));
-      return marker;
-    });
-    return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove();
-        mapInstance.current = null;
-      }
-      uniMarkersRef.current = [];
-    };
-  }, []);
+    // Wait for component to mount and ref to be available
+    if (!isMounted) return;
 
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      console.log('🎯 Checking mapRef after mount:', mapRef.current);
+
+      if (!mapRef.current || mapInstance.current) {
+        console.log('❌ mapRef.current is still null!');
+        return;
+      }
+
+      console.log('🗺️ Creating map...');
+
+      const map = L.map(mapRef.current, {
+        center: CENTER,
+        zoom: 13,
+        scrollWheelZoom: true,
+        preferCanvas: true,
+      });
+
+      mapInstance.current = map;
+
+      // Add tile layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+      }).addTo(map);
+
+      console.log('✅ Tile layer added');
+
+      // Add university markers
+      UNIVERSITIES.forEach((uni) => {
+        if (uni.coords) {
+          const marker = L.marker(uni.coords, { icon: makeBlueLabel(uni.abbr) }).addTo(map);
+          marker.bindPopup(`<b>${uni.name}</b>`);
+        }
+      });
+
+      console.log('🗺️ Map created successfully!');
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [isMounted]);
+
+  // Add markers for listings
   useEffect(() => {
     if (!mapInstance.current) return;
 
@@ -242,6 +278,8 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     ? (user?.school ? getDistanceFromUniversity(selectedListing.lat, selectedListing.lng, user.school) : null) || findNearestUniversity(selectedListing.lat, selectedListing.lng)
     : null;
 
+  // Remove the debug useEffect from the top - it's not needed anymore
+
   if (loading) {
     return (
       <div className={`map-wrapper ${theme}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
@@ -256,6 +294,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   return (
     <div className={`map-wrapper ${theme}`}>
       <div className="map-search-wrap" style={{ alignItems: 'center', gap: '8px', position: 'relative' }}>
+        {/* ... search input and filters ... same as before */}
         <div style={{
           flex: 1, display: 'flex', alignItems: 'center',
           background: darkMode ? '#16213e' : '#fff',
@@ -377,7 +416,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
       <div className="map-container-wrap">
         <div className="map-box">
-          <div ref={mapRef} className="map-inner" />
+          <div ref={mapRef} className="map-inner" style={{ width: '100%', height: '520px' }} />
 
           <div className="map-legend">
             <div className="map-legend-title">Legend</div>

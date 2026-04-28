@@ -138,20 +138,6 @@
 .map-wrapper.light .map-listing-card-address { color: #666; }
 .map-wrapper.dark  .map-listing-card-address { color: #a0a0b0; }
 
-.map-listing-card-pending {
-  margin-top: 8px;
-  font-size: 12px;
-}
-
-.map-listing-card-pending-count {
-  display: inline-block;
-  background: #dc3545;
-  color: #fff;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-weight: 600;
-}
-
 /* Empty state */
 .map-empty-state {
   padding: 24px;
