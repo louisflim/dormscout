@@ -1,5 +1,7 @@
 package com.dormscout.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.dormscout.backend.converter.StringListConverter;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -38,6 +40,20 @@ public class Listing {
 
     private String status; // "Active", "Inactive"
 
+    @Convert(converter = StringListConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private List<String> tags;
+
+    @Convert(converter = StringListConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private List<String> images;
+
+    private String rooms;   // "Single Room", "Double Room", etc.
+
+    private String university;
+
+    private String genderPolicy; // "Girls Only", "Boys Only", "Mixed"
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -47,9 +63,11 @@ public class Listing {
     // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "landlord_id", nullable = false)
+    @JsonIgnore  // BREAKS CIRCULAR REFERENCE
     private User landlord;
 
     @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore  // Prevents circular reference with Booking → Listing
     private List<Booking> bookings = new ArrayList<>();
 
     @PrePersist
