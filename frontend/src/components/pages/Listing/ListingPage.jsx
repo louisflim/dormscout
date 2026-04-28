@@ -5,7 +5,7 @@ import { useBooking } from '../../../context/BookingContext';
 import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITIES } from '../../../constants/universities';
 import TenantManagement from './TenantManagement';
-import { listingsAPI } from '../../../utils/api';
+import { listingsAPI, activitiesAPI } from '../../../utils/api';
 import './ListingPage.css';
 
 const BLUE = '#2563EB';
@@ -93,7 +93,7 @@ const filesToDataUrls = (files) =>
 
 const EMPTY_FORM = {
     title: '', address: '', price: '', rooms: '', availableRooms: '',
-    description: '', tags: '', images: [], lat: null, lng: null, university: '', genderPolicy: '',
+    description: '', tags: '', images: [], latitude: null, longitude: null, university: '', genderPolicy: '',
 };
 
 export default function ListingPage({ mode = 'board', darkMode = false, editListingData, onEditHandled }) {
@@ -108,6 +108,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     const [imageFiles, setImageFiles] = useState([]);
     const [previewUrls, setPreviewUrls] = useState([]);
     const [errors, setErrors] = useState({});
+    const [successMessage, setSuccessMessage] = useState('');
     const [viewMode, setViewMode] = useState(mode);
     const [selectedId, setSelectedId] = useState(null);
     const [locationError, setLocationError] = useState('');
@@ -306,6 +307,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         setIsSubmitting(true);
         setLoading(true);
         setErrors({});
+        setSuccessMessage('');
 
         try {
             let finalImages = form.images || [];
@@ -339,8 +341,22 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 setListings(prev => [newListing, ...prev]);
                 notifyListingChange();
                 window.dispatchEvent(new Event('dormscout:listingUpdated'));
+
+                try {
+                    activitiesAPI.createActivity(
+                        user.id,
+                        'listing',
+                        `You created a new listing "${form.title}"`,
+                        'Just now',
+                        'listing'
+                    );
+                } catch (actErr) {
+                    console.error('Failed to create activity:', actErr);
+                }
+
+                setSuccessMessage('Listing created successfully!');
                 resetForm();
-                setViewMode('board');
+                setTimeout(() => setViewMode('board'), 1500);
             } else {
                 setErrors({ general: response?.message || 'Failed to create listing' });
             }
@@ -355,15 +371,13 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
 
     async function handleUpdate(e) {
         e.preventDefault();
-
         // Guard against double submission - MUST BE FIRST CHECK
         if (isSubmitting) return;
-
         if (!validateForm()) return;
-
         setIsSubmitting(true);
         setLoading(true);
         setErrors({});
+        setSuccessMessage('');
 
         try {
             let finalImages = form.images || [];
@@ -390,20 +404,29 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 genderPolicy: form.genderPolicy,
             };
 
-            console.log('📤 Sending update data:', updates);
-
             const response = await listingsAPI.updateListing(editingId, updates);
             console.log('📥 Update Response:', response);
 
-            // Handle response properly - matching backend format
-            const updatedListing = response?.listing;
-
-            if (updatedListing && updatedListing.id) {
+            if (response?.success && response?.data) {
                 setListings(prev => prev.map(l => l.id === editingId ? { ...l, ...updates } : l));
                 notifyListingChange();
                 window.dispatchEvent(new Event('dormscout:listingUpdated'));
+
+                try {
+                    activitiesAPI.createActivity(
+                        user.id,
+                        'listing',
+                        `You updated listing "${form.title}"`,
+                        'Just now',
+                        'listing'
+                    );
+                } catch (actErr) {
+                    console.error('Failed to create activity:', actErr);
+                }
+
+                setSuccessMessage('Listing updated successfully!');
                 resetForm();
-                setViewMode('board');
+                setTimeout(() => setViewMode('board'), 1500);
             } else {
                 setErrors({ general: response?.message || 'Failed to update listing' });
             }
@@ -450,8 +473,8 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
             description: listing.description || '',
             tags: (listing.tags || []).join(', '),
             images: listing.images || [],
-            lat: listing.lat || null,
-            lng: listing.lng || null,
+            latitude: listing.latitude || listing.lat || null,
+            longitude: listing.longitude || listing.lng || null,
             university: listing.university || '',
             genderPolicy: listing.genderPolicy || '',
         });
@@ -576,6 +599,12 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                     <div style={{ padding: '10px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px', marginBottom: '12px' }}>
                                         {errors.general}
                                     </div>
+                                )}
+
+                                {successMessage && (
+                                        <div style={{ padding: '10px', backgroundColor: '#efe', color: '#080', borderRadius: '6px', marginBottom: '12px' }}>
+                                            ✅ {successMessage}
+                                        </div>
                                 )}
 
                                 <div className="form-row-2">

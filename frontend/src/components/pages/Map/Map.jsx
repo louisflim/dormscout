@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITIES, findNearestUniversity, getDistanceFromUniversity } from '../../../constants/universities';
-import { listingsAPI, bookingsAPI } from '../../../utils/api';
+import { listingsAPI, bookingsAPI, activitiesAPI } from '../../../utils/api';
 import './Map.css';
 
 const PRIMARY = '#E8622E';
@@ -257,7 +257,26 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         status: 'pending'
       };
 
-      await bookingsAPI.createBooking(bookingData);
+      const response = await bookingsAPI.createBooking(bookingData);
+      console.log('📋 Booking response:', response);
+
+      if (!response?.success || !response?.booking) {
+        throw new Error(response?.message || 'Booking creation failed');
+      }
+
+      try {
+        await activitiesAPI.createActivity(
+          user?.id,
+          'booking',
+          `You sent a booking request for "${listing.title}"`,
+          'Just now',
+          'booking'
+        );
+      } catch (actErr) {
+        console.error('Failed to create activity:', actErr);
+      }
+
+      window.dispatchEvent(new Event('dormscout:bookingUpdated'));
 
       setBookingStep('success');
     } catch (error) {

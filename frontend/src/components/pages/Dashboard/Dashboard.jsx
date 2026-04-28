@@ -11,7 +11,7 @@ import Notifications from '../Notifications/Notifications';
 import { useBooking } from '../../../context/BookingContext';
 import { useAuth } from '../../../context/AuthContext';
 import './Dashboard.css';
-import { listingsAPI, bookingsAPI } from '../../../utils/api';
+import { listingsAPI, bookingsAPI, activitiesAPI } from '../../../utils/api';
 
 import {
   LayoutDashboard,
@@ -86,6 +86,22 @@ function getGreeting() {
   return 'Good evening';
 }
 
+function formatTimeAgo(dateString) {
+  if (!dateString) return 'Just now';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+}
+
 const SECTION_LABELS = {
   map:           <><span style={{ color: '#E8622E' }}>Map </span><span style={{ color: '#5BADA8' }}>View</span></>,
   settings:      <><span style={{ color: '#E8622E' }}>Settings </span><span style={{ color: '#5BADA8' }}>View</span></>,
@@ -114,6 +130,7 @@ function StatusBadge({ status }) {
     Active:   { bg: 'rgba(91,173,168,0.15)',  color: '#5BADA8' },
     Pending:  { bg: 'rgba(245,158,11,0.15)',  color: '#B45309' },
     Rejected: { bg: 'rgba(220,53,69,0.15)',   color: '#dc3545' },
+    Accepted: { bg: 'rgba(91,173,168,0.15)',   color: '#5BADA8' },
     None:     { bg: 'rgba(156,163,175,0.15)', color: '#6B7280' },
   };
   const s = map[status] || map.None;
@@ -127,8 +144,34 @@ function StatusBadge({ status }) {
   );
 }
 
-// ─── Tenant Overview ──────────────────────────────────────────────────────────
+// ─── Activity Item Component ──────────────────────────────────────────────────
 
+function ActivityItem({ item, onNavigate }) {
+  const cardBg = '#f9f9f9';
+  const text = '#333';
+  const subText = '#666';
+
+  return (
+    <div
+      className="activity-item"
+      style={{ background: cardBg }}
+      onClick={() => item.nav && onNavigate(item.nav)}
+    >
+      <span className="activity-icon">
+        {ACTIVITY_ICON[item.type] || <Bell size={15} color="#666" />}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: 13, color: text, fontWeight: 500 }}>{item.text}</p>
+        <p style={{ margin: 0, fontSize: 11, color: subText }}>
+          {item.createdAt ? formatTimeAgo(item.createdAt) : (item.time || 'Just now')}
+        </p>
+      </div>
+      {item.nav && <ChevronRight size={14} color={subText} />}
+    </div>
+  );
+}
+
+// ─── Tenant Overview ──────────────────────────────────────────────────────────
 function TenantOverview({ darkMode, onNavigate, user }) {
   const cardBg  = darkMode ? '#16213e' : '#fff';
   const text    = darkMode ? '#eaeaea' : '#333';
@@ -137,7 +180,9 @@ function TenantOverview({ darkMode, onNavigate, user }) {
 
   const displayName    = user?.name?.split(' ')[0] || 'User';
   const [bookings, setBookings] = useState(user?.bookings || []);
+  const [activities, setActivities] = useState([]);
 
+  // Load bookings
   useEffect(() => {
     if (!user?.id) return;
 
@@ -152,10 +197,47 @@ function TenantOverview({ darkMode, onNavigate, user }) {
       });
   }, [user?.id]);
 
+  useEffect(() => {
+      if (!user?.id) return;
+
+      activitiesAPI.getActivitiesByUser(user.id)
+          .then(response => {
+              // Handle different response formats
+              let data = [];
+              if (Array.isArray(response)) {
+                  data = response;
+              } else if (response?.data && Array.isArray(response.data)) {
+                  data = response.data;
+              } else if (response?.data?.data && Array.isArray(response.data.data)) {
+                  data = response.data.data;
+              }
+              setActivities(data);
+          })
+          .catch(err => {
+              console.error('Failed to load activities:', err);
+              setActivities([]);
+          });
+
+      window.addEventListener('dormscout:bookingUpdated', () => {
+          activitiesAPI.getActivitiesByUser(user.id)
+              .then(response => {
+                  let data = [];
+                  if (Array.isArray(response)) {
+                      data = response;
+                  } else if (response?.data && Array.isArray(response.data)) {
+                      data = response.data;
+                  } else if (response?.data?.data && Array.isArray(response.data.data)) {
+                      data = response.data.data;
+                  }
+                  setActivities(data);
+              })
+              .catch(() => {});
+      });
+  }, [user?.id]);
+
   const activeBooking   = bookings.find(b => b.status === 'accepted');
   const pendingBookings = bookings.filter(b => b.status === 'pending');
-  const activities     = user?.activities || [];
-  const totalBookings  = bookings.length;
+  const totalBookings   = bookings.length;
   const activeCount    = activeBooking ? 1 : 0;
   const pendingCount   = pendingBookings.length;
 
@@ -195,14 +277,14 @@ function TenantOverview({ darkMode, onNavigate, user }) {
             <>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 800, fontSize: 16, color: text }}>{activeBooking.dormName}</span>
+                  <span style={{ fontWeight: 800, fontSize: 16, color: text }}>{activeBooking.dormName || activeBooking.listingTitle || 'Property'}</span>
                   <StatusBadge status="Active" />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {[
                     ['Room',     activeBooking.room     || 'N/A'],
                     ['Landlord', activeBooking.landlord || 'N/A'],
-                    ['Price',    activeBooking.price ? `₱${activeBooking.price}` : 'N/A'],
+                    ['Price',    activeBooking.price ? `₱${Number(activeBooking.price).toLocaleString()}` : 'N/A'],
                   ].map(([label, val]) => (
                     <div key={label} style={{ display: 'flex', gap: 8, fontSize: 13 }}>
                       <span style={{ color: subText, width: 60, flexShrink: 0 }}>{label}</span>
@@ -292,16 +374,8 @@ function TenantOverview({ darkMode, onNavigate, user }) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {activities.slice(0, 5).map((item) => (
-                <div key={item.id} className="activity-item" style={{ background: rowBg }}
-                  onClick={() => item.nav && onNavigate(item.nav)}>
-                  <span className="activity-icon">{ACTIVITY_ICON[item.type] || <Bell size={15} color="#666" />}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 13, color: text, fontWeight: 500 }}>{item.text}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: subText }}>{item.time}</p>
-                  </div>
-                  {item.nav && <ChevronRight size={14} color={subText} />}
-                </div>
+              {(Array.isArray(activities) ? activities : []).slice(0, 5).map((item) => (
+                <ActivityItem key={item.id || item.createdAt} item={item} onNavigate={onNavigate} />
               ))}
             </div>
           )}
@@ -361,6 +435,7 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
   const [listings, setListings] = useState([]);
   const [activities, setActivities] = useState([]);
 
+  // Load listings
   useEffect(() => {
     if (!user?.id) return;
 
@@ -389,19 +464,51 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
   }, [user?.id]);
 
   useEffect(() => {
-    const loadActivities = () => {
-      if (user?.activities && user.activities.length > 0) {
-        setActivities(user.activities);
-      }
-    };
+      if (!user?.id) return;
 
-    loadActivities();
+      activitiesAPI.getActivitiesByUser(user.id)
+          .then(response => {
+              let data = [];
+              if (Array.isArray(response)) {
+                  data = response;
+              } else if (response?.data && Array.isArray(response.data)) {
+                  data = response.data;
+              } else if (response?.data?.data && Array.isArray(response.data.data)) {
+                  data = response.data.data;
+              }
+              setActivities(data);
+          })
+          .catch(err => {
+              console.error('Failed to load activities:', err);
+              setActivities([]);
+          });
 
-    const handleUpdate = () => loadActivities();
-    window.addEventListener('dormscout:profileUpdated', handleUpdate);
 
-    return () => window.removeEventListener('dormscout:profileUpdated', handleUpdate);
-  }, [user?.id, user?.activities]);
+
+      const handleBookingUpdate = () => {
+        activitiesAPI.getActivitiesByUser(user.id)
+          .then(response => {
+            let data = [];
+            if (Array.isArray(response)) {
+              data = response;
+            } else if (response?.data && Array.isArray(response.data)) {
+              data = response.data;
+            } else if (response?.data?.data && Array.isArray(response.data.data)) {
+              data = response.data.data;
+            }
+            setActivities(data);
+          })
+          .catch(() => {});
+      };
+
+      window.addEventListener('dormscout:bookingUpdated', handleBookingUpdate);
+      window.addEventListener('dormscout:listingUpdated', handleBookingUpdate);
+
+      return () => {
+        window.removeEventListener('dormscout:bookingUpdated', handleBookingUpdate);
+        window.removeEventListener('dormscout:listingUpdated', handleBookingUpdate);
+      };
+  }, [user?.id]);
 
   const totalRoomsAvailable = listings.reduce((sum, l) => sum + (parseInt(l.availableRooms) || 0), 0);
 
@@ -438,36 +545,41 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
     };
   }, [listings, contextBookings, subscribeToBookings]);
 
+  const refreshActivities = () => {
+    activitiesAPI.getActivitiesByUser(user.id)
+      .then(response => {
+        const data = Array.isArray(response) ? response : (response?.data || []);
+        setActivities(data);
+      })
+      .catch(() => {});
+  };
+
   const handleAccept = (request) => {
     acceptBooking(request.id);
     updateBookingStatus(request.id, 'accepted');
 
-    const newActivity = {
-      id: Date.now(),
-      type: 'booking',
-      text: `You accepted ${request.tenantName}'s booking request for "${request.listingTitle}"`,
-      time: 'Just now',
-      nav: 'listing',
-      createdAt: new Date().toISOString(),
-    };
+    const text = `You accepted ${request.tenantName || 'a tenant'}'s booking for "${request.listingTitle || 'property'}"`;
 
-    setActivities(prev => [newActivity, ...prev].slice(0, 20));
+    // Save to backend
+    activitiesAPI.createActivity(user.id, 'booking', text, 'Just now', 'listing')
+      .then(() => refreshActivities())
+      .catch(err => console.error('Failed to create activity:', err));
+
+    window.dispatchEvent(new CustomEvent('dormscout:bookingUpdated'));
   };
 
   const handleReject = (request) => {
     rejectBooking(request.id);
     updateBookingStatus(request.id, 'rejected');
 
-    const newActivity = {
-      id: Date.now(),
-      type: 'booking',
-      text: `You rejected ${request.tenantName}'s booking request for "${request.listingTitle}"`,
-      time: 'Just now',
-      nav: 'listing',
-      createdAt: new Date().toISOString(),
-    };
+    const text = `You rejected ${request.tenantName || 'a tenant'}'s booking for "${request.listingTitle || 'property'}"`;
 
-    setActivities(prev => [newActivity, ...prev].slice(0, 20));
+    // Save to backend
+    activitiesAPI.createActivity(user.id, 'booking', text, 'Just now', 'listing')
+      .then(() => refreshActivities())
+      .catch(err => console.error('Failed to create activity:', err));
+
+    window.dispatchEvent(new CustomEvent('dormscout:bookingUpdated'));
   };
 
   return (
@@ -752,15 +864,7 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {activities.slice(0, 5).map((item) => (
-                <div key={item.id} className="activity-item" style={{ background: rowBg }}
-                  onClick={() => item.nav && onNavigate(item.nav)}>
-                  <span className="activity-icon">{ACTIVITY_ICON[item.type] || <Bell size={15} color="#666" />}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 13, color: text, fontWeight: 500 }}>{item.text}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: subText }}>{item.time}</p>
-                  </div>
-                  {item.nav && <ChevronRight size={14} color={subText} />}
-                </div>
+                <ActivityItem key={item.id || item.createdAt} item={item} onNavigate={onNavigate} />
               ))}
             </div>
           )}
@@ -781,7 +885,6 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   const { getUnreadCount } = useBooking();
   const { user, logout, userType: authUserType } = useAuth();
 
-  // FIX: Normalize userType to lowercase for comparison
   const normalizedUserType = authUserType?.toLowerCase() || 'tenant';
   const isLandlord = normalizedUserType === 'landlord';
 
@@ -820,7 +923,6 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
     navigate('/');
   };
 
-  // FIX: Use normalizedUserType for nav items
   const navItems = normalizedUserType === 'landlord' ? NAV_ITEMS.landlord : NAV_ITEMS.tenant;
   const unreadCount = getUnreadCount ? getUnreadCount(normalizedUserType) : 0;
 

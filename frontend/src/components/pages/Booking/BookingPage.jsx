@@ -67,38 +67,56 @@ export default function BookingPage({ darkMode = false }) {
     setLoading(true);
 
     try {
-      // Get user's bookings
+      // Get user's bookings from backend
       const response = await bookingsAPI.getBookingsByTenant(user.id);
-      let userBookings = Array.isArray(response) ? response : (response.data || []);
+      console.log('📋 Bookings API response:', response);
 
-      // If API returns wrapped response
-      if (userBookings.success !== undefined) {
-        userBookings = userBookings.data || [];
+      // Handle different response formats
+      let userBookings = [];
+      if (Array.isArray(response)) {
+        userBookings = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        userBookings = response.data;
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        userBookings = response.data.data;
       }
 
+      console.log('📋 Parsed bookings:', userBookings);
+
       // Get all listings for listing details
-      const listingsResponse = await listingsAPI.getAll();
-      const allListings = Array.isArray(listingsResponse) ? listingsResponse : (listingsResponse.data || []);
+      const listingsResponse = await listingsAPI.getAllListings();
+      const allListings = Array.isArray(listingsResponse) ? listingsResponse : (listingsResponse?.data || []);
 
       // Merge booking data with listing data
       const mergedBookings = userBookings.map(booking => {
-        const listing = allListings.find(l => l.id === booking.listingId || l.id === booking.listing?.id);
+        // Handle nested listing object
+        const listingRef = booking.listing || {};
+        const listing = allListings.find(l =>
+          l.id === booking.listingId ||
+          l.id === listingRef.id
+        ) || listingRef;
+
         return {
           ...booking,
           listingName: booking.listingName || listing?.title || 'Property',
           listingAddress: booking.listingAddress || listing?.address || '',
           price: booking.price || listing?.price || 0,
-          landlordId: listing?.landlordId || listing?.landlord?.id || null,
+          landlordId: booking.landlordId || listing?.landlordId || listing?.landlord?.id || null,
           landlordName: booking.landlordName || listing?.landlordName || 'Landlord',
-          lat: booking.lat || listing?.lat,
-          lng: booking.lng || listing?.lng,
+          lat: booking.lat || listing?.lat || listing?.latitude,
+          lng: booking.lng || listing?.lng || listing?.longitude,
           university: listing?.university,
-          tags: listing?.tags || [],
-          description: listing?.description,
+          tags: booking.tags || listing?.tags || [],
+          description: booking.description || listing?.description,
           listingImages: booking.listingImages || listing?.images || [],
+          // Ensure status is always present
+          status: booking.status || 'pending',
+          // Move-in date from checkInDate or moveInDate
+          moveInDate: booking.moveInDate || booking.checkInDate,
         };
       });
 
+      console.log('📋 Merged bookings:', mergedBookings);
       setBookings(mergedBookings);
       setListings(allListings);
     } catch (error) {
@@ -108,7 +126,9 @@ export default function BookingPage({ darkMode = false }) {
         const stored = JSON.parse(localStorage.getItem('bookings') || '[]');
         const myBookings = stored.filter(b => String(b.tenantId) === String(user.id));
         setBookings(myBookings);
-      } catch (_) {}
+      } catch (_) {
+        setBookings([]);
+      }
     } finally {
       setLoading(false);
     }

@@ -59,6 +59,9 @@ public class ListingService {
             if (updates.getPrice() != null) {
                 listing.setPrice(updates.getPrice());
             }
+            if (updates.getRooms() != null) {
+                listing.setRooms(updates.getRooms());
+            }
             if (updates.getTotalRooms() != null) {
                 listing.setTotalRooms(updates.getTotalRooms());
             }
@@ -70,6 +73,18 @@ public class ListingService {
             }
             if (updates.getStatus() != null) {
                 listing.setStatus(updates.getStatus());
+            }
+            if (updates.getGenderPolicy() != null) {
+                listing.setGenderPolicy(updates.getGenderPolicy());
+            }
+            if (updates.getUniversity() != null) {
+                listing.setUniversity(updates.getUniversity());
+            }
+            if (updates.getImages() != null) {
+                listing.setImages(updates.getImages());
+            }
+            if (updates.getTags() != null) {
+                listing.setTags(updates.getTags());
             }
 
             return listingRepository.save(listing);

@@ -155,7 +155,12 @@ export const bookingsAPI = {
 
     createBooking: async (bookingData) => {
         try {
-            const response = await api.post('/bookings', bookingData);
+            const response = await api.post('/bookings', bookingData, {
+                params: {
+                    tenantId: bookingData.tenantId,
+                    listingId: bookingData.listingId
+                }
+            });
             return response.data;
         } catch (error) {
             console.error('❌ API: createBooking error:', error);
@@ -172,6 +177,14 @@ export const bookingsAPI = {
             return null;
         }
     },
+};
+
+export const activitiesAPI = {
+    getActivitiesByUser: (userId) => api.get(`/activities/user/${userId}`),
+    createActivity: (userId, type, text, time, nav) =>
+        api.post(`/activities?userId=${userId}&type=${type}&text=${encodeURIComponent(text)}&time=${time || ''}&nav=${nav || ''}`),
+    markAsRead: (id) => api.put(`/activities/${id}/read`),
+    deleteActivity: (id) => api.delete(`/activities/${id}`),
 };
 
 export default api;
