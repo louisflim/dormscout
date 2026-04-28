@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import dormpic1 from '../../../assets/images/dormpic1.jpg';
 import dormpic2 from '../../../assets/images/dormpic2.jpg';
 import dormpic3 from '../../../assets/images/dormpic3.webp';
@@ -8,17 +8,42 @@ import { useAuth } from '../../../context/AuthContext';
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
 
-export default function Login({ setUserType }) {
-    const [searchParams] = useSearchParams();
-    const urlUserType = searchParams.get('type') || 'tenant';
+export default function Login() {
+    const navigate = useNavigate();
+    const { login } = useAuth();
 
+    const [selectedType, setSelectedType] = useState('tenant');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const { login } = useAuth();
-    const navigate = useNavigate();
+    // Reset form when component mounts
+    useEffect(() => {
+        setEmail('');
+        setPassword('');
+        setError('');
+        setLoading(false);
+        setSelectedType('tenant');
+    }, []);
+
+    const getButtonStyle = (type) => {
+        const isSelected = selectedType === type;
+        const color = type === 'landlord' ? SECONDARY : PRIMARY;
+
+        return {
+            flex: 1,
+            padding: '10px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '14px',
+            border: isSelected ? `2px solid ${color}` : '1px solid #ddd',
+            background: isSelected ? color : '#fff',
+            color: isSelected ? '#fff' : '#333',
+            transition: 'all 0.2s ease',
+        };
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -31,16 +56,16 @@ export default function Login({ setUserType }) {
             if (result.success) {
                 const realUserType = result.user.userType;
 
-                // Validate userType matches the login page
-                if (realUserType && realUserType.toUpperCase() !== urlUserType.toUpperCase()) {
+                // Validate userType matches the selected type
+                if (realUserType.toUpperCase() !== selectedType.toUpperCase()) {
                     setError(
-                        `This account is registered as a ${realUserType.toLowerCase()}. Please use the ${realUserType.toLowerCase()} login page.`
+                        `This account is registered as ${realUserType.toLowerCase()}. Please login as ${realUserType.toLowerCase()}.`
                     );
                     setLoading(false);
                     return;
                 }
 
-                if (setUserType) setUserType(realUserType);
+                localStorage.setItem('userType', realUserType);
                 navigate('/overview');
             } else {
                 setError(result.message);
@@ -52,8 +77,8 @@ export default function Login({ setUserType }) {
         }
     };
 
-    const buttonLabel = urlUserType === 'landlord' ? 'Landlord' : 'Tenant';
-    const buttonColor = urlUserType === 'landlord' ? SECONDARY : PRIMARY;
+    const buttonColor = selectedType === 'landlord' ? SECONDARY : PRIMARY;
+    const buttonLabel = selectedType === 'landlord' ? 'Landlord' : 'Tenant';
 
     return (
         <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'row', background: 'linear-gradient(135deg, #f5d5c0 0%, #d4ece8 100%)' }}>
@@ -79,8 +104,26 @@ export default function Login({ setUserType }) {
                 <div style={{ maxWidth: '400px', width: '100%' }}>
                     <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.1), 0 0 1px rgba(0,0,0,0.1)' }}>
                         <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#1c1e21', textAlign: 'center' }}>
-                            <span style={{ color: buttonColor }}>{buttonLabel}</span> Login
+                            Log into <span style={{ color: PRIMARY }}>Dorm</span><span style={{ color: SECONDARY }}>Scout</span>
                         </h2>
+
+                        {/* Tenant/Landlord Toggle */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedType('tenant')}
+                                style={getButtonStyle('tenant')}
+                            >
+                                🏠 Tenant
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedType('landlord')}
+                                style={getButtonStyle('landlord')}
+                            >
+                                🏢 Landlord
+                            </button>
+                        </div>
 
                         {error && (
                             <div style={{ padding: '10px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px', marginBottom: '12px', fontSize: '14px', textAlign: 'center' }}>
@@ -91,7 +134,7 @@ export default function Login({ setUserType }) {
                         <form onSubmit={handleSubmit}>
                             <input name="email" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ width: '100%', padding: '14px', marginBottom: '12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '16px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                             <input name="password" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ width: '100%', padding: '14px', marginBottom: '16px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '16px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                            <button type="submit" disabled={loading} style={{ width: '100%', padding: '14px', backgroundColor: buttonColor, color: '#fff', border: 'none', borderRadius: '6px', fontSize: '18px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+                            <button type="submit" disabled={loading} style={{ width: '100%', padding: '14px', backgroundColor: buttonColor, color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
                                 {loading ? 'Logging in...' : 'Log In'}
                             </button>
                         </form>
@@ -103,8 +146,14 @@ export default function Login({ setUserType }) {
                         <hr style={{ border: 'none', borderTop: '1px solid #ddd', margin: '20px 0' }} />
 
                         <div style={{ textAlign: 'center' }}>
-                            <button onClick={() => navigate(`/register?type=${urlUserType}`)} style={{ padding: '12px 24px', backgroundColor: buttonColor, color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '700', cursor: 'pointer' }}>
-                                Create new {buttonLabel} account
+                            <span style={{ fontSize: '14px', color: '#666' }}>Don't have an account? </span>
+                            <br />
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/register?type=${selectedType}`)}
+                                style={{ background: 'none', border: 'none', padding: 0, color: SECONDARY, textDecoration: 'none', fontWeight: '600', fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}
+                            >
+                                Create new account (as {buttonLabel})
                             </button>
                         </div>
                     </div>
