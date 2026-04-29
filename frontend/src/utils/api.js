@@ -59,6 +59,16 @@ export const userAPI = {
             return null;
         }
     },
+
+    updateUser: async (id, userData) => {
+        try {
+            const response = await api.put(`/users/${id}`, userData);
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: updateUser error:', error);
+            return null;
+        }
+    },
 };
 
 export const listingsAPI = {

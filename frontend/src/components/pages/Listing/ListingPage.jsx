@@ -440,7 +440,6 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     }
 
     async function removeListing(id) {
-        if (!window.confirm('Delete this listing?')) return;
         setLoading(true);
 
         try {
@@ -452,11 +451,11 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                 window.dispatchEvent(new Event('dormscout:listingUpdated'));
                 if (selectedId === id) setSelectedId(null);
             } else {
-                alert('Failed to delete listing');
+                setErrors({ general: 'Failed to delete listing' });
             }
         } catch (err) {
             console.error('Delete listing error:', err);
-            alert('Failed to delete listing');
+            setErrors({ general: 'Failed to delete listing' });
         } finally {
             setLoading(false);
         }

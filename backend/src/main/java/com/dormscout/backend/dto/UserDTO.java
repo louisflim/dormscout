@@ -15,6 +15,11 @@ public class UserDTO {
     private String phone;
     private String userType;
     private String name;
+    private String businessName;
+    private String businessPermit;
+    private boolean verified;
+    private String verificationStatus; // pending, approved, rejected
+    private String rejectionReason;
 
     public UserDTO(Long id, String email, String firstName, String lastName, String phone, String userType) {
         this.id = id;
@@ -24,5 +29,8 @@ public class UserDTO {
         this.phone = phone;
         this.userType = userType;
         this.name = (firstName + " " + (lastName != null ? lastName : "")).trim();
+        this.verified = false;
+        this.verificationStatus = null;
+        this.rejectionReason = null;
     }
 }

@@ -338,7 +338,8 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   const [confirmPassword, setConfirmPassword] = useState('');
   const [businessName,    setBusinessName]    = useState(user?.businessName || '');
   const [businessPermit,  setBusinessPermit]  = useState(user?.businessPermit || '');
-  const [isVerified,      setIsVerified]      = useState(user?.isVerified || false);
+  const [isVerified,      setIsVerified]      = useState(Boolean(user?.verified || user?.isVerified));
+  const [verificationStatus, setVerificationStatus] = useState(user?.verificationStatus || '');
   const [profileImage,    setProfileImage]    = useState(user?.profileImage || null);
 
   // App settings
@@ -365,7 +366,8 @@ export default function Settings({ userType: propUserType, darkMode = false, set
         setStudentId(saved.studentId || '');
         setBusinessName(saved.businessName || '');
         setBusinessPermit(saved.businessPermit || '');
-        setIsVerified(saved.isVerified || false);
+        setIsVerified(Boolean(saved.verified || saved.isVerified));
+        setVerificationStatus(saved.verificationStatus || '');
         setProfileImage(saved.profileImage || null);
       }
       initialSyncDone.current = true;
@@ -381,7 +383,8 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       setStudentId(user.studentId || '');
       setBusinessName(user.businessName || '');
       setBusinessPermit(user.businessPermit || '');
-      setIsVerified(user.isVerified || false);
+      setIsVerified(Boolean(user.verified || user.isVerified));
+      setVerificationStatus(user.verificationStatus || '');
       setProfileImage(user.profileImage || null);
       setEmailNotifications(user.settings?.emailNotifications !== false);
       setInAppNotifications(user.settings?.inAppNotifications !== false);
@@ -699,33 +702,47 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     }
   }
 
-  function handleVerify() {
+  async function handleVerify() {
     if (!businessName.trim() || !businessPermit.trim()) {
       setVerifyMessage({ text: 'Please fill in both Business Name and Business Permit Number', type: 'error' });
       return;
     }
 
     setIsLoading(true);
+    try {
+      let updatedUser = null;
 
-    setTimeout(() => {
-      setIsVerified(true);
       if (user) {
-        updateUser({
-          isVerified: true,
+        const result = await updateUser({
           businessName,
           businessPermit,
         });
+
+        if (!result?.success) {
+          setVerifyMessage({ text: result?.message || 'Failed to submit verification request.', type: 'error' });
+          return;
+        }
+
+        updatedUser = result.user;
       }
 
+      const nextStatus = updatedUser?.verificationStatus || 'pending';
+      const nextVerified = Boolean(updatedUser?.verified || updatedUser?.isVerified);
+
+      setIsVerified(nextVerified);
+      setVerificationStatus(nextStatus);
+
       localStorage.setItem('dormscout_landlord_profile', JSON.stringify({
-        isVerified: true,
+        verified: nextVerified,
+        verificationStatus: nextStatus,
         businessName,
         businessPermit
       }));
 
+      setVerifyMessage({ text: 'Submitted for admin review. You will be notified once approved.', type: 'success' });
+    } finally {
       setIsLoading(false);
-      setVerifyMessage({ text: 'Business verified successfully! ✓', type: 'success' });
-    }, 1500);
+    }
   }
 
   async function handleDeleteAccount() {
@@ -887,6 +904,36 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                   <span style={{ color: '#16a34a', fontWeight: 700 }}>Verified Business</span>
                 </div>
               )}
+              {!isVerified && verificationStatus === 'pending' && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '12px',
+                  padding: '12px 16px',
+                  background: 'rgba(245,158,11,0.12)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(245,158,11,0.35)'
+                }}>
+                  <span style={{ fontSize: '1.2rem' }}>⏳</span>
+                  <span style={{ color: '#b45309', fontWeight: 700 }}>Pending Admin Review</span>
+                </div>
+              )}
+              {!isVerified && verificationStatus === 'rejected' && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '12px',
+                  padding: '12px 16px',
+                  background: 'rgba(239,68,68,0.1)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(239,68,68,0.3)'
+                }}>
+                  <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                  <span style={{ color: '#dc2626', fontWeight: 700 }}>Verification Rejected</span>
+                </div>
+              )}
               <div className="settings-grid-2 settings-grid-2--mb">
                 <InputField
                   label="Business Name"
@@ -906,19 +953,23 @@ export default function Settings({ userType: propUserType, darkMode = false, set
               <p style={{ color: colors.secondaryText, marginBottom: '12px' }}>
                 {isVerified
                   ? 'Your business has been verified. To update details, please contact support.'
-                  : 'Fill in your business details to be verified as a legitimate landlord'
+                  : verificationStatus === 'pending'
+                    ? 'Your verification request has been submitted and is waiting for admin approval.'
+                    : verificationStatus === 'rejected'
+                      ? `Your previous verification request was rejected${user?.rejectionReason ? `: ${user.rejectionReason}` : '.'}`
+                      : 'Fill in your business details to be verified as a legitimate landlord'
                 }
               </p>
 
               {/* Verify Button and Message */}
-              {!isVerified && (
+              {!isVerified && verificationStatus !== 'pending' && (
                 <div>
                   <button
                     className="btn-primary btn-primary--mt"
                     onClick={handleVerify}
                     disabled={!businessName.trim() || !businessPermit.trim()}
                   >
-                    Verify Business
+                    Submit for Verification
                   </button>
                   <SectionMessage
                     message={verifyMessage.text}

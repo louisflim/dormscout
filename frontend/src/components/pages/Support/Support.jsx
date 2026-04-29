@@ -12,6 +12,8 @@ import {
 
 const PRIMARY = '#E8622E';
 
+const SUPPORT_MESSAGES_KEY = 'dormscout_support_messages';
+
 
 const COLORS = {
   light: {
@@ -93,6 +95,33 @@ export default function Support({ darkMode = false, setDarkMode }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    let existingSupportMessages = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem(SUPPORT_MESSAGES_KEY) || '[]');
+      existingSupportMessages = Array.isArray(saved) ? saved : [];
+    } catch (_) {
+      existingSupportMessages = [];
+    }
+
+    const senderRole = (localStorage.getItem('userType') || 'all').toLowerCase();
+
+    const supportMessage = {
+      id: `support-${Date.now()}`,
+      name: formData.name,
+      email: formData.email,
+      subject: formData.subject,
+      message: formData.message,
+      forRole: senderRole,
+      createdAt: new Date().toISOString(),
+      replied: false,
+    };
+
+    localStorage.setItem(
+      SUPPORT_MESSAGES_KEY,
+      JSON.stringify([supportMessage, ...existingSupportMessages])
+    );
+
     setSubmitted(true);
     setFormData({ name: '', email: '', subject: '', message: '' });
     setTimeout(() => setSubmitted(false), 3000);

@@ -73,6 +73,38 @@ export function AuthProvider({ children }) {
         setUserType(null);
     }, []);
 
+    const updateUser = useCallback(async (userData) => {
+        try {
+            if (!user || !user.id) {
+                console.error('❌ AuthContext: No user or user ID available for update');
+                return { success: false, message: 'No user logged in' };
+            }
+
+            setLoading(true);
+            console.log('🔄 AuthContext: Starting updateUser...');
+
+            const result = await userAPI.updateUser(user.id, userData);
+            console.log('📦 AuthContext: updateUser result:', result);
+
+            if (result && result.success !== false) {
+                const updatedUser = { ...user, ...result };
+                console.log('✅ AuthContext: User update successful');
+                console.log('📦 updatedUser:', updatedUser);
+
+                setUser(updatedUser);
+
+                return { success: true, user: updatedUser };
+            } else {
+                return { success: false, message: 'Update failed' };
+            }
+        } catch (error) {
+            console.error('❌ AuthContext: updateUser error:', error);
+            return { success: false, message: 'Connection error. Please try again.' };
+        } finally {
+            setLoading(false);
+        }
+    }, [user]);
+
     return (
         <AuthContext.Provider value={{
             user,
@@ -80,6 +112,7 @@ export function AuthProvider({ children }) {
             login,
             register,
             logout,
+            updateUser,
             loading,
             setUser,
             setUserType

@@ -14,6 +14,9 @@ const STORAGE_KEYS = {
   messages: 'messaging_messages',
 };
 
+const ADMIN_CONVERSATION_ID = 'dormscout-admin';
+const ADMIN_BROADCASTS_KEY = 'dormscout_admin_messages';
+
 const Storage = {
   get(key, defaultValue = null) {
     try {
@@ -212,6 +215,9 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   const [allMessages, setAllMessages] = useState(() =>
     Storage.get(STORAGE_KEYS.messages) || INITIAL_SHARED_MESSAGES
   );
+  const [adminBroadcasts, setAdminBroadcasts] = useState(() =>
+    Storage.get(ADMIN_BROADCASTS_KEY, []) || []
+  );
 
   // UI State
   const [selectedConvId, setSelectedConvId] = useState(null);
@@ -401,8 +407,104 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   // Get role-specific data
   const roleConversations = conversations[role] || {};
   const roleMessages = useMemo(() => allMessages[role] || {}, [allMessages, role]);
-  const messages = useMemo(() => roleMessages[selectedConvId] || [], [roleMessages, selectedConvId]);
-  const selectedConv = roleConversations[selectedConvId];
+  const verificationSystemMessages = useMemo(() => {
+    if (role !== 'landlord' || !user?.verificationStatus) {
+      return [];
+    }
+
+    let text = null;
+    if (user.verificationStatus === 'rejected' && user.rejectionReason) {
+      text = user.rejectionReason;
+    } else if (user.verificationStatus === 'approved') {
+      text = 'Your business verification was approved.';
+    } else if (user.verificationStatus === 'pending') {
+      text = 'Your business verification is pending admin review.';
+    }
+
+    if (!text) {
+      return [];
+    }
+
+    return [{
+      id: `${ADMIN_CONVERSATION_ID}-${user?.verificationStatus || 'status'}`,
+      sender: 'received',
+      text,
+      timestamp: Date.now(),
+    }];
+  }, [role, user?.verificationStatus, user?.rejectionReason]);
+
+  const broadcastSystemMessages = useMemo(() => {
+    const currentUserEmail = String(user?.email || '').toLowerCase();
+    return (Array.isArray(adminBroadcasts) ? adminBroadcasts : [])
+      .filter((item) => {
+        const mode = item?.mode || 'broadcast';
+        if (mode === 'direct') {
+          return String(item?.recipientEmail || '').toLowerCase() === currentUserEmail;
+        }
+        return item?.forRole === 'all' || item?.forRole === role;
+      })
+      .map((item) => ({
+        id: item.id,
+        sender: 'received',
+        text: item.text,
+        timestamp: item.createdAt ? new Date(item.createdAt).getTime() : Date.now(),
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }, [adminBroadcasts, role, user?.email]);
+
+  const adminMessages = useMemo(() => {
+    return [...verificationSystemMessages, ...broadcastSystemMessages]
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }, [verificationSystemMessages, broadcastSystemMessages]);
+
+  const adminConversation = useMemo(() => {
+    if (adminMessages.length === 0) {
+      return null;
+    }
+
+    const latest = adminMessages[adminMessages.length - 1];
+    return {
+      id: ADMIN_CONVERSATION_ID,
+      name: 'DormScout Admin',
+      avatar: 'DA',
+      online: true,
+      lastMessage: latest.text,
+      timestamp: latest.timestamp,
+      unread: 0,
+      isSystem: true,
+    };
+  }, [adminMessages]);
+
+  const mergedConversations = useMemo(() => {
+    if (!adminConversation) {
+      return roleConversations;
+    }
+
+    return {
+      ...roleConversations,
+      [ADMIN_CONVERSATION_ID]: adminConversation,
+    };
+  }, [roleConversations, adminConversation]);
+
+  const isAdminConversationSelected = selectedConvId === ADMIN_CONVERSATION_ID;
+  const selectedConvRoleLabel = isAdminConversationSelected
+    ? '· System'
+    : role === 'tenant'
+      ? '· Landlord'
+      : '· Tenant';
+  const messages = useMemo(() => {
+    if (isAdminConversationSelected) {
+      return adminMessages;
+    }
+    return roleMessages[selectedConvId] || [];
+  }, [adminMessages, isAdminConversationSelected, roleMessages, selectedConvId]);
+  const selectedConv = mergedConversations[selectedConvId];
+
+  useEffect(() => {
+    if (adminConversation && !selectedConvId) {
+      setSelectedConvId(ADMIN_CONVERSATION_ID);
+    }
+  }, [adminConversation, selectedConvId]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -442,6 +544,10 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       if (e.key === STORAGE_KEYS.messages) {
         setAllMessages(JSON.parse(e.newValue));
       }
+
+      if (e.key === ADMIN_BROADCASTS_KEY) {
+        setAdminBroadcasts(JSON.parse(e.newValue));
+      }
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -452,7 +558,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   // SEND MESSAGE
   // ═══════════════════════════════════════════════════════════
   const sendMessage = useCallback(() => {
-    if (!messageInput.trim() || !selectedConv) return;
+    if (!messageInput.trim() || !selectedConv || isAdminConversationSelected) return;
 
     const now = Date.now();
 
@@ -571,7 +677,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
         Storage.set(STORAGE_KEYS.messages, latest);
       }
     }, 2000);
-  }, [messageInput, selectedConv, selectedConvId, role, otherRole, messages, allMessages, roleMessages, conversations, notificationEnabled, user]);
+  }, [messageInput, selectedConv, selectedConvId, role, otherRole, messages, allMessages, roleMessages, conversations, notificationEnabled, user, isAdminConversationSelected]);
 
   // ═══════════════════════════════════════════════════════════
   // DELETE MESSAGE
@@ -662,7 +768,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     hoverBg:         darkMode ? '#1e2849' : '#f2f2f2',
   };
 
-  const filteredConversations = Object.values(roleConversations).filter((conv) =>
+  const filteredConversations = Object.values(mergedConversations).filter((conv) =>
     conv.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -753,32 +859,34 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                     </div>
                   </div>
 
-                  <div style={{ marginLeft: 'auto', paddingRight: '8px' }}>
-                    <button
-                      className="conv-menu-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (contextMenuOpen === conv.id) {
-                          setContextMenuOpen(null);
-                        } else {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setContextMenuPos({ top: rect.bottom + 4, left: rect.right - 220 });
-                          setContextMenuOpen(conv.id);
-                        }
-                      }}
-                      title="More options"
-                      style={{
-                        background: contextMenuOpen === conv.id ? c.hoverBg : 'transparent',
-                        border: 'none', cursor: 'pointer',
-                        color: contextMenuOpen === conv.id ? PRIMARY : c.secondaryText,
-                        fontSize: '20px', padding: '4px 8px',
-                        borderRadius: '4px', transition: 'all 0.2s ease',
-                        opacity: isActive || contextMenuOpen === conv.id ? 1 : 0.6,
-                      }}
-                    >
-                      ⋯
-                    </button>
-                  </div>
+                  {!conv.isSystem && (
+                    <div style={{ marginLeft: 'auto', paddingRight: '8px' }}>
+                      <button
+                        className="conv-menu-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (contextMenuOpen === conv.id) {
+                            setContextMenuOpen(null);
+                          } else {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setContextMenuPos({ top: rect.bottom + 4, left: rect.right - 220 });
+                            setContextMenuOpen(conv.id);
+                          }
+                        }}
+                        title="More options"
+                        style={{
+                          background: contextMenuOpen === conv.id ? c.hoverBg : 'transparent',
+                          border: 'none', cursor: 'pointer',
+                          color: contextMenuOpen === conv.id ? PRIMARY : c.secondaryText,
+                          fontSize: '20px', padding: '4px 8px',
+                          borderRadius: '4px', transition: 'all 0.2s ease',
+                          opacity: isActive || contextMenuOpen === conv.id ? 1 : 0.6,
+                        }}
+                      >
+                        ⋯
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -795,7 +903,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
             <h3 style={{ color: c.text }}>
               {selectedConv?.name}
               <span className="messaging-chat__header-role" style={{ color: c.secondaryText }}>
-                {role === 'tenant' ? '· Landlord' : '· Tenant'}
+                {selectedConvRoleLabel}
               </span>
             </h3>
             <p className="messaging-chat__header-status" style={{ color: c.secondaryText }}>
@@ -859,25 +967,26 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
 
         {/* Input area */}
         <div className="messaging-chat__input-area" style={{ borderTop: `1px solid ${c.border}` }}>
-          <button className="input-icon-btn" style={{ background: c.inputBg }}>😊</button>
+          <button className="input-icon-btn" disabled={isAdminConversationSelected} style={{ background: c.inputBg, opacity: isAdminConversationSelected ? 0.5 : 1 }}>😊</button>
 
           <input
             type="text"
-            placeholder="Aa"
+            placeholder={isAdminConversationSelected ? 'Replies are disabled for DormScout Admin' : 'Aa'}
             value={messageInput}
             onChange={(e) => setMessageInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
             className="messaging-chat__text-input"
+            disabled={isAdminConversationSelected}
             style={{ border: `1px solid ${c.border}`, background: c.inputBg, color: c.text }}
           />
 
-          <button className="input-icon-btn" style={{ background: c.inputBg, fontSize: '18px' }}>📎</button>
+          <button className="input-icon-btn" disabled={isAdminConversationSelected} style={{ background: c.inputBg, fontSize: '18px', opacity: isAdminConversationSelected ? 0.5 : 1 }}>📎</button>
 
           <button
             className="send-btn"
             onClick={sendMessage}
-            disabled={!messageInput.trim()}
-            style={{ opacity: messageInput.trim() ? 1 : 0.5 }}
+            disabled={!messageInput.trim() || isAdminConversationSelected}
+            style={{ opacity: messageInput.trim() && !isAdminConversationSelected ? 1 : 0.5 }}
           >
             ➤
           </button>
@@ -902,61 +1011,62 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={() => {
-              const convId = contextMenuOpen;
-              setContextMenuOpen(null);
-              navigate(`/profile/${convId}`);
-            }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              width: '100%', padding: '12px 16px', border: 'none',
-              background: 'transparent', color: c.text, cursor: 'pointer',
-              textAlign: 'left', fontSize: '14px', fontWeight: '500',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = c.hoverBg}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
-            <span style={{ fontSize: '16px' }}>👤</span> View profile
-          </button>
-          <button
-            onClick={() => {
-              const conv = roleConversations[contextMenuOpen];
-              setContextMenuOpen(null);
-              navigate('/report', { state: { reportedUser: conv?.name, conversationId: contextMenuOpen } });
-            }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              width: '100%', padding: '12px 16px', border: 'none',
-              background: 'transparent', color: c.text, cursor: 'pointer',
-              textAlign: 'left', fontSize: '14px', fontWeight: '500',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = c.hoverBg}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
-            <span style={{ fontSize: '16px' }}>🚩</span> Report
-          </button>
-          <button
-            onClick={() => {
-              const convId = contextMenuOpen;
-              const conv = roleConversations[convId];
-              setContextMenuOpen(null);
-              if (window.confirm(`Delete chat with ${conv?.name}?`)) {
-                handleDeleteConversation(convId);
-              }
-            }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              width: '100%', padding: '12px 16px', border: 'none',
-              background: 'transparent', color: '#ef4444', cursor: 'pointer',
-              textAlign: 'left', fontSize: '14px', fontWeight: '500',
-              borderTop: `1px solid ${c.border}`,
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = c.hoverBg}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
-            <span style={{ fontSize: '16px' }}>🗑️</span> Delete chat
-          </button>
+          {contextMenuOpen !== ADMIN_CONVERSATION_ID && (
+            <>
+              <button
+                onClick={() => {
+                  const convId = contextMenuOpen;
+                  setContextMenuOpen(null);
+                  navigate(`/profile/${convId}`);
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  width: '100%', padding: '12px 16px', border: 'none',
+                  background: 'transparent', color: c.text, cursor: 'pointer',
+                  textAlign: 'left', fontSize: '14px', fontWeight: '500',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = c.hoverBg}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ fontSize: '16px' }}>👤</span> View profile
+              </button>
+              <button
+                onClick={() => {
+                  const conv = mergedConversations[contextMenuOpen];
+                  setContextMenuOpen(null);
+                  navigate('/report', { state: { reportedUser: conv?.name, conversationId: contextMenuOpen } });
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  width: '100%', padding: '12px 16px', border: 'none',
+                  background: 'transparent', color: c.text, cursor: 'pointer',
+                  textAlign: 'left', fontSize: '14px', fontWeight: '500',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = c.hoverBg}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ fontSize: '16px' }}>🚩</span> Report
+              </button>
+              <button
+                onClick={() => {
+                  const convId = contextMenuOpen;
+                  setContextMenuOpen(null);
+                  handleDeleteConversation(convId);
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  width: '100%', padding: '12px 16px', border: 'none',
+                  background: 'transparent', color: '#ef4444', cursor: 'pointer',
+                  textAlign: 'left', fontSize: '14px', fontWeight: '500',
+                  borderTop: `1px solid ${c.border}`,
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = c.hoverBg}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ fontSize: '16px' }}>🗑️</span> Delete chat
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

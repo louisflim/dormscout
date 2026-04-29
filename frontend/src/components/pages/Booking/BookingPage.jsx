@@ -52,6 +52,7 @@ export default function BookingPage({ darkMode = false }) {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelMoveOutDate, setCancelMoveOutDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const dk = darkMode;
   const theme      = dk ? 'dark' : 'light';
@@ -150,6 +151,7 @@ export default function BookingPage({ darkMode = false }) {
   const handleCancelBooking = async () => {
     if (!selectedBooking) return;
     setLoading(true);
+    setActionError('');
 
     try {
       const response = await bookingsAPI.delete(selectedBooking.id);
@@ -169,11 +171,11 @@ export default function BookingPage({ darkMode = false }) {
 
         setBookings(prev => prev.filter(b => String(b.id) !== String(selectedBooking.id)));
       } else {
-        alert(response.message || 'Failed to cancel booking');
+        setActionError(response.message || 'Failed to cancel booking');
       }
     } catch (error) {
       console.error('Cancel booking error:', error);
-      alert('Failed to cancel booking');
+      setActionError('Failed to cancel booking');
     } finally {
       setCancelModal(false);
       setCancelReason('');
@@ -191,6 +193,21 @@ export default function BookingPage({ darkMode = false }) {
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <div className={`booking-wrapper ${theme}`}>
+      {actionError ? (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: '#fee2e2',
+            color: '#991b1b',
+            fontWeight: 700,
+          }}
+        >
+          {actionError}
+        </div>
+      ) : null}
+
       {loading && bookings.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40 }}>Loading bookings...</div>
       ) : bookings.length === 0 ? (

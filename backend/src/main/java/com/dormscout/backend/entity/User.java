@@ -40,6 +40,8 @@ public class User {
     private String businessName;
     private String businessPermit;
     private boolean isVerified;
+    private String verificationStatus; // pending, approved, rejected
+    private String rejectionReason;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

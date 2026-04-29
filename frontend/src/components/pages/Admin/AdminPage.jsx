@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   XCircle,
   Filter,
+  MessageSquare,
 } from 'lucide-react';
 
 const ADMIN_LOGIN_KEY = 'dormscout_admin_logged_in';
@@ -32,6 +33,8 @@ const STORAGE_KEYS = {
   reports: 'dormscout_reports',
   reviews: 'dormscout_reviews',
   notifications: 'dormscout_notifications',
+  adminMessages: 'dormscout_admin_messages',
+  supportMessages: 'dormscout_support_messages',
 };
 
 const SIDEBAR_ITEMS = [
@@ -42,6 +45,7 @@ const SIDEBAR_ITEMS = [
   { id: 'bookmarks',  label: 'Bookmarks',   icon: Star            },
   { id: 'reports',    label: 'Reports',     icon: FileWarning     },
   { id: 'reviews',    label: 'Reviews',     icon: Star            },
+  { id: 'messages',   label: 'Messages',    icon: MessageSquare   },
   { id: 'notifications', label: 'Notifications', icon: Bell      },
   { id: 'settings',   label: 'Settings',    icon: SettingsIcon    },
 ];
@@ -104,6 +108,19 @@ export default function AdminPage() {
   const [reports, setReports] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [supportMessages, setSupportMessages] = useState([]);
+  const [broadcastRole, setBroadcastRole] = useState('landlord');
+  const [broadcastSubject, setBroadcastSubject] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [selectedSupportId, setSelectedSupportId] = useState(null);
+  const [directReply, setDirectReply] = useState('');
+  const [selectedDirectUser, setSelectedDirectUser] = useState(null);
+  const [inlineNotice, setInlineNotice] = useState('');
+  const [inlineNoticeTone, setInlineNoticeTone] = useState('is-good');
+
+  // eslint-disable-next-line no-unused-vars
+  const [dataLoading, setDataLoading] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const [userQuery, setUserQuery] = useState('');
   const [listingQuery, setListingQuery] = useState('');
@@ -111,24 +128,55 @@ export default function AdminPage() {
   const [bookingQuery, setBookingQuery] = useState('');
   const [reportFilter, setReportFilter] = useState('all');
 
-  const loadData = () => {
-    setUsers(safeParse(localStorage.getItem(STORAGE_KEYS.users), []));
-    setListings(safeParse(localStorage.getItem(STORAGE_KEYS.listings), []));
-    setBookings(safeParse(localStorage.getItem(STORAGE_KEYS.bookings), []));
+  // Rejection modal state
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [selectedLandlord, setSelectedLandlord] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  const loadLocalData = () => {
     setBookmarks(safeParse(localStorage.getItem(STORAGE_KEYS.bookmarks), []));
-    setReports(safeParse(localStorage.getItem(STORAGE_KEYS.reports), []));
-    setReviews(safeParse(localStorage.getItem(STORAGE_KEYS.reviews), []));
     setNotifications(safeParse(localStorage.getItem(STORAGE_KEYS.notifications), []));
+    const localSupportMessages = safeParse(localStorage.getItem(STORAGE_KEYS.supportMessages), []);
+    setSupportMessages(localSupportMessages);
+
+    if (localSupportMessages.length > 0 && !selectedSupportId && !selectedDirectUser) {
+      setSelectedSupportId(localSupportMessages[0].id);
+    }
   };
 
+  const loadAdminData = async () => {
+    setDataLoading(true);
+    try {
+      const [usersRes, listingsRes, bookingsRes, reportsRes, reviewsRes] =
+        await Promise.all([
+          fetch('http://localhost:8080/api/users').then(r => r.json()),
+          fetch('http://localhost:8080/api/listings').then(r => r.json()),
+          fetch('http://localhost:8080/api/bookings').then(r => r.json()),
+          fetch('http://localhost:8080/api/reports').then(r => r.json()),
+          fetch('http://localhost:8080/api/reviews').then(r => r.json()),
+        ]);
+
+      setUsers(Array.isArray(usersRes) ? usersRes : []);
+      setListings(Array.isArray(listingsRes) ? listingsRes : []);
+      setBookings(Array.isArray(bookingsRes) ? bookingsRes : []);
+      setReports(Array.isArray(reportsRes) ? reportsRes : []);
+      setReviews(Array.isArray(reviewsRes) ? reviewsRes : []);
+    } catch (err) {
+      console.error('Failed to load admin data:', err);
+    } finally {
+      setDataLoading(false);
+    }
+    loadLocalData();
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!isLoggedIn) return;
-    loadData();
+    if (isLoggedIn) loadAdminData();
   }, [isLoggedIn, activeSection]);
 
   useEffect(() => {
     const onStorage = () => {
-      if (isLoggedIn) loadData();
+      if (isLoggedIn) loadLocalData();
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -167,7 +215,7 @@ export default function AdminPage() {
     const q = userQuery.trim().toLowerCase();
     if (!q) return users;
     return users.filter((u) => {
-      const name = String(u.name || '').toLowerCase();
+      const name = String(u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || '').toLowerCase();
       const em = String(u.email || '').toLowerCase();
       return name.includes(q) || em.includes(q);
     });
@@ -206,17 +254,32 @@ export default function AdminPage() {
     return reports.filter((r) => String(r.status || 'pending').toLowerCase() === reportFilter);
   }, [reports, reportFilter]);
 
-  const handleLogin = (e) => {
+  const handleAdminLogin = async (e) => {
     e.preventDefault();
-    if (email.trim() === 'admin' && password === 'admin') {
-      localStorage.setItem(ADMIN_LOGIN_KEY, 'true');
-      setIsLoggedIn(true);
-      setLoginError('');
-      setEmail('');
-      setPassword('');
-      return;
+    setLoginError('');
+    setLoginLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:8080/api/users/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        localStorage.setItem(ADMIN_LOGIN_KEY, 'true');
+        localStorage.setItem('dormscout_admin_user', JSON.stringify(data.user));
+        setIsLoggedIn(true);
+      } else {
+        setLoginError(data.message || 'Invalid credentials');
+      }
+    } catch (err) {
+      setLoginError('Cannot connect to server. Make sure backend is running on port 8080.');
+    } finally {
+      setLoginLoading(false);
     }
-    setLoginError('Invalid credentials. Use admin / admin.');
   };
 
   const handleLogout = () => {
@@ -228,29 +291,98 @@ export default function AdminPage() {
 
   const updateStorage = (key, nextValue) => {
     localStorage.setItem(key, JSON.stringify(nextValue));
-    loadData();
+    loadLocalData();
+  };
+
+  const showInlineNotice = (message, tone = 'is-good') => {
+    setInlineNotice(message);
+    setInlineNoticeTone(tone);
   };
 
   const removeByMatcher = (items, matcher) => items.filter((item, idx) => !matcher(item, idx));
 
-  const deleteUser = (target, index) => {
-    const next = removeByMatcher(users, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
+  const handleDeleteUser = async (userId) => {
+    try {
+      const response = await fetch(`http://localhost:8080/api/users/admin/users/${userId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (data.success) {
+        setUsers(prev => prev.filter(u => u.id !== userId));
+        showInlineNotice('User deleted.', 'is-good');
+      } else {
+        showInlineNotice('Failed to delete user.', 'is-bad');
       }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.users, next);
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      showInlineNotice('Failed to delete user.', 'is-bad');
+    }
   };
 
-  const deleteListing = (target, index) => {
-    const next = removeByMatcher(listings, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
+  const handleDeleteListing = async (listingId) => {
+    try {
+      const response = await fetch(`http://localhost:8080/api/listings/${listingId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (data.success) {
+        setListings(prev => prev.filter(l => l.id !== listingId));
+        showInlineNotice('Listing deleted.', 'is-good');
+      } else {
+        showInlineNotice('Failed to delete listing.', 'is-bad');
       }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.listings, next);
+    } catch (err) {
+      console.error('Failed to delete listing:', err);
+      showInlineNotice('Failed to delete listing.', 'is-bad');
+    }
+  };
+
+  const handleApproveLandlord = async (userId) => {
+    try {
+      const response = await fetch(`http://localhost:8080/api/users/admin/verify-landlord/${userId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, verified: true, verificationStatus: 'approved' } : u));
+        showInlineNotice('Landlord verification approved.', 'is-good');
+      }
+    } catch (err) {
+      console.error('Failed to approve landlord:', err);
+      showInlineNotice('Failed to approve landlord.', 'is-bad');
+    }
+  };
+
+  const handleRejectLandlord = (landlord) => {
+    setSelectedLandlord(landlord);
+    setRejectionReason('');
+    setShowRejectionModal(true);
+  };
+
+  const handleSubmitRejection = async () => {
+    if (!rejectionReason.trim()) {
+      showInlineNotice('Please provide a reason for rejection.', 'is-pending');
+      return;
+    }
+    try {
+      const response = await fetch(`http://localhost:8080/api/users/admin/verify-landlord/${selectedLandlord.id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: rejectionReason })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setUsers(prev => prev.map(u => u.id === selectedLandlord.id ? { ...u, verified: false, verificationStatus: 'rejected', rejectionReason } : u));
+        setShowRejectionModal(false);
+        setSelectedLandlord(null);
+        setRejectionReason('');
+        showInlineNotice('Landlord verification rejected and reason sent.', 'is-good');
+      }
+    } catch (err) {
+      console.error('Failed to reject landlord:', err);
+      showInlineNotice('Failed to reject landlord.', 'is-bad');
+    }
   };
 
   const deleteReview = (target, index) => {
@@ -274,44 +406,157 @@ export default function AdminPage() {
   };
 
   const clearNotifications = () => {
-    if (!window.confirm('Clear all notifications?')) return;
     updateStorage(STORAGE_KEYS.notifications, []);
+    showInlineNotice('Notifications cleared.', 'is-good');
   };
 
-  const dismissReport = (target, index) => {
-    const next = removeByMatcher(reports, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
+  const selectedSupportMessage = useMemo(() => {
+    if (!selectedSupportId) return selectedDirectUser;
+    return supportMessages.find((msg) => msg.id === selectedSupportId) || selectedDirectUser;
+  }, [supportMessages, selectedSupportId, selectedDirectUser]);
+
+  const handleMessageUser = (userRecord) => {
+    const directTarget = {
+      id: `direct-user-${userRecord?.id || Date.now()}`,
+      name:
+        userRecord?.name ||
+        (userRecord?.firstName && userRecord?.lastName
+          ? `${userRecord.firstName} ${userRecord.lastName}`
+          : userRecord?.firstName || userRecord?.lastName || 'User'),
+      email: userRecord?.email || '',
+      subject: 'Direct message from admin',
+      message: '',
+      forRole: getRole(userRecord),
+      replied: false,
+      createdAt: new Date().toISOString(),
+      isDirectUser: true,
+    };
+
+    setSelectedSupportId(null);
+    setSelectedDirectUser(directTarget);
+    setActiveSection('messages');
+  };
+
+  const handleSendAdminMessage = () => {
+    if (!broadcastSubject.trim() || !broadcastMessage.trim()) {
+      showInlineNotice('Please provide both a subject and a message.', 'is-pending');
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const adminMessage = {
+      id: `admin-msg-${Date.now()}`,
+      title: broadcastSubject.trim(),
+      text: broadcastMessage.trim(),
+      forRole: broadcastRole,
+      createdAt: timestamp,
+    };
+
+    const existingMessages = safeParse(localStorage.getItem(STORAGE_KEYS.adminMessages), []);
+    localStorage.setItem(STORAGE_KEYS.adminMessages, JSON.stringify([{ ...adminMessage, mode: 'broadcast' }, ...existingMessages]));
+    setBroadcastSubject('');
+    setBroadcastMessage('');
+    showInlineNotice('Broadcast message sent.', 'is-good');
+  };
+
+  const handleSendDirectReply = () => {
+    if (!selectedSupportMessage) {
+      showInlineNotice('Select a concern first.', 'is-pending');
+      return;
+    }
+
+    if (!directReply.trim()) {
+      showInlineNotice('Please type your reply.', 'is-pending');
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const existingMessages = safeParse(localStorage.getItem(STORAGE_KEYS.adminMessages), []);
+    const directMessage = {
+      id: `admin-direct-${Date.now()}`,
+      mode: 'direct',
+      title: `Re: ${selectedSupportMessage.subject || 'Support Concern'}`,
+      text: directReply.trim(),
+      forRole: selectedSupportMessage.forRole || 'all',
+      recipientEmail: String(selectedSupportMessage.email || '').toLowerCase(),
+      recipientName: selectedSupportMessage.name || 'User',
+      createdAt: timestamp,
+    };
+
+    localStorage.setItem(STORAGE_KEYS.adminMessages, JSON.stringify([directMessage, ...existingMessages]));
+
+    const isSupportConcern = supportMessages.some((item) => item.id === selectedSupportMessage.id);
+    if (isSupportConcern) {
+      const nextSupportMessages = supportMessages.map((item) =>
+        item.id === selectedSupportMessage.id
+          ? {
+              ...item,
+              replied: true,
+              repliedAt: timestamp,
+              latestReply: directReply.trim(),
+            }
+          : item
+      );
+
+      setSupportMessages(nextSupportMessages);
+      localStorage.setItem(STORAGE_KEYS.supportMessages, JSON.stringify(nextSupportMessages));
+    }
+
+    setDirectReply('');
+    showInlineNotice(`Reply sent to ${selectedSupportMessage.name || selectedSupportMessage.email}.`, 'is-good');
+  };
+
+  const handleDeleteSupportMessage = (targetId) => {
+    const nextMessages = supportMessages.filter((item) => item.id !== targetId);
+    setSupportMessages(nextMessages);
+    localStorage.setItem(STORAGE_KEYS.supportMessages, JSON.stringify(nextMessages));
+    if (targetId === selectedSupportId) {
+      setSelectedSupportId(nextMessages[0]?.id || null);
+    }
+  };
+
+  const handleDeleteReport = async (reportId) => {
+    try {
+      const response = await fetch(`http://localhost:8080/api/reports/${reportId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (data.success) {
+        setReports(prev => prev.filter(r => r.id !== reportId));
+        showInlineNotice('Report deleted.', 'is-good');
+      } else {
+        showInlineNotice('Failed to delete report.', 'is-bad');
       }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.reports, next);
+    } catch (err) {
+      console.error('Failed to delete report:', err);
+      showInlineNotice('Failed to delete report.', 'is-bad');
+    }
   };
 
-  const resolveReport = (target, index) => {
-    const next = reports.map((r, idx) => {
-      const isTarget =
-        target?.id !== undefined && r?.id !== undefined
-          ? String(r.id) === String(target.id)
-          : idx === index;
-      if (!isTarget) return r;
-      return {
-        ...r,
-        status: 'resolved',
-        resolvedAt: new Date().toISOString(),
-      };
-    });
-    updateStorage(STORAGE_KEYS.reports, next);
+  const handleResolveReport = async (reportId) => {
+    try {
+      const response = await fetch(`http://localhost:8080/api/reports/${reportId}/status?status=resolved`, {
+        method: 'PUT'
+      });
+      const data = await response.json();
+      if (data.success) {
+        setReports(prev => prev.map(r =>
+          r.id === reportId ? { ...r, status: 'resolved' } : r
+        ));
+      }
+    } catch (err) {
+      console.error('Failed to resolve report:', err);
+    }
   };
 
   const clearAllReports = () => {
-    if (!window.confirm('This will remove all reports. Continue?')) return;
     updateStorage(STORAGE_KEYS.reports, []);
+    showInlineNotice('All reports cleared.', 'is-good');
   };
 
   const clearAllBookings = () => {
-    if (!window.confirm('This will remove all bookings. Continue?')) return;
     updateStorage(STORAGE_KEYS.bookings, []);
+    showInlineNotice('All bookings cleared.', 'is-good');
   };
 
   const deleteBookmark = (target, index) => {
@@ -325,13 +570,13 @@ export default function AdminPage() {
   };
 
   const clearAllBookmarks = () => {
-    if (!window.confirm('This will remove all bookmarks. Continue?')) return;
     updateStorage(STORAGE_KEYS.bookmarks, []);
+    showInlineNotice('All bookmarks cleared.', 'is-good');
   };
 
   const clearAllListings = () => {
-    if (!window.confirm('This will remove all listings. Continue?')) return;
     updateStorage(STORAGE_KEYS.listings, []);
+    showInlineNotice('All listings cleared.', 'is-good');
   };
 
   if (!isLoggedIn) {
@@ -345,7 +590,7 @@ export default function AdminPage() {
           <h1>Admin Portal</h1>
           <p>Sign in to manage DormScout data.</p>
 
-          <form onSubmit={handleLogin} className="admin-login-form">
+          <form onSubmit={handleAdminLogin} className="admin-login-form">
             <label htmlFor="adminEmail">Email</label>
             <input
               id="adminEmail"
@@ -366,7 +611,9 @@ export default function AdminPage() {
 
             {loginError ? <div className="admin-error">{loginError}</div> : null}
 
-            <button type="submit" className="admin-login-btn">Login</button>
+            <button type="submit" className="admin-login-btn" disabled={loginLoading}>
+              {loginLoading ? 'Signing in...' : 'Login'}
+            </button>
           </form>
 
           <button className="admin-back-btn" onClick={() => navigate('/')}>Back to Home</button>
@@ -427,6 +674,12 @@ export default function AdminPage() {
         </aside>
 
         <main className="admin-main">
+          {inlineNotice ? (
+            <div className={`admin-inline-notice ${inlineNoticeTone}`}>
+              {inlineNotice}
+            </div>
+          ) : null}
+
           {activeSection === 'overview' ? (
             <section>
               <h2 className="admin-section-title">Overview</h2>
@@ -463,7 +716,7 @@ export default function AdminPage() {
                       <th>Name</th>
                       <th>Email</th>
                       <th>Role</th>
-                      <th>School</th>
+                      <th>Verification</th>
                       <th>Created At</th>
                       <th>Action</th>
                     </tr>
@@ -473,21 +726,52 @@ export default function AdminPage() {
                       <tr><td colSpan={6} className="admin-empty">No users found.</td></tr>
                     ) : filteredUsers.map((u, idx) => {
                       const role = getRole(u);
+                      const verStatus = u.verificationStatus || 'none';
+                      const isLandlord = role === 'landlord';
                       return (
                         <tr key={u.id || u.email || `user-${idx}`}>
-                          <td>{u.name || 'N/A'}</td>
+                          <td>{u.name || (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.firstName || u.lastName || 'N/A')}</td>
                           <td>{u.email || 'N/A'}</td>
                           <td>
                             <span className={`admin-badge ${role === 'landlord' ? 'role-landlord' : 'role-tenant'}`}>
                               {role}
                             </span>
                           </td>
-                          <td>{role === 'tenant' ? (u.school || u.university || 'N/A') : 'N/A'}</td>
+                          <td>
+                            {isLandlord && verStatus === 'pending' ? (
+                              <span className="admin-badge is-pending">Pending</span>
+                            ) : isLandlord && verStatus === 'approved' ? (
+                              <span className="admin-badge is-good">✓ Verified</span>
+                            ) : isLandlord && verStatus === 'rejected' ? (
+                              <span className="admin-badge is-bad">✗ Rejected</span>
+                            ) : (
+                              <span className="admin-badge">N/A</span>
+                            )}
+                          </td>
                           <td>{toDisplayDate(u.createdAt)}</td>
                           <td>
-                            <button className="admin-icon-btn danger" onClick={() => deleteUser(u, idx)}>
-                              <Trash2 size={15} /> Delete
-                            </button>
+                            {isLandlord && verStatus === 'pending' ? (
+                              <div className="admin-action-group">
+                                <button className="admin-icon-btn success" onClick={() => handleApproveLandlord(u.id)}>
+                                  <CheckCircle2 size={15} /> Approve
+                                </button>
+                                <button className="admin-icon-btn danger" onClick={() => handleRejectLandlord(u)}>
+                                  <XCircle size={15} /> Reject
+                                </button>
+                                <button className="admin-icon-btn" onClick={() => handleMessageUser(u)}>
+                                  <MessageSquare size={15} /> Message
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="admin-action-group">
+                                <button className="admin-icon-btn danger" onClick={() => handleDeleteUser(u.id)}>
+                                  <Trash2 size={15} /> Delete
+                                </button>
+                                <button className="admin-icon-btn" onClick={() => handleMessageUser(u)}>
+                                  <MessageSquare size={15} /> Message
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -537,7 +821,7 @@ export default function AdminPage() {
                         {l.status || 'active'}
                       </span>
                     </p>
-                    <button className="admin-icon-btn danger" onClick={() => deleteListing(l, idx)}>
+                    <button className="admin-icon-btn danger" onClick={() => handleDeleteListing(l.id)}>
                       <Trash2 size={15} /> Delete listing
                     </button>
                   </article>
@@ -673,11 +957,11 @@ export default function AdminPage() {
                       <p><strong>Submitted At:</strong> {toDisplayDate(r.submittedAt || r.createdAt)}</p>
                       <div className="admin-report-actions">
                         {status === 'pending' ? (
-                          <button className="admin-icon-btn success" onClick={() => resolveReport(r, idx)}>
+                          <button className="admin-icon-btn success" onClick={() => handleResolveReport(r.id)}>
                             <CheckCircle2 size={15} /> Resolve
                           </button>
                         ) : null}
-                        <button className="admin-icon-btn danger" onClick={() => dismissReport(r, idx)}>
+                        <button className="admin-icon-btn danger" onClick={() => handleDeleteReport(r.id)}>
                           <XCircle size={15} /> Dismiss
                         </button>
                       </div>
@@ -779,6 +1063,118 @@ export default function AdminPage() {
             </section>
           ) : null}
 
+          {activeSection === 'messages' ? (
+            <section>
+              <div className="admin-section-head">
+                <h2 className="admin-section-title">Messages</h2>
+              </div>
+
+              <div className="admin-messages-grid">
+                <article className="admin-card admin-support-inbox-card">
+                  <h3>Support Inbox</h3>
+                  <p>Pick a concern to reply directly to the sender.</p>
+                  <div className="admin-support-list">
+                    {supportMessages.length === 0 ? (
+                      <p className="admin-empty">No support concerns yet.</p>
+                    ) : supportMessages.map((item) => {
+                      const isActive = selectedSupportId === item.id;
+                      return (
+                        <div
+                          key={item.id}
+                          className={`admin-support-item ${isActive ? 'active' : ''}`}
+                          onClick={() => {
+                            setSelectedDirectUser(null);
+                            setSelectedSupportId(item.id);
+                          }}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          <div className="admin-support-item-top">
+                            <strong>{item.name || 'Unknown User'}</strong>
+                            <span className={`admin-badge ${item.replied ? 'is-good' : 'is-pending'}`}>
+                              {item.replied ? 'Replied' : 'Open'}
+                            </span>
+                          </div>
+                          <p>{item.subject || 'No subject'}</p>
+                          <small>{item.email || 'No email'} · {toDisplayDate(item.createdAt)}</small>
+                          <div className="admin-support-actions">
+                            <button
+                              className="admin-icon-btn danger"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSupportMessage(item.id);
+                              }}
+                            >
+                              <Trash2 size={15} /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+
+                <article className="admin-card admin-broadcast-card">
+                  <h3>Message Selected User</h3>
+                  {selectedSupportMessage ? (
+                    <>
+                      <p>
+                        <strong>To:</strong> {selectedSupportMessage.name} ({selectedSupportMessage.email})
+                      </p>
+                      <p>
+                        <strong>Concern:</strong> {selectedSupportMessage.subject}
+                      </p>
+                      <p className="admin-support-preview">{selectedSupportMessage.message}</p>
+                    </>
+                  ) : (
+                    <p>Select a support concern from the inbox.</p>
+                  )}
+
+                  <textarea
+                    className="admin-broadcast-textarea"
+                    placeholder="Type your direct reply"
+                    value={directReply}
+                    onChange={(e) => setDirectReply(e.target.value)}
+                    rows={4}
+                    disabled={!selectedSupportMessage}
+                  />
+                  <button className="admin-icon-btn" onClick={handleSendDirectReply} disabled={!selectedSupportMessage}>
+                    Send Direct Reply
+                  </button>
+                </article>
+
+                <article className="admin-card admin-broadcast-card">
+                  <h3>Broadcast Message</h3>
+                  <p>Send a one-way message to all landlords, all tenants, or everyone.</p>
+                  <div className="admin-broadcast-grid">
+                    <div className="admin-select-wrap">
+                      <select value={broadcastRole} onChange={(e) => setBroadcastRole(e.target.value)}>
+                        <option value="landlord">All Landlords</option>
+                        <option value="tenant">All Tenants</option>
+                        <option value="all">Everyone</option>
+                      </select>
+                    </div>
+                    <input
+                      className="admin-broadcast-input"
+                      type="text"
+                      placeholder="Subject"
+                      value={broadcastSubject}
+                      onChange={(e) => setBroadcastSubject(e.target.value)}
+                    />
+                  </div>
+                  <textarea
+                    className="admin-broadcast-textarea"
+                    placeholder="Type your message here"
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    rows={4}
+                  />
+                  <button className="admin-icon-btn" onClick={handleSendAdminMessage}>Send Broadcast</button>
+                </article>
+              </div>
+            </section>
+          ) : null}
+
           {activeSection === 'settings' ? (
             <section>
               <h2 className="admin-section-title">Settings</h2>
@@ -795,8 +1191,17 @@ export default function AdminPage() {
 
                 <article className="admin-card">
                   <h3>Admin Account</h3>
-                  <p><strong>Email:</strong> admin</p>
-                  <p><strong>Role:</strong> Administrator</p>
+                  {(() => {
+                    const adminUser = JSON.parse(localStorage.getItem('dormscout_admin_user') || '{}');
+                    return (
+                      <>
+                        <p><strong>Email:</strong> {adminUser.email || 'admin@dormscout.com'}</p>
+                        <p><strong>Name:</strong> {adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : 'Admin DormScout'}</p>
+                        <p><strong>Role:</strong> Administrator</p>
+                        <p><strong>User Type:</strong> {adminUser.userType || 'admin'}</p>
+                      </>
+                    );
+                  })()}
                 </article>
 
                 <article className="admin-card admin-danger-card">
@@ -813,6 +1218,34 @@ export default function AdminPage() {
           ) : null}
         </main>
       </div>
+
+      {/* Rejection Modal */}
+      {showRejectionModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Reject Landlord Verification</h2>
+              <button className="modal-close" onClick={() => setShowRejectionModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>Landlord: <strong>{selectedLandlord?.name || selectedLandlord?.email}</strong></p>
+              <label htmlFor="rejection-reason">Reason for Rejection</label>
+              <textarea
+                id="rejection-reason"
+                className="rejection-textarea"
+                placeholder="Please provide a detailed reason for rejecting this landlord's verification..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={6}
+              />
+            </div>
+            <div className="modal-footer">
+              <button className="admin-btn" onClick={() => setShowRejectionModal(false)}>Cancel</button>
+              <button className="admin-btn danger" onClick={handleSubmitRejection}>Reject & Send</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

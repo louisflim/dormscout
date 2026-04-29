@@ -19,19 +19,18 @@ function notifyMessagingChange()    { messagingListeners.forEach(l => l());    }
 
 export function BookingProvider({ children }) {
   const [bookings,      setBookings]      = useState([]);
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const storedNotifs = localStorage.getItem('dormscout_notifications');
+      return storedNotifs ? JSON.parse(storedNotifs) : [];
+    } catch (_) {
+      return [];
+    }
+  });
   const [chatMessages,  setChatMessages]  = useState({});
   const [tenants,       setTenants]       = useState([]);
   const [listings,      setListings]      = useState([]);
   const [loading,       setLoading]       = useState(false);
-
-  // ── Load initial data ────────────────────────────────────
-  useEffect(() => {
-    const storedNotifs = localStorage.getItem('dormscout_notifications');
-    if (storedNotifs) {
-      try { setNotifications(JSON.parse(storedNotifs)); } catch (_) {}
-    }
-  }, []);
 
   // ── Persist notifications ─────────────────────────────────
   useEffect(() => {

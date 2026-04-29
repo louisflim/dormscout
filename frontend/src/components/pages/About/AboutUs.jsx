@@ -181,7 +181,7 @@ export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScre
           <p>Have any questions about DormScout? Feel free to reach out to our support team.</p>
           <button
             className="about-contact-btn"
-            onClick={() => { if (setScreen) setScreen('support'); }}
+            onClick={() => navigate('/support')}
           >
             Contact Us
           </button>

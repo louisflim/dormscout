@@ -124,11 +124,7 @@ function App() {
                 <ProfilePage userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
               </ProtectedRoute>
             } />
-            <Route path="/support" element={
-              <ProtectedRoute>
-                <Support darkMode={darkMode} setDarkMode={setDarkMode} />
-              </ProtectedRoute>
-            } />
+            <Route path="/support" element={<Support darkMode={darkMode} setDarkMode={setDarkMode} />} />
             <Route path="/about" element={<AboutUs darkMode={darkMode} setDarkMode={setDarkMode} />} />
             <Route path="/admin" element={<AdminPage />} />
           

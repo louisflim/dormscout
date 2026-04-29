@@ -117,6 +117,28 @@
   font-size: 13px;
 }
 
+.messaging-admin-notice {
+  margin: 16px 24px 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+.messaging-admin-notice__title {
+  margin: 0 0 6px;
+  color: #be123c;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.messaging-admin-notice__body {
+  margin: 0;
+  color: #9f1239;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 /* ── Messages ── */
 .messaging-chat__messages {
   flex: 1;

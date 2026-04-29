@@ -93,6 +93,17 @@ public class UserService {
             if (updates.getPhone() != null) {
                 user.setPhone(updates.getPhone());
             }
+            if (updates.getBusinessName() != null) {
+                user.setBusinessName(updates.getBusinessName());
+            }
+            if (updates.getBusinessPermit() != null) {
+                user.setBusinessPermit(updates.getBusinessPermit());
+            }
+            if (updates.getBusinessName() != null || updates.getBusinessPermit() != null) {
+                user.setVerified(false);
+                user.setVerificationStatus("pending");
+                user.setRejectionReason(null);
+            }
 
             return userRepository.save(user);
         }
@@ -108,8 +119,12 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
+    public boolean checkPassword(String rawPassword, String encodedPassword) {
+        return passwordEncoder.matches(rawPassword, encodedPassword);
+    }
+
     public UserDTO convertToDTO(User user) {
-        return new UserDTO(
+        UserDTO dto = new UserDTO(
                 user.getId(),
                 user.getEmail(),
                 user.getFirstName(),
@@ -117,5 +132,25 @@ public class UserService {
                 user.getPhone(),
                 user.getUserType()
         );
+        dto.setBusinessName(user.getBusinessName());
+        dto.setBusinessPermit(user.getBusinessPermit());
+        dto.setVerified(user.isVerified());
+        dto.setVerificationStatus(user.getVerificationStatus());
+        dto.setRejectionReason(user.getRejectionReason());
+        return dto;
+    }
+
+    public UserDTO verifyLandlord(Long userId, boolean approve, String reason) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return null;
+        }
+        user.setVerificationStatus(approve ? "approved" : "rejected");
+        user.setVerified(approve);
+        if (!approve && reason != null) {
+            user.setRejectionReason(reason);
+        }
+        userRepository.save(user);
+        return convertToDTO(user);
     }
 }

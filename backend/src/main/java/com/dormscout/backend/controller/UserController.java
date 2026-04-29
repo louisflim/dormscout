@@ -8,6 +8,7 @@ import com.dormscout.backend.dto.UserDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
@@ -20,6 +21,9 @@ import java.util.Map;
 public class UserController {
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
@@ -127,4 +131,149 @@ public class UserController {
             ));
         }
     }
+
+    // ─── Admin Endpoints ─────────────────────────────────────────────────────
+
+    @PostMapping("/admin/login")
+    public ResponseEntity<?> adminLogin(@RequestBody LoginRequest loginRequest) {
+        Optional<User> userOpt = userService.findByEmail(loginRequest.getEmail());
+
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false,
+                    "message", "Invalid email or password"
+            ));
+        }
+
+        User user = userOpt.get();
+
+        if (!"admin".equals(user.getUserType())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "success", false,
+                    "message", "Access denied: not an admin account"
+            ));
+        }
+
+        if (!userService.checkPassword(loginRequest.getPassword(), user.getPassword())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false,
+                    "message", "Invalid email or password"
+            ));
+        }
+
+        UserDTO userDTO = userService.convertToDTO(user);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Admin login successful!",
+                "user", userDTO
+        ));
+    }
+
+    @GetMapping("/admin/users")
+    public ResponseEntity<?> adminGetAllUsers() {
+        List<User> users = userService.getAllUsers();
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", users
+        ));
+    }
+
+    @GetMapping("/admin/tenants")
+    public ResponseEntity<?> adminGetTenants() {
+        List<User> tenants = userService.findByUserType("tenant");
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", tenants
+        ));
+    }
+
+    @GetMapping("/admin/landlords")
+    public ResponseEntity<?> adminGetLandlords() {
+        List<User> landlords = userService.findByUserType("landlord");
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", landlords
+        ));
+    }
+
+    @PutMapping("/admin/users/{id}")
+    public ResponseEntity<?> adminUpdateUser(@PathVariable Long id, @RequestBody User updates) {
+        try {
+            User updatedUser = userService.updateUser(id, updates);
+            UserDTO userDTO = userService.convertToDTO(updatedUser);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "User updated successfully",
+                    "data", userDTO
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @DeleteMapping("/admin/users/{id}")
+    public ResponseEntity<?> adminDeleteUser(@PathVariable Long id) {
+        if (userService.findById(id).isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "message", "User not found"
+            ));
+        }
+        userService.deleteUser(id);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "User deleted successfully"
+        ));
+    }
+
+    @PostMapping("/admin/verify-landlord/{id}/approve")
+    public ResponseEntity<?> approveLandlordVerification(@PathVariable Long id) {
+        UserDTO verified = userService.verifyLandlord(id, true, null);
+        if (verified == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "message", "User not found"
+            ));
+        }
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Landlord verification approved",
+                "data", verified
+        ));
+    }
+
+    @PostMapping("/admin/verify-landlord/{id}/reject")
+    public ResponseEntity<?> rejectLandlordVerification(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String reason = body.getOrDefault("reason", "No reason provided");
+        UserDTO rejected = userService.verifyLandlord(id, false, reason);
+        if (rejected == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "message", "User not found"
+            ));
+        }
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Landlord verification rejected",
+                "data", rejected
+        ));
+    }
+
+    @GetMapping("/admin/pending-verifications")
+    public ResponseEntity<?> getPendingVerifications() {
+        List<User> pendingUsers = userService.findByUserType("landlord").stream()
+                .filter(u -> "pending".equals(u.getVerificationStatus()))
+                .toList();
+        List<UserDTO> dtos = pendingUsers.stream()
+                .map(userService::convertToDTO)
+                .toList();
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", dtos
+        ));
+    }
 }
+

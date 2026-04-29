@@ -612,12 +612,10 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                   <button
                     className="map-btn-delete"
                     onClick={async () => {
-                      if (window.confirm('Delete this listing?')) {
-                        await listingsAPI.deleteListing(selectedListing.id);
-                        setListings(listings.filter(l => l.id !== selectedListing.id));
-                        setSelectedListing(null);
-                        window.dispatchEvent(new Event('dormscout:listingUpdated'));
-                      }
+                      await listingsAPI.deleteListing(selectedListing.id);
+                      setListings(listings.filter(l => l.id !== selectedListing.id));
+                      setSelectedListing(null);
+                      window.dispatchEvent(new Event('dormscout:listingUpdated'));
                     }}
                   >
                     🗑️ Delete Listing
