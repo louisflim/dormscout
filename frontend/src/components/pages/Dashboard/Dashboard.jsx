@@ -182,10 +182,8 @@ function TenantOverview({ darkMode, onNavigate, user }) {
   const [bookings, setBookings] = useState(user?.bookings || []);
   const [activities, setActivities] = useState([]);
 
-  // Load bookings
   useEffect(() => {
     if (!user?.id) return;
-
     bookingsAPI.getBookingsByTenant(user.id)
       .then(response => {
         const data = Array.isArray(response) ? response : (response.data || []);
@@ -199,10 +197,8 @@ function TenantOverview({ darkMode, onNavigate, user }) {
 
   useEffect(() => {
       if (!user?.id) return;
-
       activitiesAPI.getActivitiesByUser(user.id)
           .then(response => {
-              // Handle different response formats
               let data = [];
               if (Array.isArray(response)) {
                   data = response;
@@ -246,15 +242,12 @@ function TenantOverview({ darkMode, onNavigate, user }) {
       <div className="overview-greeting">
         <div>
           <h2 className="overview-greeting-title">
-            {getGreeting()}, {displayName}! 👋
+            {getGreeting()}, {displayName}! 
           </h2>
           <p className="overview-greeting-sub" style={{ color: subText }}>
             Here's your housing update for today.
           </p>
         </div>
-        <span style={{ fontSize: 12, color: subText, whiteSpace: 'nowrap' }}>
-          {new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </span>
       </div>
 
       <div className="overview-row-2col">
@@ -587,15 +580,12 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
       <div className="overview-greeting">
         <div>
           <h2 className="overview-greeting-title">
-            {getGreeting()}, {displayName}! 🏠
+            {getGreeting()}, {displayName}! 
           </h2>
           <p className="overview-greeting-sub" style={{ color: subText }}>
             Here's your property update for today.
           </p>
         </div>
-        <span style={{ fontSize: 12, color: subText, whiteSpace: 'nowrap' }}>
-          {new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </span>
       </div>
 
       {requests.length > 0 && (
@@ -926,98 +916,100 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   const navItems = normalizedUserType === 'landlord' ? NAV_ITEMS.landlord : NAV_ITEMS.tenant;
   const unreadCount = getUnreadCount ? getUnreadCount(normalizedUserType) : 0;
 
+  const userInitials = user?.name
+    ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'ME';
+
   return (
     <div className={`dashboard-wrapper ${theme}`}>
       {/* Navbar */}
-      <nav className="dashboard-nav">
-        <button
-          className="dashboard-nav-title-btn"
-          style={{ background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer', fontSize: 24, fontWeight: 700, color: darkMode ? '#eaeaea' : '#333', fontFamily: 'inherit' }}
-          aria-label="Go to Overview"
-          onClick={() => navigate('/overview')}
-        >
-          DormScout
-        </button>
-
-        <div ref={dropdownRef} className="dashboard-dropdown-wrap">
-          <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
-            {user?.profileImage ? (
-              <img
-                src={user.profileImage}
-                alt="Profile"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  borderRadius: '50%',
-                  objectFit: 'cover'
-                }}
-              />
-            ) : (
-              <User size={20} color="#fff" />
-            )}
-          </div>
-          {showDropdown && (
-            <div className="dashboard-dropdown">
-              <div className="dropdown-item dropdown-item-profile" onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
-                <User size={15} /> My Profile
-              </div>
-              <div className="dropdown-item dropdown-item-default" onClick={() => { navigate('/support'); setShowDropdown(false); }}>
-                <HelpCircle size={15} /> Help and Support
-              </div>
-              <div className="dropdown-item dropdown-item-default" onClick={() => { navigate('/about'); setShowDropdown(false); }}>
-                <Info size={15} /> About Us
-              </div>
-              <div className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
-                onClick={() => { setDarkMode && setDarkMode(!darkMode); setShowDropdown(false); }}>
-                {darkMode ? <Sun size={15} /> : <Moon size={15} />}
-                <span style={{ marginLeft: 8 }}>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
-              </div>
-              <div className="dropdown-item dropdown-item-logout" onClick={() => { setShowDropdown(false); handleLogout(); }}>
-                <LogOut size={15} /> Logout
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
-
-      {/* Layout */}
       <div className="dashboard-layout">
-
-        {/* Sidebar */}
         <aside className="dashboard-sidebar" role="navigation" aria-label="Main navigation">
-          <div style={{
-            padding: '8px 12px',
-            marginBottom: '12px',
-            background: isLandlord ? 'rgba(232,98,46,0.1)' : 'rgba(91,0,168,0.1)',
-            borderRadius: '8px',
-            fontSize: '11px',
-            fontWeight: 600,
-            color: isLandlord ? '#E8622E' : '#5BADA8',
-            textAlign: 'center'
-          }}>
-            {isLandlord ? '🏢 Landlord' : '🏠 Tenant'}
-          </div>
+          <button
+            className="sidebar-logo-btn"
+            onClick={() => navigate('/overview')}
+            aria-label="Go to Overview"
+          >
+            <span style={{ color: '#E8622E' }}>Dorm</span>
+            <span style={{ color: '#5BADA8' }}>Scout</span>
+          </button>
 
-          {navItems.map((item) => {
-            const isActive = activeNav === item.id;
-            const iconColor = isActive ? '#ffffff' : '#E8622E';
-            return (
-              <button
-                key={item.id}
-                className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
-                onClick={() => navigate(`/${item.id}`)}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <span className="sidebar-nav-icon">
-                  {NAV_ICON[item.id] ? NAV_ICON[item.id](iconColor) : <LayoutDashboard size={18} color={iconColor} />}
-                </span>
-                <span className="sidebar-nav-label">{item.label}</span>
-                {item.id === 'notifications' && unreadCount > 0 && (
-                  <span className="sidebar-badge">{unreadCount}</span>
+          <nav className="sidebar-nav-items">
+            {navItems.map((item) => {
+              const isActive = activeNav === item.id;
+              const iconColor = isActive ? '#ffffff' : '#E8622E';
+              return (
+                <button
+                  key={item.id}
+                  className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
+                  onClick={() => navigate(`/${item.id}`)}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <span className="sidebar-nav-icon">
+                    {NAV_ICON[item.id] ? NAV_ICON[item.id](iconColor) : <LayoutDashboard size={18} color={iconColor} />}
+                  </span>
+                  <span className="sidebar-nav-label">{item.label}</span>
+                  {item.id === 'notifications' && unreadCount > 0 && (
+                    <span className="sidebar-badge">{unreadCount}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/*USER MENU — moved from the top header to the sidebar bottom.*/}
+          <div ref={dropdownRef} className="sidebar-user-menu">
+            <button
+              className="sidebar-user-btn"
+              onClick={() => {
+                          console.log('before toggle, showDropdown is:', showDropdown);
+                          setShowDropdown(!showDropdown);
+                        }}
+              aria-label="User menu"
+            >
+              <div className="sidebar-avatar">
+                {user?.profileImage ? (
+                  <img
+                    src={user.profileImage}
+                    alt="Profile"
+                    style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{userInitials}</span>
                 )}
-              </button>
-            );
-          })}
+              </div>
+              <div className="sidebar-user-info">
+                <span className="sidebar-user-name">{user?.name?.split(' ')[0] || 'Account'}</span>
+                <span className="sidebar-user-role">{isLandlord ? 'Landlord' : 'Tenant'}</span>
+              </div>
+            </button>
+
+            {showDropdown && (
+              <div className="dashboard-dropdown sidebar-dropdown">
+                <div className="dropdown-item dropdown-item-profile"
+                  onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
+                  <User size={15} /> My Profile
+                </div>
+                <div className="dropdown-item dropdown-item-default"
+                  onClick={() => { navigate('/support'); setShowDropdown(false); }}>
+                  <HelpCircle size={15} /> Help and Support
+                </div>
+                <div className="dropdown-item dropdown-item-default"
+                  onClick={() => { navigate('/about'); setShowDropdown(false); }}>
+                  <Info size={15} /> About Us
+                </div>
+                <div className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
+                  onClick={() => { setDarkMode && setDarkMode(!darkMode); setShowDropdown(false); }}>
+                  {darkMode ? <Sun size={15} /> : <Moon size={15} />}
+                  <span style={{ marginLeft: 8 }}>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                </div>
+                <div className="dropdown-item dropdown-item-logout"
+                  onClick={() => { setShowDropdown(false); handleLogout(); }}>
+                  <LogOut size={15} /> Logout
+                </div>
+              </div>
+            )}
+          </div> 
         </aside>
 
         {/* Content */}
