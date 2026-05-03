@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Map from '../Map/Map';
 import ListingPage from '../Listing/ListingPage';
@@ -962,7 +963,6 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
             <button
               className="sidebar-user-btn"
               onClick={() => {
-                          console.log('before toggle, showDropdown is:', showDropdown);
                           setShowDropdown(!showDropdown);
                         }}
               aria-label="User menu"
@@ -983,7 +983,6 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
                 <span className="sidebar-user-role">{isLandlord ? 'Landlord' : 'Tenant'}</span>
               </div>
             </button>
-
             {showDropdown && (
               <div className="dashboard-dropdown sidebar-dropdown">
                 <div className="dropdown-item dropdown-item-profile"
