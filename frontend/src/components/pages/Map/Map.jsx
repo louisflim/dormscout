@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITIES, findNearestUniversity, getDistanceFromUniversity } from '../../../constants/universities';
-import { listingsAPI, bookingsAPI, activitiesAPI } from '../../../utils/api';
+import { listingsAPI, bookingsAPI, activitiesAPI, bookmarksAPI } from '../../../utils/api';
 import './Map.css';
 
 const PRIMARY = '#E8622E';
@@ -76,8 +76,20 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [bookingError, setBookingError] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [bookmarkedIds, setBookmarkedIds] = useState(new Set());
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
   const { user } = useAuth();
+  const isLandlordUser = user?.userType === 'landlord';
+
+  // Load bookmarked listing IDs for this tenant
+  useEffect(() => {
+    if (user?.id && !isLandlordUser) {
+      bookmarksAPI.getBookmarks(user.id).then(bms => {
+        setBookmarkedIds(new Set(bms.map(b => b.listingId)));
+      });
+    }
+  }, [user?.id, isLandlordUser]);
   const navigate = useNavigate();
 
   const normalizedUserType = userType?.toLowerCase() || 'tenant';
@@ -239,6 +251,13 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   };
 
   const handleConfirmBooking = async (listing) => {
+    const availableRooms = Number(listing?.availableRooms) || 0;
+    if (availableRooms <= 0) {
+      setBookingError('No room available');
+      setBookingStep('info');
+      return;
+    }
+
     if (!moveInDate) {
       setBookingError('Please select a move-in date.');
       return;
@@ -281,7 +300,8 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       setBookingStep('success');
     } catch (error) {
       console.error('Booking error:', error);
-      setBookingError('Failed to create booking. Please try again.');
+      const message = error?.message || 'Failed to create booking. Please try again.';
+      setBookingError(message);
       setBookingStep('info');
     }
   };
@@ -542,11 +562,22 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
               {!isLandlord ? (
                 <>
+                  {Number(selectedListing.availableRooms) <= 0 && (
+                    <p style={{ color: '#dc3545', fontWeight: 700, margin: '8px 0' }}>
+                      No room available
+                    </p>
+                  )}
                   {bookingStep === 'info' && (
                     <>
-                      <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
-                        📅 Book This Property
-                      </button>
+                      {Number(selectedListing.availableRooms) > 0 ? (
+                        <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
+                          📅 Book This Property
+                        </button>
+                      ) : (
+                        <button className="map-btn-book" disabled>
+                          No room available
+                        </button>
+                      )}
                       <button className="map-btn-contact" onClick={() => {
                         const landlord = {
                           id: selectedListing.landlordId,
@@ -556,6 +587,26 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                       }}>
                         💬 Contact Landlord
                       </button>
+                      {user?.id && (
+                        <button
+                          className="map-btn-contact"
+                          style={{ background: bookmarkedIds.has(selectedListing.id) ? '#5BADA8' : undefined }}
+                          disabled={bookmarkLoading}
+                          onClick={async () => {
+                            setBookmarkLoading(true);
+                            if (bookmarkedIds.has(selectedListing.id)) {
+                              await bookmarksAPI.removeBookmark(user.id, selectedListing.id);
+                              setBookmarkedIds(prev => { const next = new Set(prev); next.delete(selectedListing.id); return next; });
+                            } else {
+                              await bookmarksAPI.addBookmark(user.id, selectedListing.id);
+                              setBookmarkedIds(prev => new Set([...prev, selectedListing.id]));
+                            }
+                            setBookmarkLoading(false);
+                          }}
+                        >
+                          {bookmarkedIds.has(selectedListing.id) ? '🔖 Saved' : '🔖 Save Listing'}
+                        </button>
+                      )}
                     </>
                   )}
 

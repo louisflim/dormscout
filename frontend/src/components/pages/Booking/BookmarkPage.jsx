@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './BookmarkPage.css';
-
-const BOOKMARK_KEY = 'dormscout_bookmarks';
+import { useAuth } from '../../../context/AuthContext';
+import { bookmarksAPI } from '../../../utils/api';
 
 const defaultIcon = L.icon({
   iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -35,26 +35,21 @@ function SmallMap({ lat, lng }) {
   return <div ref={mapRef} style={{ width: '100%', height: '100%' }} />;
 }
 
-function getBookmarks() {
-  try { return JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '[]'); } catch (_) { return []; }
-}
-
 export default function BookmarkPage({ darkMode = false }) {
   const navigate = useNavigate();
-  const [bookmarks, setBookmarks] = useState(getBookmarks);
+  const { user } = useAuth();
+  const [bookmarks, setBookmarks] = useState([]);
 
   useEffect(() => {
-    const handler = (e) => {
-      if (e.key === BOOKMARK_KEY) setBookmarks(getBookmarks());
-    };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
-  }, []);
+    if (!user?.id) return;
+    bookmarksAPI.getBookmarks(user.id).then(data => {
+      setBookmarks(Array.isArray(data) ? data : []);
+    });
+  }, [user?.id]);
 
-  const removeBookmark = (id) => {
-    const next = bookmarks.filter(b => b.id !== id);
-    localStorage.setItem(BOOKMARK_KEY, JSON.stringify(next));
-    setBookmarks(next);
+  const removeBookmark = async (bookmark) => {
+    const ok = await bookmarksAPI.removeBookmark(user.id, bookmark.listingId);
+    if (ok) setBookmarks(prev => prev.filter(b => b.id !== bookmark.id));
   };
 
   const theme      = darkMode ? 'dark' : 'light';
@@ -153,7 +148,7 @@ export default function BookmarkPage({ darkMode = false }) {
                   </button>
                   <button
                     className="bookmark-btn-remove"
-                    onClick={() => removeBookmark(b.id)}
+                    onClick={() => removeBookmark(b)}
                   >
                     🗑️ Remove
                   </button>

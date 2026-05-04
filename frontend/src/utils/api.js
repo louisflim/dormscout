@@ -92,6 +92,12 @@ export const listingsAPI = {
         }
     },
 
+    // Backward-compatible alias used in some contexts/components
+    getById: async (id) => {
+        const data = await listingsAPI.getListingById(id);
+        return { data };
+    },
+
     getListingsByLandlord: async (landlordId) => {
         try {
             const response = await api.get(`/listings/landlord/${landlordId}`);
@@ -129,6 +135,12 @@ export const listingsAPI = {
             console.error('❌ API: updateListing error:', error);
             return { success: false, message: error.message };
         }
+    },
+
+    // Backward-compatible alias used in some contexts/components
+    update: async (id, listingData) => {
+        const data = await listingsAPI.updateListing(id, listingData);
+        return { ok: Boolean(data?.success), data };
     },
 
     deleteListing: async (id) => {
@@ -174,7 +186,27 @@ export const bookingsAPI = {
             return response.data;
         } catch (error) {
             console.error('❌ API: createBooking error:', error);
-            return null;
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Booking creation failed'
+            };
+        }
+    },
+
+    // Backward-compatible alias used in BookingContext
+    create: async (bookingData, tenantId, listingId) => {
+        try {
+            const payload = {
+                ...bookingData,
+                checkInDate: bookingData.checkInDate || bookingData.moveInDate,
+                tenantId,
+                listingId,
+            };
+            const data = await bookingsAPI.createBooking(payload);
+            return { ok: Boolean(data?.success), data };
+        } catch (error) {
+            console.error('❌ API: create alias error:', error);
+            return { ok: false, data: { success: false, message: 'Booking failed' } };
         }
     },
 
@@ -187,6 +219,33 @@ export const bookingsAPI = {
             return null;
         }
     },
+
+    // Backward-compatible alias used in BookingContext
+    updateStatus: async (id, status) => {
+        try {
+            const data = await bookingsAPI.updateBookingStatus(id, status);
+            return { ok: Boolean(data?.success), data };
+        } catch (error) {
+            console.error('❌ API: updateStatus alias error:', error);
+            return { ok: false, data: { success: false, message: 'Failed to update booking status' } };
+        }
+    },
+
+    deleteBooking: async (id) => {
+        try {
+            const response = await api.delete(`/bookings/${id}`);
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: deleteBooking error:', error);
+            return { success: false, message: error.response?.data?.message || 'Failed to delete booking' };
+        }
+    },
+
+    // Backward-compatible alias used in BookingContext/BookingPage
+    delete: async (id) => {
+        const data = await bookingsAPI.deleteBooking(id);
+        return { ok: Boolean(data?.success), success: Boolean(data?.success), data, message: data?.message };
+    },
 };
 
 export const activitiesAPI = {
@@ -195,6 +254,176 @@ export const activitiesAPI = {
         api.post(`/activities?userId=${userId}&type=${type}&text=${encodeURIComponent(text)}&time=${time || ''}&nav=${nav || ''}`),
     markAsRead: (id) => api.put(`/activities/${id}/read`),
     deleteActivity: (id) => api.delete(`/activities/${id}`),
+};
+
+// ── Messages / Conversations ─────────────────────────────────────────────────
+export const messagesAPI = {
+    /**
+     * Send a message.
+     * @param {number} senderId
+     * @param {number} receiverId
+     * @param {string} content
+     * @param {string} conversationId - deterministic: "conv_<minId>_<maxId>"
+     */
+    sendMessage: async (senderId, receiverId, content, conversationId) => {
+        try {
+            const response = await api.post(
+                '/messages',
+                { content, conversationId },
+                { params: { senderId, receiverId } }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: sendMessage error:', error);
+            return null;
+        }
+    },
+
+    /** Get conversation summary list for a user (sidebar data) */
+    getConversations: async (userId) => {
+        try {
+            const response = await api.get(`/messages/conversations/${userId}`);
+            return Array.isArray(response.data) ? response.data : [];
+        } catch (error) {
+            console.error('❌ API: getConversations error:', error);
+            return [];
+        }
+    },
+
+    /** Get all messages for a conversation (by conversationId string) */
+    getConversationMessages: async (conversationId) => {
+        try {
+            const response = await api.get(`/messages/conversation/${conversationId}`);
+            return Array.isArray(response.data) ? response.data : [];
+        } catch (error) {
+            console.error('❌ API: getConversationMessages error:', error);
+            return [];
+        }
+    },
+
+    /** Mark all unread messages in a conversation as read for this user */
+    markConversationRead: async (conversationId, readerId) => {
+        try {
+            await api.put(`/messages/conversation/${conversationId}/read`, {}, { params: { readerId } });
+        } catch (error) {
+            console.error('❌ API: markConversationRead error:', error);
+        }
+    },
+
+    /** Delete a single message by id */
+    deleteMessage: async (id) => {
+        try {
+            await api.delete(`/messages/${id}`);
+            return true;
+        } catch (error) {
+            console.error('❌ API: deleteMessage error:', error);
+            return false;
+        }
+    },
+
+    /** Delete all messages in a conversation for the calling user */
+    deleteConversation: async (conversationId, userId) => {
+        try {
+            await api.delete(`/messages/conversation/${conversationId}`, { params: { userId } });
+            return true;
+        } catch (error) {
+            console.error('❌ API: deleteConversation error:', error);
+            return false;
+        }
+    },
+};
+
+export const bookmarksAPI = {
+    /** Save a bookmark for a tenant */
+    addBookmark: async (tenantId, listingId) => {
+        try {
+            const response = await api.post('/bookmarks', {}, { params: { tenantId, listingId } });
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: addBookmark error:', error);
+            return null;
+        }
+    },
+
+    /** Get all bookmarks for a tenant */
+    getBookmarks: async (tenantId) => {
+        try {
+            const response = await api.get(`/bookmarks/tenant/${tenantId}`);
+            return Array.isArray(response.data) ? response.data : [];
+        } catch (error) {
+            console.error('❌ API: getBookmarks error:', error);
+            return [];
+        }
+    },
+
+    /** Remove a bookmark */
+    removeBookmark: async (tenantId, listingId) => {
+        try {
+            await api.delete('/bookmarks', { params: { tenantId, listingId } });
+            return true;
+        } catch (error) {
+            console.error('❌ API: removeBookmark error:', error);
+            return false;
+        }
+    },
+
+    /** Check if a listing is already bookmarked by tenant */
+    isBookmarked: async (tenantId, listingId) => {
+        try {
+            const bookmarks = await bookmarksAPI.getBookmarks(tenantId);
+            return bookmarks.some(b => b.listingId === listingId);
+        } catch {
+            return false;
+        }
+    },
+};
+
+export const reviewsAPI = {
+    /** Get reviews for a listing */
+    getByListing: async (listingId) => {
+        try {
+            const response = await api.get(`/reviews/listing/${listingId}`);
+            return Array.isArray(response.data) ? response.data : [];
+        } catch (error) {
+            console.error('❌ API: getReviewsByListing error:', error);
+            return [];
+        }
+    },
+
+    /** Submit a review */
+    createReview: async (tenantId, listingId, reviewData) => {
+        try {
+            const response = await api.post('/reviews', reviewData, { params: { tenantId, listingId } });
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: createReview error:', error);
+            return null;
+        }
+    },
+
+    /** Delete a review */
+    deleteReview: async (id) => {
+        try {
+            await api.delete(`/reviews/${id}`);
+            return true;
+        } catch (error) {
+            console.error('❌ API: deleteReview error:', error);
+            return false;
+        }
+    },
+};
+
+export const reportsAPI = {
+    /** File a report */
+    fileReport: async (reporterId, reportData) => {
+        try {
+            const response = await api.post('/reports', reportData, { params: { reporterId } });
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: fileReport error:', error);
+            return null;
+        }
+    },
 };
 
 export default api;

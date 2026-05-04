@@ -1,6 +1,7 @@
 package com.dormscout.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.dormscout.backend.converter.StringListConverter;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -65,6 +66,28 @@ public class Listing {
     @JoinColumn(name = "landlord_id", nullable = false)
     @JsonIgnore  // BREAKS CIRCULAR REFERENCE
     private User landlord;
+
+    @JsonProperty("landlordId")
+    public Long getLandlordId() {
+        return landlord != null ? landlord.getId() : null;
+    }
+
+    @JsonProperty("landlordName")
+    public String getLandlordName() {
+        if (landlord == null) {
+            return null;
+        }
+
+        String first = landlord.getFirstName() != null ? landlord.getFirstName().trim() : "";
+        String last = landlord.getLastName() != null ? landlord.getLastName().trim() : "";
+        String fullName = (first + " " + last).trim();
+
+        if (!fullName.isEmpty()) {
+            return fullName;
+        }
+
+        return landlord.getEmail();
+    }
 
     @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore  // Prevents circular reference with Booking → Listing

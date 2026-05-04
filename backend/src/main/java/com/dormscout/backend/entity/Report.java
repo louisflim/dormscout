@@ -1,5 +1,7 @@
 package com.dormscout.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -38,11 +40,25 @@ public class Report {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reporter_id", nullable = false)
+    @JsonIgnore
     private User reporter;
 
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         if (status == null) status = "pending";
+    }
+
+    @JsonProperty("reporterId")
+    public Long getReporterId() { return reporter != null ? reporter.getId() : null; }
+
+    @JsonProperty("reporterName")
+    public String getReporterName() {
+        if (reporter == null) return null;
+        String fn = reporter.getFirstName(), ln = reporter.getLastName();
+        if (fn != null && !fn.isBlank()) {
+            return (ln != null && !ln.isBlank()) ? fn + " " + ln : fn;
+        }
+        return reporter.getEmail();
     }
 }

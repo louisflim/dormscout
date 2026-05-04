@@ -3,9 +3,21 @@ import { userAPI } from '../utils/api';
 
 const AuthContext = createContext(null);
 
+function readStoredUser() {
+    try {
+        const raw = sessionStorage.getItem('authUser');
+        return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+        return null;
+    }
+}
+
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(null);
-    const [userType, setUserType] = useState(null);
+    const [user, setUser] = useState(() => readStoredUser());
+    const [userType, setUserType] = useState(() => {
+        const stored = readStoredUser();
+        return stored?.userType || localStorage.getItem('userType') || null;
+    });
     const [loading, setLoading] = useState(false);
 
     const login = useCallback(async (email, password) => {
@@ -25,6 +37,8 @@ export function AuthProvider({ children }) {
 
                 setUser(userData);
                 setUserType(userData.userType);
+                sessionStorage.setItem('authUser', JSON.stringify(userData));
+                localStorage.setItem('userType', userData.userType || '');
 
                 return { success: true, user: userData };
             } else {
@@ -55,6 +69,8 @@ export function AuthProvider({ children }) {
 
                 setUser(newUser);
                 setUserType(newUser.userType);
+                sessionStorage.setItem('authUser', JSON.stringify(newUser));
+                localStorage.setItem('userType', newUser.userType || '');
 
                 return { success: true, user: newUser };
             } else {
@@ -71,6 +87,9 @@ export function AuthProvider({ children }) {
     const logout = useCallback(() => {
         setUser(null);
         setUserType(null);
+        sessionStorage.removeItem('authUser');
+        sessionStorage.removeItem('token');
+        localStorage.removeItem('userType');
     }, []);
 
     const updateUser = useCallback(async (userData) => {
@@ -92,6 +111,8 @@ export function AuthProvider({ children }) {
                 console.log('📦 updatedUser:', updatedUser);
 
                 setUser(updatedUser);
+                sessionStorage.setItem('authUser', JSON.stringify(updatedUser));
+                localStorage.setItem('userType', updatedUser.userType || userType || '');
 
                 return { success: true, user: updatedUser };
             } else {
@@ -103,7 +124,7 @@ export function AuthProvider({ children }) {
         } finally {
             setLoading(false);
         }
-    }, [user]);
+    }, [user, userType]);
 
     return (
         <AuthContext.Provider value={{

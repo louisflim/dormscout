@@ -131,16 +131,32 @@ public class BookingController {
     }
 
     @PutMapping("/{id}/status")
-    public ResponseEntity<?> updateBookingStatus(@PathVariable Long id, @RequestParam String status) {
+    public ResponseEntity<?> updateBookingStatus(
+            @PathVariable Long id,
+            @RequestParam(required = false) String status,
+            @RequestBody(required = false) Map<String, Object> requestBody
+    ) {
         try {
-            Booking updatedBooking = bookingService.updateBookingStatus(id, status);
+            String resolvedStatus = status;
+            if (resolvedStatus == null && requestBody != null && requestBody.get("status") != null) {
+                resolvedStatus = requestBody.get("status").toString();
+            }
+
+            if (resolvedStatus == null || resolvedStatus.trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                        "success", false,
+                        "message", "Status is required"
+                ));
+            }
+
+            Booking updatedBooking = bookingService.updateBookingStatus(id, resolvedStatus);
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Booking status updated successfully",
                     "booking", updatedBooking
             ));
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                     "success", false,
                     "message", e.getMessage()
             ));

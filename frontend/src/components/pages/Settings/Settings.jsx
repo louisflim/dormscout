@@ -314,14 +314,8 @@ export default function Settings({ userType: propUserType, darkMode = false, set
 
   const [activeSettingTab, setActiveSettingTab] = useState('profile');
 
-  // Load saved profile from localStorage (only once on mount)
-  const savedProfileRef = useRef(() => {
-    try {
-      return JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}');
-    } catch (_) {
-      return {};
-    }
-  });
+  // Load saved profile from context on mount
+  const savedProfileRef = useRef(() => ({}));
 
   // Profile fields
   const [firstName,       setFirstName]       = useState(user?.firstName || '');
@@ -494,34 +488,6 @@ export default function Settings({ userType: propUserType, darkMode = false, set
         });
       }
 
-      // Save to localStorage - PERSONAL INFO ONLY
-      const currentUser = JSON.parse(localStorage.getItem('dormScoutUser') || '{}');
-      const updatedUser = {
-        ...currentUser,
-        firstName: normalizedFirstName,
-        lastName: normalizedLastName,
-        name: fullName,
-        email,
-        phone: phoneNumber,
-        phoneNumber,
-        gender,
-        profileImage,
-      };
-      localStorage.setItem('dormScoutUser', JSON.stringify(updatedUser));
-
-      // Also update landlord profile if exists
-      const savedProfile = JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}');
-      localStorage.setItem('dormscout_landlord_profile', JSON.stringify({
-        ...savedProfile,
-        firstName: normalizedFirstName,
-        lastName: normalizedLastName,
-        name: fullName,
-        email,
-        phone: phoneNumber,
-        gender,
-        profileImage,
-      }));
-
       window.dispatchEvent(new CustomEvent('dormscout:profileUpdated', {
         detail: { profileImage }
       }));
@@ -556,29 +522,6 @@ export default function Settings({ userType: propUserType, darkMode = false, set
           studentId,
         });
       }
-
-      // Save to localStorage - STUDENT INFO ONLY
-      const currentUser = JSON.parse(localStorage.getItem('dormScoutUser') || '{}');
-      const updatedUser = {
-        ...currentUser,
-        university,
-        school: university,
-        course,
-        yearLevel,
-        studentId,
-      };
-      localStorage.setItem('dormScoutUser', JSON.stringify(updatedUser));
-
-      // Also update landlord profile if exists
-      const savedProfile = JSON.parse(localStorage.getItem('dormscout_landlord_profile') || '{}');
-      localStorage.setItem('dormscout_landlord_profile', JSON.stringify({
-        ...savedProfile,
-        university,
-        school: university,
-        course,
-        yearLevel,
-        studentId,
-      }));
 
       setStudentMessage({ text: 'Student information saved! ✓', type: 'success' });
     } catch (error) {
@@ -625,43 +568,17 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     setIsLoading(true);
 
     try {
-      // 1. Get current user
-      const currentUser = JSON.parse(localStorage.getItem('dormScoutUser') || '{}');
-
-      // 2. Verify current password matches
-      if (currentUser.password !== currentPassword) {
-        setPasswordErrors({ currentPassword: 'Current password is incorrect' });
-        setPasswordMessage({ text: 'Current password is incorrect', type: 'error' });
-        setIsLoading(false);
-        return;
-      }
-
-      // 3. Update password in all users list
-      const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
-      const updatedUsers = users.map(u => {
-        if (u.id === currentUser.id || u.email === currentUser.email) {
-          return { ...u, password: newPassword };
-        }
-        return u;
-      });
-      localStorage.setItem('dormScoutUsers', JSON.stringify(updatedUsers));
-
-      // 4. Update current user in localStorage
-      const updatedCurrentUser = { ...currentUser, password: newPassword };
-      localStorage.setItem('dormScoutUser', JSON.stringify(updatedCurrentUser));
-
-      // 5. Update AuthContext
+      // Update password via AuthContext
       if (user) {
         updateUser({ password: newPassword });
       }
 
-      // 6. Clear fields
+      // Clear fields
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setPasswordErrors({});
 
-      // 7. Show success message
       setPasswordMessage({ text: 'Password changed successfully! ✓', type: 'success' });
     } catch (error) {
       console.error('Password change error:', error);
@@ -686,13 +603,6 @@ export default function Settings({ userType: propUserType, darkMode = false, set
           }
         });
       }
-
-      localStorage.setItem('dormscout_settings', JSON.stringify({
-        emailNotifications,
-        inAppNotifications,
-        messageAlerts,
-        darkMode,
-      }));
 
       setApplicationMessage({ text: 'Notification settings saved! ✓', type: 'success' });
     } catch (error) {
@@ -731,13 +641,6 @@ export default function Settings({ userType: propUserType, darkMode = false, set
 
       setIsVerified(nextVerified);
       setVerificationStatus(nextStatus);
-
-      localStorage.setItem('dormscout_landlord_profile', JSON.stringify({
-        verified: nextVerified,
-        verificationStatus: nextStatus,
-        businessName,
-        businessPermit
-      }));
 
       setVerifyMessage({ text: 'Submitted for admin review. You will be notified once approved.', type: 'success' });
     } finally {

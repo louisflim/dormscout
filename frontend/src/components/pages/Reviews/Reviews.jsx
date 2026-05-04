@@ -1,117 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import { listingsAPI, reviewsAPI } from '../../../utils/api';
 import './Reviews.css';
 
-const DORMS = [
-  { id: 1, name: 'Sunrise Boarding House', address: 'P. Del Rosario St, Cebu City' },
-  { id: 2, name: 'Green Leaf Dormitory', address: 'Gorordo Ave, Lahug, Cebu City' },
-  { id: 3, name: 'BlueSky Residences', address: 'Salinas Dr, Lahug, Cebu City' },
-];
-
-const STORAGE_KEY = 'dormscout_reviews';
-
-//once backend is ready, this will be replaced with API call and set back to []
-const PLACEHOLDER_REVIEWS = [
-  // {
-  //   id: 101,
-  //   dormId: 1,
-  //   author: 'Anna',
-  //   avatar: 'A',
-  //   date: 'March 10, 2025',
-  //   rating: 5,
-  //   tags: ['Clean', 'Safe', 'Fast WiFi'],
-  //   body: 'Really great place to stay. Management is very responsive and the rooms are always clean. Highly recommend for students near USC.',
-  //   helpful: 12,
-  //   userMarkedHelpful: false,
-  // },
-  // {
-  //   id: 102,
-  //   dormId: 1,
-  //   author: 'Carlo Mendoza',
-  //   avatar: 'CM',
-  //   date: 'February 22, 2025',
-  //   rating: 4,
-  //   tags: ['Affordable', 'Quiet'],
-  //   body: 'Good value for money. A bit far from the main road but overall a peaceful place to study. No major issues during my stay.',
-  //   helpful: 7,
-  //   userMarkedHelpful: false,
-  // },
-  // {
-  //   id: 103,
-  //   dormId: 1,
-  //   author: 'Peter Jackstone',
-  //   avatar: 'PJ',
-  //   date: 'January 15, 2025',
-  //   rating: 3,
-  //   tags: ['Average', 'Noisy at Night'],
-  //   body: 'The room itself is fine but the common area gets noisy late at night. Management could enforce curfew rules more strictly. Decent price for the area though.',
-  //   helpful: 5,
-  //   userMarkedHelpful: false,
-  // },
-  // {
-  //   id: 104,
-  //   dormId: 2,
-  //   author: 'Angel Beats',
-  //   avatar: 'AB',
-  //   date: 'February 28, 2025',
-  //   rating: 4,
-  //   tags: ['Affordable', 'Quiet'],
-  //   body: 'Green Leaf is a hidden gem. Very quiet environment perfect for reviewing. The landlord is accommodating and repairs are done quickly.',
-  //   helpful: 9,
-  //   userMarkedHelpful: false,
-  // },
-  // {
-  //   id: 105,
-  //   dormId: 2,
-  //   author: 'Bea Santos',
-  //   avatar: 'BS',
-  //   date: 'January 5, 2025',
-  //   rating: 3,
-  //   tags: ['Average'],
-  //   body: 'Decent place but WiFi could be better. Location is convenient being near Gorordo Ave. Would stay again if the internet improves.',
-  //   helpful: 3,
-  //   userMarkedHelpful: false,
-  // },
-  // {
-  //   id: 106,
-  //   dormId: 3,
-  //   author: 'Marco Villanueva',
-  //   avatar: 'MV',
-  //   date: 'March 18, 2025',
-  //   rating: 5,
-  //   tags: ['Modern', 'Secure', 'Great Location'],
-  //   body: 'BlueSky is by far the best dorm I have stayed in. Modern facilities, 24/7 security, and the location along Salinas Drive is very convenient.',
-  //   helpful: 20,
-  //   userMarkedHelpful: false,
-  // },
-];
-
-// Storage helper
-const Storage = {
-  get(key, defaultValue = null) {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  },
-  set(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      return true;
-    } catch {
-      return false;
-    }
-  },
-};
-
-// Initialize storage with placeholder reviews
-function initializeReviewsStorage() {
-  if (!Storage.get(STORAGE_KEY)) {
-    Storage.set(STORAGE_KEY, PLACEHOLDER_REVIEWS);
-  }
-}
 
 
 const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
@@ -384,63 +275,64 @@ function WriteReviewModal({ onClose, onSubmit, dormName, darkMode = false }) {
 
 export default function Reviews({ userType = 'tenant', darkMode = false, setDarkMode }) {
   const { user } = useAuth();
-  
-  useEffect(() => {
-    initializeReviewsStorage();
-  }, []);
-
-  // Get actual dorms from listings (landlord) or from bookings (tenant)
-  const getAvailableDorms = () => {
-    if (userType === 'landlord' && user?.listings?.length > 0) {
-      return user.listings.map((listing, idx) => ({
-        id: listing.id || idx,
-        name: listing.name,
-        address: listing.address || 'Address not specified',
-      }));
-    } else if (userType === 'tenant' && user?.bookings) {
-      const uniqueListings = new Map();
-      user.bookings.forEach(booking => {
-        const listingKey = booking.listingId || booking.dormName;
-        if (!uniqueListings.has(listingKey)) {
-          uniqueListings.set(listingKey, {
-            id: booking.listingId || `booking_${booking.id}`,
-            name: booking.dormName,
-            address: booking.address || 'Address not specified',
-          });
-        }
-      });
-      return Array.from(uniqueListings.values());
-    }
-    return DORMS; // Fallback to default if no user listings/bookings
-  };
-
-  const availableDorms = getAvailableDorms();
-
-  const canWriteReview = () => {
-    if (!user || userType !== 'tenant') return false;
-    if (!user?.bookings?.length) return false;
-    return user.bookings.some(
-      b => b.listingId === selectedDorm || b.dormName === selectedDorm
-    );
-  };
-
-  const [reviews, setReviews] = useState(() => Storage.get(STORAGE_KEY) || PLACEHOLDER_REVIEWS);
-  const [selectedDorm, setSelectedDorm] = useState(availableDorms.length > 0 ? availableDorms[0].id : DORMS[0].id);
+  const [availableDorms, setAvailableDorms] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [selectedDorm, setSelectedDorm] = useState(null);
+  const [loadingDorms, setLoadingDorms] = useState(true);
+  const [loadingReviews, setLoadingReviews] = useState(false);
   const [sortBy, setSortBy] = useState('newest');
   const [filterRating, setFilterRating] = useState(0);
   const [showModal, setShowModal] = useState(false);
 
-  // Cross-tab sync for reviews
+  // Load listings from API
   useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === STORAGE_KEY && e.newValue) {
-        setReviews(JSON.parse(e.newValue));
+    let cancelled = false;
+
+    const loadDorms = async () => {
+      setLoadingDorms(true);
+      try {
+        const data = await listingsAPI.getAllListings();
+        const dorms = (Array.isArray(data) ? data : []).map(l => ({
+          id: Number(l.id),
+          name: l.title,
+          address: l.address || 'Address not specified',
+        }));
+
+        if (!cancelled) {
+          setAvailableDorms(dorms);
+          setSelectedDorm(prev => {
+            if (prev && dorms.some(d => d.id === Number(prev))) return Number(prev);
+            return dorms.length > 0 ? dorms[0].id : null;
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingDorms(false);
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    loadDorms();
+    return () => { cancelled = true; };
   }, []);
+
+  // Load reviews when selectedDorm changes
+  useEffect(() => {
+    if (!selectedDorm) return;
+    let cancelled = false;
+    const loadReviews = async () => {
+      setLoadingReviews(true);
+      try {
+        const data = await reviewsAPI.getByListing(selectedDorm);
+        if (!cancelled) setReviews(Array.isArray(data) ? data : []);
+      } finally {
+        if (!cancelled) setLoadingReviews(false);
+      }
+    };
+
+    loadReviews();
+    return () => { cancelled = true; };
+  }, [selectedDorm]);
+
+  const canWriteReview = () => userType === 'tenant' && !!user?.id;
 
   const colors = {
     bg: darkMode ? '#1a1a2e' : 'transparent',
@@ -452,8 +344,8 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
     hoverBg: darkMode ? '#1e2849' : '#f2f2f2',
   };
 
-  const currentDorm = availableDorms.find(d => d.id === selectedDorm);
-  const dormReviews = reviews.filter(r => r.dormId === selectedDorm);
+  const currentDorm = availableDorms.find(d => d.id === Number(selectedDorm)) || null;
+  const dormReviews = reviews.filter(r => Number(r.dormId) === Number(selectedDorm));
 
   const avgRating = dormReviews.length
     ? (dormReviews.reduce((sum, r) => sum + r.rating, 0) / dormReviews.length).toFixed(1)
@@ -475,37 +367,38 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
     });
 
   const handleHelpful = (reviewId) => {
-    setReviews(prev => {
-      const updated = prev.map(r =>
-        r.id === reviewId ? { ...r, helpful: r.helpful + 1, userMarkedHelpful: true } : r
-      );
-      Storage.set(STORAGE_KEY, updated);
-      return updated;
-    });
+    setReviews(prev =>
+      prev.map(r =>
+        r.id === reviewId ? { ...r, helpful: (r.helpful || 0) + 1, userMarkedHelpful: true } : r
+      )
+    );
   };
 
-  const handleSubmitReview = ({ rating, body, tags }) => {
-    const newReview = {
-      id: Date.now(),
-      dormId: selectedDorm,
-      author: 'You',
-      avatar: 'ME',
-      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      rating,
-      tags,
-      body,
-      helpful: 0,
-      userMarkedHelpful: false,
-    };
-    setReviews(prev => {
-      const updated = [newReview, ...prev];
-      Storage.set(STORAGE_KEY, updated);
-      return updated;
-    });
+  const handleSubmitReview = async ({ rating, body, tags }) => {
+    const created = await reviewsAPI.createReview(user.id, selectedDorm, { rating, body, tags });
+    if (created) {
+      reviewsAPI.getByListing(selectedDorm).then(data => {
+        setReviews(Array.isArray(data) ? data : []);
+      });
+    }
   };
 
   return (
     <main className="reviews-page" style={{ background: colors.bg, color: colors.text }}>
+      {!loadingDorms && availableDorms.length === 0 && (
+        <div className="reviews-empty" style={{ background: colors.cardBg, borderColor: colors.border }}>
+          <div className="reviews-empty-icon">🏠</div>
+          <h3 style={{ color: colors.text }}>No listings available</h3>
+          <p style={{ color: colors.secondaryText }}>Check back once landlords have posted dormitories.</p>
+        </div>
+      )}
+
+      {loadingDorms && (
+        <div className="reviews-empty" style={{ background: colors.cardBg, borderColor: colors.border }}>
+          <div className="reviews-empty-icon">⏳</div>
+          <h3 style={{ color: colors.text }}>Loading listings...</h3>
+        </div>
+      )}
 
       <div className="dorm-selector" style={{ background: colors.cardBg, borderColor: colors.border }}>
         <label className="dorm-selector-label" style={{ color: colors.secondaryText }}>Select Dorm</label>
@@ -606,7 +499,12 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
       </div>
 
       {/* Review List */}
-      {displayed.length > 0 ? (
+      {loadingReviews ? (
+        <div className="reviews-empty" style={{ background: colors.cardBg, borderColor: colors.border }}>
+          <div className="reviews-empty-icon">⏳</div>
+          <h3 style={{ color: colors.text }}>Loading reviews...</h3>
+        </div>
+      ) : displayed.length > 0 ? (
         <div className="review-list">
           {displayed.map(review => (
             <ReviewCard key={review.id} review={review} onHelpful={handleHelpful} darkMode={darkMode} colors={colors} />
@@ -630,7 +528,7 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
       )}
 
       {/* Modal */}
-      {showModal && (
+      {showModal && currentDorm && (
         <WriteReviewModal
           dormName={currentDorm.name}
           onClose={() => setShowModal(false)}

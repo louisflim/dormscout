@@ -46,7 +46,6 @@ export default function BookingPage({ darkMode = false }) {
   const { user } = useAuth();
   const { cancelBooking: contextCancelBooking, subscribeToBookings } = useBooking();
   const [bookings, setBookings] = useState([]);
-  const [listings, setListings] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -119,7 +118,6 @@ export default function BookingPage({ darkMode = false }) {
 
       console.log('📋 Merged bookings:', mergedBookings);
       setBookings(mergedBookings);
-      setListings(allListings);
     } catch (error) {
       console.error('Failed to load bookings:', error);
       // Fallback to localStorage
@@ -157,15 +155,6 @@ export default function BookingPage({ darkMode = false }) {
       const response = await bookingsAPI.delete(selectedBooking.id);
 
       if (response.success || response.ok) {
-        // Update available rooms on listing
-        if (selectedBooking.listingId) {
-          const listing = listings.find(l => l.id === selectedBooking.listingId);
-          if (listing) {
-            const newAvailable = (parseInt(listing.availableRooms) || 0) + 1;
-            await listingsAPI.update(selectedBooking.listingId, { availableRooms: newAvailable });
-          }
-        }
-
         // Call context cancel
         contextCancelBooking(selectedBooking.id);
 

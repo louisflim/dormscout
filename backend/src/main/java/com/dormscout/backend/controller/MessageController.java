@@ -16,12 +16,14 @@ import java.util.Optional;
 @RequestMapping("/api/messages")
 @CrossOrigin(origins = "http://localhost:3000")
 public class MessageController {
+
     @Autowired
     private MessageService messageService;
 
     @Autowired
     private UserService userService;
 
+    // ── Send a message ──────────────────────────────────────────
     @PostMapping
     public ResponseEntity<?> sendMessage(@RequestBody Message message,
                                          @RequestParam Long senderId,
@@ -50,16 +52,47 @@ public class MessageController {
         }
     }
 
+    // ── Get all messages (admin use) ────────────────────────────
     @GetMapping
     public ResponseEntity<List<Message>> getAllMessages() {
         return ResponseEntity.ok(messageService.getAllMessages());
     }
 
+    // ── Get messages in a conversation by conversationId ───────
     @GetMapping("/conversation/{conversationId}")
     public ResponseEntity<List<Message>> getByConversation(@PathVariable String conversationId) {
         return ResponseEntity.ok(messageService.getMessagesByConversation(conversationId));
     }
 
+    // ── Get conversation summaries for a user ──────────────────
+    @GetMapping("/conversations/{userId}")
+    public ResponseEntity<?> getConversations(@PathVariable Long userId) {
+        Optional<User> userOpt = userService.findById(userId);
+        if (!userOpt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "success", false, "message", "User not found"
+            ));
+        }
+        List<Map<String, Object>> conversations = messageService.getConversationsForUser(userId);
+        return ResponseEntity.ok(conversations);
+    }
+
+    // ── Get all messages between two users ─────────────────────
+    @GetMapping("/between/{userId1}/{userId2}")
+    public ResponseEntity<List<Message>> getMessagesBetween(@PathVariable Long userId1,
+                                                             @PathVariable Long userId2) {
+        return ResponseEntity.ok(messageService.getMessagesBetweenUsers(userId1, userId2));
+    }
+
+    // ── Mark all messages in a conversation as read ────────────
+    @PutMapping("/conversation/{conversationId}/read")
+    public ResponseEntity<?> markConversationRead(@PathVariable String conversationId,
+                                                   @RequestParam Long readerId) {
+        messageService.markConversationRead(conversationId, readerId);
+        return ResponseEntity.ok(Map.of("success", true));
+    }
+
+    // ── Delete a single message ─────────────────────────────────
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteMessage(@PathVariable Long id) {
         try {
@@ -70,5 +103,13 @@ public class MessageController {
                 "success", false, "message", "Message not found"
             ));
         }
+    }
+
+    // ── Delete all messages in a conversation for a user ───────
+    @DeleteMapping("/conversation/{conversationId}")
+    public ResponseEntity<?> deleteConversation(@PathVariable String conversationId,
+                                                 @RequestParam Long userId) {
+        messageService.deleteConversationForUser(conversationId, userId);
+        return ResponseEntity.ok(Map.of("success", true, "message", "Conversation deleted"));
     }
 }

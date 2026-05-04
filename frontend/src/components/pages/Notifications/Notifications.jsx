@@ -1,20 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import { useBooking } from '../../../context/BookingContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../../../context/AuthContext';
+import { activitiesAPI } from '../../../utils/api';
 import './Notifications.css';
 
 const PRIMARY = '#E8622E';
 
 const NOTIF_ICONS = {
-  new_booking:      '📦',
-  booking_accepted: '✅',
-  booking_rejected: '❌',
+  new_booking:       '📦',
+  booking_accepted:  '✅',
+  booking_rejected:  '❌',
   booking_cancelled: '❌',
-  new_message:      '💬',
-  tenant_removed:   '🚫',
+  new_message:       '💬',
+  tenant_removed:    '🚫',
+};
+
+const TYPE_TITLES = {
+  new_booking:       'New Booking',
+  booking_accepted:  'Booking Accepted',
+  booking_rejected:  'Booking Rejected',
+  booking_cancelled: 'Booking Cancelled',
+  new_message:       'New Message',
+  tenant_removed:    'Tenant Removed',
 };
 
 export default function Notifications({ darkMode = false, userType = 'tenant' }) {
-  const { getNotifications, markNotificationRead, deleteNotification, clearAllNotifications, subscribeToNotifications } = useBooking();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const dk = darkMode;
 
@@ -26,17 +36,41 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
     unreadBg:      dk ? '#0f3460'           : '#fff8f0',
   };
 
-  // Real-time notification updates
+  const loadNotifications = useCallback(() => {
+    if (!user?.id) return;
+    activitiesAPI.getActivitiesByUser(user.id).then(response => {
+      const acts = Array.isArray(response?.data?.data) ? response.data.data : [];
+      setNotifications(acts.map(a => ({
+        id:        a.id,
+        type:      a.type,
+        title:     TYPE_TITLES[a.type] || 'Notification',
+        message:   a.text,
+        read:      a.read,
+        createdAt: a.createdAt,
+      })));
+    });
+  }, [user?.id]);
+
   useEffect(() => {
-    const updateNotifications = () => {
-      setNotifications(getNotifications(userType));
-    };
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 10000);
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
 
-    updateNotifications();
-    const unsubscribe = subscribeToNotifications(updateNotifications);
+  const markAsRead = async (id) => {
+    await activitiesAPI.markAsRead(id);
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
 
-    return () => unsubscribe();
-  }, [userType, getNotifications, subscribeToNotifications]);
+  const deleteNotif = async (id) => {
+    await activitiesAPI.deleteActivity(id);
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const clearAll = async () => {
+    await Promise.all(notifications.map(n => activitiesAPI.deleteActivity(n.id)));
+    setNotifications([]);
+  };
 
   const formatTime = (iso) => {
     if (!iso) return '';
@@ -63,7 +97,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
         {notifications.length > 0 && (
           <button
             className="notif-header__clear-btn"
-            onClick={() => { clearAllNotifications(userType); setNotifications([]); }}
+            onClick={clearAll}
             style={{ border: `1px solid ${c.border}`, color: c.secondaryText }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = '#dc3545';
@@ -105,7 +139,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
               {/* Body */}
               <div
                 className={`notif-card__body ${notif.read ? 'notif-card__body--static' : 'notif-card__body--clickable'}`}
-                onClick={() => { if (!notif.read) { markNotificationRead(notif.id); setNotifications(prev => prev.map(n => n.id === notif.id ? {...n, read: true} : n)); } }}
+                onClick={() => { if (!notif.read) markAsRead(notif.id); }}
               >
                 <div className="notif-card__top">
                   <h4 className="notif-card__title" style={{ color: c.text }}>
@@ -129,7 +163,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
               <button
                 className="notif-card__delete-btn"
                 title="Delete notification"
-                onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); setNotifications(prev => prev.filter(n => n.id !== notif.id)); }}
+                onClick={(e) => { e.stopPropagation(); deleteNotif(notif.id); }}
                 style={{ color: c.secondaryText }}
                 onMouseEnter={(e) => { e.currentTarget.style.color = '#dc3545'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = c.secondaryText; }}

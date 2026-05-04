@@ -80,44 +80,7 @@ const ACTIVITY_ICON = {
   listing:      <Home          size={15} color="#E8622E" />,
 };
 
-const SAMPLE_LISTINGS = [
-  {
-    id: 'sample-1',
-    title: 'Sunshine Dormitory',
-    address: 'P. Burgos St., Cebu City',
-    price: 3500,
-    rooms: 'Single Room',
-    availableRooms: 3,
-    genderPolicy: 'Girls Only',
-    university: 'University of San Carlos',
-    images: [],
-    isSample: true,
-  },
-  {
-    id: 'sample-2',
-    title: 'Campus View Residences',
-    address: 'Gorordo Ave., Lahug, Cebu City',
-    price: 4800,
-    rooms: 'Double Room',
-    availableRooms: 2,
-    genderPolicy: 'Boys Only',
-    university: 'University of the Philippines Cebu',
-    images: [],
-    isSample: true,
-  },
-  {
-    id: 'sample-3',
-    title: 'Green Haven Boarding House',
-    address: 'F. Ramos St., Cebu City',
-    price: 2800,
-    rooms: 'Shared Room',
-    availableRooms: 5,
-    genderPolicy: 'Co-ed',
-    university: 'Cebu Normal University',
-    images: [],
-    isSample: true,
-  },
-];
+
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -150,6 +113,7 @@ const SECTION_LABELS = {
   bookmarks:     <><span style={{ color: '#E8622E' }}>Saved </span><span style={{ color: '#5BADA8' }}>Listings</span></>,
   notifications: <><span style={{ color: '#E8622E' }}>Notifications </span><span style={{ color: '#5BADA8' }}>View</span></>,
   listing:       <><span style={{ color: '#E8622E' }}>Listing </span><span style={{ color: '#5BADA8' }}>View</span></>,
+  messages:      <><span style={{ color: '#E8622E' }}>Message </span><span style={{ color: '#5BADA8' }}>View</span></>,
 };
 
 const SECTION_DESCRIPTIONS = {
@@ -278,9 +242,9 @@ function TenantOverview({ darkMode, onNavigate, user }) {
     listingsAPI.getAllListings()
       .then(data => {
         const real = Array.isArray(data) ? data : [];
-        setListings(real.length > 0 ? real.slice(0, 3) : SAMPLE_LISTINGS);
+        setListings(real.slice(0, 3));
       })
-      .catch(() => setListings(SAMPLE_LISTINGS))
+      .catch(() => setListings([]))
       .finally(() => setListingsLoading(false));
   }, [])
 
@@ -288,7 +252,7 @@ function TenantOverview({ darkMode, onNavigate, user }) {
   const pendingBookings = bookings.filter(b => b.status === 'pending');
   const totalBookings   = bookings.length;
   const pendingCount   = pendingBookings.length;
-  const usingSamples   = listings.length > 0 && listings[0]?.isSample;
+
 
   return (
     <div className="overview-new">
@@ -465,17 +429,8 @@ function TenantOverview({ darkMode, onNavigate, user }) {
         <div className="overview-card-header">
           <MapPin size={16} color="#E8622E" />
           <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>
-            {usingSamples ? 'Dorms Near Campus' : 'Available Listings'}
+            Available Listings
           </span>
-          {usingSamples && (
-            <span style={{
-              marginLeft: 8, fontSize: 10, fontWeight: 600,
-              background: 'rgba(91,173,168,0.15)', color: '#5BADA8',
-              padding: '2px 8px', borderRadius: 99,
-            }}>
-              Sample listings
-            </span>
-          )}
           <button
             className="ov-link-btn"
             onClick={() => onNavigate('map')}
@@ -487,6 +442,10 @@ function TenantOverview({ darkMode, onNavigate, user }) {
         {listingsLoading ? (
           <div style={{ textAlign: 'center', padding: '20px 0', color: subText, fontSize: 13 }}>
             Loading listings...
+          </div>
+        ) : listings.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: subText, fontSize: 13 }}>
+            No listings available yet. Check back soon!
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

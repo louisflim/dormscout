@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { User, HelpCircle, Info, Moon, Sun, LogOut } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
+import { reportsAPI } from '../../../utils/api';
 import './Report.css';
 
 const TENANT_REPORT_TYPES = ['Listing', 'Landlord'];
@@ -11,8 +13,6 @@ const REASONS_MAP = {
   Landlord: ['Harassment or Discrimination', 'Scam or Fraud', 'Unresponsive or Unprofessional', 'Unsafe Living Conditions', 'Other'],
   Tenant:   ['Property Damage', 'Non-Payment / Late Payment', 'Harassment or Threats', 'Violation of House Rules', 'Other'],
 };
-
-const STORAGE_KEY = 'dormscout_reports';
 
 const COLORS = {
   light: {
@@ -38,6 +38,7 @@ const COLORS = {
 export default function Report({ userType = 'tenant', darkMode = false, setDarkMode }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
   const stateUserType = location.state?.userType;
   const stateSubject  = location.state?.subject || '';
 
@@ -121,24 +122,17 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
-    // Convert image to data URL for storage
+    // Convert image to data URL then submit to backend
     const reader = new FileReader();
-    reader.onload = () => {
-      const report = {
-        id:          Date.now(),
-        reporterType: resolvedUserType,
+    reader.onload = async () => {
+      const reportData = {
         reportType,
         subject:     subject.trim(),
         reason,
         description: description.trim(),
         evidence:    reader.result,
-        submittedAt: new Date().toISOString(),
-        status:      'pending',
       };
-      try {
-        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([report, ...existing]));
-      } catch (_) {}
+      await reportsAPI.fileReport(user?.id, reportData);
       setSubmitted(true);
     };
     reader.readAsDataURL(imageFile);
@@ -155,8 +149,7 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('dormScoutUser');
-    localStorage.removeItem('userType');
+    logout();
     navigate('/');
   };
 

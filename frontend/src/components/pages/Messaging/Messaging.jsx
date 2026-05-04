@@ -1,106 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
+import { messagesAPI } from '../../../utils/api';
 import './Messaging.css';
 
 const PRIMARY = '#E8622E';
 const AVATAR_COLORS = ['#5BADA8', '#E8622E', '#7C3AED', '#059669', '#DC2626'];
 
-// ═══════════════════════════════════════════════════════════
-// STORAGE CONSTANTS & HELPERS
-// ═══════════════════════════════════════════════════════════
-const STORAGE_KEYS = {
-  conversations: 'messaging_conversations',
-  messages: 'messaging_messages',
-};
-
 const ADMIN_CONVERSATION_ID = 'dormscout-admin';
-const ADMIN_BROADCASTS_KEY = 'dormscout_admin_messages';
+const ADMIN_BROADCASTS_KEY  = 'dormscout_admin_messages';
 
-const Storage = {
-  get(key, defaultValue = null) {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  },
-
-  set(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      return true;
-    } catch {
-      return false;
-    }
-  },
-};
-
-// ═══════════════════════════════════════════════════════════
-// INITIAL SHARED DATA
-// ═══════════════════════════════════════════════════════════
-const INITIAL_SHARED_CONVERSATIONS = {
-  tenant: {},
-  landlord: {},
-};
-
-const INITIAL_SHARED_MESSAGES = {
-  tenant: {},
-  landlord: {},
-};
-
-// ═══════════════════════════════════════════════════════════
-// INITIALIZE STORAGE
-// ═══════════════════════════════════════════════════════════
-function initializeStorage() {
-  if (!Storage.get(STORAGE_KEYS.conversations)) {
-    Storage.set(STORAGE_KEYS.conversations, INITIAL_SHARED_CONVERSATIONS);
-  }
-  if (!Storage.get(STORAGE_KEYS.messages)) {
-    Storage.set(STORAGE_KEYS.messages, INITIAL_SHARED_MESSAGES);
-  }
+/** Helper: build deterministic conversationId for two users */
+function makeConvId(idA, idB) {
+  return `conv_${Math.min(Number(idA), Number(idB))}_${Math.max(Number(idA), Number(idB))}`;
 }
 
-// Clear placeholder conversations and deduplicate by landlordId
-function clearPlaceholderConversations() {
-  const convs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
-  const PLACEHOLDER_NAMES = ['Maria Santos', 'Juan dela Cruz', 'Rosa Macaraeg', 'Pedro Lim', 'Carlos Reyes'];
-  
-  const cleaned = { ...convs };
-  ['tenant', 'landlord'].forEach(role => {
-    if (!cleaned[role]) return;
-
-    // If there are way too many conversations (junk from old bug), wipe the role entirely
-    if (Object.keys(cleaned[role]).length > 100) {
-      cleaned[role] = {};
-      return;
-    }
-
-    // Remove placeholders
-    Object.keys(cleaned[role]).forEach(convId => {
-      if (PLACEHOLDER_NAMES.includes(cleaned[role][convId].name)) {
-        delete cleaned[role][convId];
-      }
-    });
-
-    // Deduplicate: group by landlordId first, then by name as fallback
-    const seen = {}; // groupKey -> {convId, timestamp}
-    Object.keys(cleaned[role]).forEach(convId => {
-      const conv = cleaned[role][convId];
-      // Use landlordId if valid, otherwise fall back to name
-      const lid = (conv.landlordId != null) ? String(conv.landlordId) : (conv.name || convId);
-      if (!seen[lid] || (conv.timestamp || 0) > seen[lid].timestamp) {
-        seen[lid] = { convId, timestamp: conv.timestamp || 0 };
-      }
-    });
-    const keepIds = new Set(Object.values(seen).map(s => s.convId));
-    Object.keys(cleaned[role]).forEach(convId => {
-      if (!keepIds.has(convId)) delete cleaned[role][convId];
-    });
-  });
-  
-  Storage.set(STORAGE_KEYS.conversations, cleaned);
+/** Read JSON safely from localStorage */
+function lsGet(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; }
+  catch { return fallback; }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -197,221 +115,158 @@ function StatusIndicator({ status, darkMode }) {
 // ═══════════════════════════════════════════════════════════
 export default function Messaging({ darkMode = false, userType = 'tenant', contactLandlord = null, contactTenant = null }) {
   const role = userType;
-  const otherRole = role === 'tenant' ? 'landlord' : 'tenant';
-  const contactHandledRef = useRef(false);
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  useEffect(() => {
-    requestNotificationPermission();
-  }, []);
+  useEffect(() => { requestNotificationPermission(); }, []);
 
-  // State from localStorage — run cleanup synchronously in lazy initializer
-  const [conversations, setConversations] = useState(() => {
-    initializeStorage();
-    clearPlaceholderConversations();
-    return Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
-  });
-  const [allMessages, setAllMessages] = useState(() =>
-    Storage.get(STORAGE_KEYS.messages) || INITIAL_SHARED_MESSAGES
-  );
-  const [adminBroadcasts, setAdminBroadcasts] = useState(() =>
-    Storage.get(ADMIN_BROADCASTS_KEY, []) || []
-  );
+  // ── Backend-persisted conversations & messages ──────────
+  const [apiConversations, setApiConversations] = useState([]);
+  const [conversationMessages, setConversationMessages] = useState([]);
 
-  // UI State
-  const [selectedConvId, setSelectedConvId] = useState(null);
+  // ── Admin broadcasts stay in localStorage (system-generated) ─
+  const [adminBroadcasts, setAdminBroadcasts] = useState(() => lsGet(ADMIN_BROADCASTS_KEY, []));
 
-  // Handle contact landlord navigation — runs once per new contactLandlord prop
-  useEffect(() => {
-    contactHandledRef.current = false; // reset first so same landlord can be re-contacted
-    if (!contactLandlord) return;
-    contactHandledRef.current = true;
+  // ── UI state ─────────────────────────────────────────────
+  const [selectedConvId, setSelectedConvId]     = useState(null);
+  const [searchQuery,    setSearchQuery]         = useState('');
+  const [messageInput,   setMessageInput]        = useState('');
+  const [notificationEnabled, setNotificationEnabled] = useState(Notification.permission === 'granted');
+  const [contextMenuOpen, setContextMenuOpen]    = useState(null);
+  const [contextMenuPos,  setContextMenuPos]     = useState({ top: 0, left: 0 });
 
-    const landlord = { ...contactLandlord };
-    
-    // If name is still "Landlord", try to fetch the actual name from users database using landlordId
-    if ((landlord.name === 'Landlord' || !landlord.name) && landlord.id) {
-      try {
-        const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
-        const landlordUser = users.find(u => u.id === landlord.id);
-        if (landlordUser && landlordUser.name) {
-          landlord.name = landlordUser.name;
-          landlord.avatar = landlordUser.name.split(' ').map(n => n[0]).join('');
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
-    
-    let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
-    const roleConvs = currentConvs[role] || {};
-
-    // Strategy: Try to find existing conversation using:
-    // 1. landlord.id as exact key (most reliable)
-    // 2. landlordId field in conversation objects
-    // 3. Name matching (for backwards compatibility)
-    let convId = null;
-
-    // Step 1: Direct ID match
-    if (landlord.id && roleConvs[landlord.id]) {
-      convId = String(landlord.id);
-    }
-    
-    // Step 2: Search by landlordId field
-    if (!convId && landlord.id) {
-      convId = Object.keys(roleConvs).find(id => roleConvs[id].landlordId === landlord.id);
-    }
-    
-    // Step 3: Search by name (backwards compatibility)
-    if (!convId && landlord.name && landlord.name !== 'Landlord') {
-      convId = Object.keys(roleConvs).find(id => roleConvs[id].name === landlord.name);
-    }
-
-    if (!convId) {
-      // Create new conversation using landlord's ID as key
-      convId = landlord.id || (Math.max(...Object.keys(roleConvs).map(Number).filter(n => !isNaN(n)), 0) + 1);
-      const newConversations = { ...currentConvs };
-      newConversations[role] = {
-        ...roleConvs,
-        [convId]: {
-          id: convId,
-          landlordId: landlord.id || null,
-          name: landlord.name || 'Landlord',
-          avatar: landlord.avatar || (landlord.name || 'L').split(' ').map(n => n[0]).join(''),
-          online: true,
-          lastMessage: 'Start a conversation',
-          timestamp: Date.now(),
-          unread: 0,
-        }
-      };
-      setConversations(newConversations);
-      Storage.set(STORAGE_KEYS.conversations, newConversations);
-    } else {
-      // Update conversation name if it changed (e.g., from "Landlord" to actual name)
-      const existingConv = roleConvs[convId];
-      if (existingConv && landlord.name && existingConv.name !== landlord.name) {
-        const updatedConversations = { ...currentConvs };
-        updatedConversations[role] = {
-          ...roleConvs,
-          [convId]: {
-            ...existingConv,
-            name: landlord.name,
-            avatar: landlord.avatar || (landlord.name || 'L').split(' ').map(n => n[0]).join(''),
-            landlordId: landlord.id || existingConv.landlordId,
-          }
-        };
-        setConversations(updatedConversations);
-        Storage.set(STORAGE_KEYS.conversations, updatedConversations);
-      }
-    }
-    setSelectedConvId(convId);
-  }, [contactLandlord, role]);
-
-  // Handle contact TENANT navigation (landlord side)
-  useEffect(() => {
-    if (!contactTenant || role !== 'landlord') return;
-
-    const tenant = { ...contactTenant };
-    if ((tenant.name === 'Tenant' || !tenant.name) && tenant.id) {
-      try {
-        const users = JSON.parse(localStorage.getItem('dormScoutUsers') || '[]');
-        const tenantUser = users.find(u => u.id === tenant.id);
-        if (tenantUser?.name) {
-          tenant.name = tenantUser.name;
-          tenant.avatar = tenantUser.name.split(' ').map(n => n[0]).join('');
-        }
-      } catch (e) { /* ignore */ }
-    }
-
-    let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
-    const roleConvs = currentConvs['landlord'] || {};
-
-    let convId = null;
-    if (tenant.id && roleConvs[tenant.id]) convId = String(tenant.id);
-    if (!convId && tenant.id) convId = Object.keys(roleConvs).find(id => roleConvs[id].tenantId === tenant.id);
-    if (!convId && tenant.name && tenant.name !== 'Tenant') convId = Object.keys(roleConvs).find(id => roleConvs[id].name === tenant.name);
-
-    if (!convId) {
-      convId = tenant.id || (Math.max(...Object.keys(roleConvs).map(Number).filter(n => !isNaN(n)), 0) + 1);
-      const newConversations = { ...currentConvs };
-      newConversations['landlord'] = {
-        ...roleConvs,
-        [convId]: {
-          id: convId,
-          tenantId: tenant.id || null,
-          name: tenant.name || 'Tenant',
-          avatar: tenant.avatar || (tenant.name || 'T').split(' ').map(n => n[0]).join(''),
-          online: true,
-          lastMessage: 'Start a conversation',
-          timestamp: Date.now(),
-          unread: 0,
-        }
-      };
-      setConversations(newConversations);
-      Storage.set(STORAGE_KEYS.conversations, newConversations);
-    }
-    setSelectedConvId(convId);
-  }, [contactTenant, role]);
-
-  // Seed landlord's conversation list from bookings
-  useEffect(() => {
-    if (role !== 'landlord' || !user) return;
-    try {
-      const allBookings = JSON.parse(localStorage.getItem('dormscout_bookings') || '[]');
-      const myListingIds = new Set((user.listings || []).map(l => String(l.id)));
-      const myBookings = allBookings.filter(b => myListingIds.has(String(b.listingId)));
-      if (myBookings.length === 0) return;
-
-      let currentConvs = Storage.get(STORAGE_KEYS.conversations) || INITIAL_SHARED_CONVERSATIONS;
-      const landlordConvs = { ...(currentConvs['landlord'] || {}) };
-      let hasChanges = false;
-
-      myBookings.forEach(booking => {
-        const key = String(booking.tenantId);
-        if (!landlordConvs[key]) {
-          landlordConvs[key] = {
-            id: key,
-            tenantId: booking.tenantId,
-            name: booking.tenantName,
-            avatar: booking.tenantAvatar || (booking.tenantName || 'T').charAt(0),
-            online: false,
-            lastMessage: `Booking for ${booking.listingTitle}`,
-            timestamp: new Date(booking.createdAt).getTime() || Date.now(),
-            unread: 0,
-          };
-          hasChanges = true;
-        }
-      });
-
-      if (hasChanges) {
-        currentConvs = { ...currentConvs, landlord: landlordConvs };
-        setConversations(currentConvs);
-        Storage.set(STORAGE_KEYS.conversations, currentConvs);
-      }
-    } catch (e) { /* ignore */ }
-  }, [role, user]);
-
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [messageInput, setMessageInput] = useState('');
-  const [notificationEnabled, setNotificationEnabled] = useState(
-    Notification.permission === 'granted'
-  );
-  const [contextMenuOpen, setContextMenuOpen] = useState(null);
-  const [contextMenuPos, setContextMenuPos] = useState({ top: 0, left: 0 });
-
-  // Refs
   const messagesEndRef = useRef(null);
 
-  // Get role-specific data
-  const roleConversations = conversations[role] || {};
-  const roleMessages = useMemo(() => allMessages[role] || {}, [allMessages, role]);
-  const verificationSystemMessages = useMemo(() => {
-    if (role !== 'landlord' || !user?.verificationStatus) {
-      return [];
-    }
+  // ── Load & poll conversation summaries ──────────────────
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
 
+    const load = async () => {
+      const data = await messagesAPI.getConversations(user.id);
+      if (!cancelled) setApiConversations(Array.isArray(data) ? data : []);
+    };
+    load();
+    const id = setInterval(load, 5000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [user?.id]);
+
+  // ── Load & poll messages for the selected conversation ──
+  useEffect(() => {
+    if (!selectedConvId || selectedConvId === ADMIN_CONVERSATION_ID) {
+      if (selectedConvId !== ADMIN_CONVERSATION_ID) setConversationMessages([]);
+      return;
+    }
+    let cancelled = false;
+
+    const load = async () => {
+      const data = await messagesAPI.getConversationMessages(selectedConvId);
+      if (!cancelled) setConversationMessages(Array.isArray(data) ? data : []);
+    };
+    load();
+    if (user?.id) messagesAPI.markConversationRead(selectedConvId, user.id);
+    const id = setInterval(load, 3000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [selectedConvId, user?.id]);
+
+  // ── Handle "Contact Landlord" navigation ────────────────
+  useEffect(() => {
+    if (!contactLandlord || !user?.id) return;
+    const partnerId = contactLandlord.id;
+    if (!partnerId) return;
+
+    const convId = makeConvId(user.id, partnerId);
+    const name = (contactLandlord.name && contactLandlord.name !== 'Landlord')
+      ? contactLandlord.name : 'Landlord';
+    const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+    setApiConversations(prev => {
+      const exists = prev.some(c => c.conversationId === convId);
+      if (!exists) {
+        return [...prev, {
+          conversationId: convId,
+          partnerId: Number(partnerId),
+          partnerName: name,
+          partnerInitials: initials,
+          lastMessage: 'Start a conversation',
+          lastMessageTime: Date.now(),
+          unreadCount: 0,
+        }];
+      }
+      return prev;
+    });
+    setSelectedConvId(convId);
+    // Refresh from backend in case there are existing messages
+    messagesAPI.getConversations(user.id).then(data => {
+      if (Array.isArray(data)) setApiConversations(data.length ? data : prev => prev);
+    });
+  }, [contactLandlord, user?.id]);
+
+  // ── Handle "Contact Tenant" navigation (landlord side) ──
+  useEffect(() => {
+    if (!contactTenant || !user?.id || role !== 'landlord') return;
+    const partnerId = contactTenant.id;
+    if (!partnerId) return;
+
+    const convId = makeConvId(user.id, partnerId);
+    const name = (contactTenant.name && contactTenant.name !== 'Tenant')
+      ? contactTenant.name : 'Tenant';
+    const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+    setApiConversations(prev => {
+      const exists = prev.some(c => c.conversationId === convId);
+      if (!exists) {
+        return [...prev, {
+          conversationId: convId,
+          partnerId: Number(partnerId),
+          partnerName: name,
+          partnerInitials: initials,
+          lastMessage: 'Start a conversation',
+          lastMessageTime: Date.now(),
+          unreadCount: 0,
+        }];
+      }
+      return prev;
+    });
+    setSelectedConvId(convId);
+    messagesAPI.getConversations(user.id).then(data => {
+      if (Array.isArray(data)) setApiConversations(data.length ? data : prev => prev);
+    });
+  }, [contactTenant, user?.id, role]);
+
+  // ── Watch admin broadcasts (storage events from admin page) ─
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === ADMIN_BROADCASTS_KEY && e.newValue) {
+        try { setAdminBroadcasts(JSON.parse(e.newValue) || []); } catch { /* ignore */ }
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
+
+  // ── Map API conversations → role-keyed object for render ─
+  const roleConversations = useMemo(() => {
+    const map = {};
+    apiConversations.forEach(conv => {
+      map[conv.conversationId] = {
+        id: conv.conversationId,
+        name: conv.partnerName || 'Unknown',
+        avatar: conv.partnerInitials || '??',
+        online: false,
+        lastMessage: conv.lastMessage || 'Start a conversation',
+        timestamp: conv.lastMessageTime,
+        unread: conv.unreadCount || 0,
+        landlordId: role === 'tenant' ? conv.partnerId : null,
+        tenantId:   role === 'landlord' ? conv.partnerId : null,
+      };
+    });
+    return map;
+  }, [apiConversations, role]);
+
+  // ── Admin system messages (unchanged logic) ──────────────
+  const verificationSystemMessages = useMemo(() => {
+    if (role !== 'landlord' || !user?.verificationStatus) return [];
     let text = null;
     if (user.verificationStatus === 'rejected' && user.rejectionReason) {
       text = user.rejectionReason;
@@ -420,337 +275,140 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     } else if (user.verificationStatus === 'pending') {
       text = 'Your business verification is pending admin review.';
     }
-
-    if (!text) {
-      return [];
-    }
-
-    return [{
-      id: `${ADMIN_CONVERSATION_ID}-${user?.verificationStatus || 'status'}`,
-      sender: 'received',
-      text,
-      timestamp: Date.now(),
-    }];
+    if (!text) return [];
+    return [{ id: `${ADMIN_CONVERSATION_ID}-${user?.verificationStatus}`, sender: 'received', text, timestamp: Date.now() }];
   }, [role, user?.verificationStatus, user?.rejectionReason]);
 
   const broadcastSystemMessages = useMemo(() => {
     const currentUserEmail = String(user?.email || '').toLowerCase();
     return (Array.isArray(adminBroadcasts) ? adminBroadcasts : [])
-      .filter((item) => {
+      .filter(item => {
         const mode = item?.mode || 'broadcast';
-        if (mode === 'direct') {
-          return String(item?.recipientEmail || '').toLowerCase() === currentUserEmail;
-        }
+        if (mode === 'direct') return String(item?.recipientEmail || '').toLowerCase() === currentUserEmail;
         return item?.forRole === 'all' || item?.forRole === role;
       })
-      .map((item) => ({
-        id: item.id,
-        sender: 'received',
-        text: item.text,
-        timestamp: item.createdAt ? new Date(item.createdAt).getTime() : Date.now(),
-      }))
+      .map(item => ({ id: item.id, sender: 'received', text: item.text, timestamp: item.createdAt ? new Date(item.createdAt).getTime() : Date.now() }))
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [adminBroadcasts, role, user?.email]);
 
-  const adminMessages = useMemo(() => {
-    return [...verificationSystemMessages, ...broadcastSystemMessages]
-      .sort((a, b) => a.timestamp - b.timestamp);
-  }, [verificationSystemMessages, broadcastSystemMessages]);
+  const adminMessages = useMemo(() =>
+    [...verificationSystemMessages, ...broadcastSystemMessages].sort((a, b) => a.timestamp - b.timestamp),
+    [verificationSystemMessages, broadcastSystemMessages]
+  );
 
   const adminConversation = useMemo(() => {
-    if (adminMessages.length === 0) {
-      return null;
-    }
-
+    if (adminMessages.length === 0) return null;
     const latest = adminMessages[adminMessages.length - 1];
-    return {
-      id: ADMIN_CONVERSATION_ID,
-      name: 'DormScout Admin',
-      avatar: 'DA',
-      online: true,
-      lastMessage: latest.text,
-      timestamp: latest.timestamp,
-      unread: 0,
-      isSystem: true,
-    };
+    return { id: ADMIN_CONVERSATION_ID, name: 'DormScout Admin', avatar: 'DA', online: true, lastMessage: latest.text, timestamp: latest.timestamp, unread: 0, isSystem: true };
   }, [adminMessages]);
 
   const mergedConversations = useMemo(() => {
-    if (!adminConversation) {
-      return roleConversations;
-    }
-
-    return {
-      ...roleConversations,
-      [ADMIN_CONVERSATION_ID]: adminConversation,
-    };
+    if (!adminConversation) return roleConversations;
+    return { ...roleConversations, [ADMIN_CONVERSATION_ID]: adminConversation };
   }, [roleConversations, adminConversation]);
 
   const isAdminConversationSelected = selectedConvId === ADMIN_CONVERSATION_ID;
-  const selectedConvRoleLabel = isAdminConversationSelected
-    ? '· System'
-    : role === 'tenant'
-      ? '· Landlord'
-      : '· Tenant';
-  const messages = useMemo(() => {
-    if (isAdminConversationSelected) {
-      return adminMessages;
-    }
-    return roleMessages[selectedConvId] || [];
-  }, [adminMessages, isAdminConversationSelected, roleMessages, selectedConvId]);
-  const selectedConv = mergedConversations[selectedConvId];
+  const selectedConvRoleLabel = isAdminConversationSelected ? '· System' : role === 'tenant' ? '· Landlord' : '· Tenant';
 
+  // ── Messages array for the chat window ──────────────────
+  const messages = useMemo(() => {
+    if (isAdminConversationSelected) return adminMessages;
+    return conversationMessages.map(msg => ({
+      id: msg.id,
+      sender: Number(msg.senderId) === Number(user?.id) ? 'sent' : 'received',
+      text: msg.content,
+      timestamp: msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now(),
+      status: msg.read ? 'read' : 'delivered',
+    }));
+  }, [conversationMessages, user?.id, isAdminConversationSelected, adminMessages]);
+
+  const selectedConv = mergedConversations[selectedConvId];
+  const fallbackContactName = contactLandlord?.name || contactTenant?.name || '';
+  const fallbackContactInitials = fallbackContactName
+    ? fallbackContactName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'XX';
+
+  // Auto-select admin conversation on first load if it exists and nothing is selected
   useEffect(() => {
-    if (adminConversation && !selectedConvId) {
-      setSelectedConvId(ADMIN_CONVERSATION_ID);
-    }
+    if (adminConversation && !selectedConvId) setSelectedConvId(ADMIN_CONVERSATION_ID);
   }, [adminConversation, selectedConvId]);
 
+  // Ensure there is always a selected conversation when normal conversations exist
+  useEffect(() => {
+    if (selectedConvId) return;
+    const first = Object.values(mergedConversations)[0];
+    if (first?.id) setSelectedConvId(first.id);
+  }, [mergedConversations, selectedConvId]);
+
   // Auto-scroll to bottom
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  const scrollToBottom = useCallback(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, []);
+  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+  // ── Send message ─────────────────────────────────────────
+  const sendMessage = useCallback(async () => {
+    if (!messageInput.trim() || !selectedConvId || isAdminConversationSelected) return;
 
-  // ═══════════════════════════════════════════════════════════
-  // CROSS-TAB SYNC via storage event
-  // ═══════════════════════════════════════════════════════════
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (!e.newValue) return;
+    const selectedConvData = apiConversations.find(c => c.conversationId === selectedConvId);
+    const partnerId = selectedConvData?.partnerId;
+    if (!partnerId || !user?.id) return;
 
-      if (e.key === STORAGE_KEYS.conversations) {
-        const newConversations = JSON.parse(e.newValue);
-        setConversations(newConversations);
-
-        // Show notification for new messages from other tab
-        if (notificationEnabled) {
-          const newUnread = newConversations[role]?.[selectedConvId]?.unread || 0;
-          const oldUnread = conversations[role]?.[selectedConvId]?.unread || 0;
-
-          if (newUnread > oldUnread) {
-            const convName = newConversations[role]?.[selectedConvId]?.name;
-            const lastMsg = newConversations[role]?.[selectedConvId]?.lastMessage;
-            if (convName && lastMsg) {
-              showDesktopNotification(`💬 New Message from ${convName}`, lastMsg);
-            }
-          }
-        }
-      }
-
-      if (e.key === STORAGE_KEYS.messages) {
-        setAllMessages(JSON.parse(e.newValue));
-      }
-
-      if (e.key === ADMIN_BROADCASTS_KEY) {
-        setAdminBroadcasts(JSON.parse(e.newValue));
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [role, selectedConvId, notificationEnabled, conversations]);
-
-  // ═══════════════════════════════════════════════════════════
-  // SEND MESSAGE
-  // ═══════════════════════════════════════════════════════════
-  const sendMessage = useCallback(() => {
-    if (!messageInput.trim() || !selectedConv || isAdminConversationSelected) return;
-
-    const now = Date.now();
-
-    // Create new message
-    const newMessage = {
-      id: now,
-      sender: 'sent',
-      text: messageInput,
-      timestamp: now,
-      status: 'sent',
-    };
-
-    // Update messages for current role
-    const updatedMessages = [...messages, newMessage];
-    const newAllMessages = { ...allMessages };
-    newAllMessages[role] = { ...roleMessages, [selectedConvId]: updatedMessages };
-
-    // Also deliver message to the OTHER role's side
-    const senderName = user?.name || user?.firstName || (role === 'tenant' ? 'Tenant' : 'Landlord');
-    const senderAvatar = senderName.split(' ').map(n => n[0]).join('') || 'U';
-    const senderId = user?.id;
-    const otherConvs = conversations[otherRole] || {};
-    const updatedOtherConversations = { ...conversations };
-
-    // Find or create the mirrored conversation on the other side using sender's ID
-    let mirrorConvId = senderId 
-      ? (otherConvs[senderId] ? senderId : Object.keys(otherConvs).find(id => otherConvs[id].senderId === senderId || otherConvs[id].name === senderName))
-      : Object.keys(otherConvs).find(id => otherConvs[id].name === senderName);
-    
-    if (!mirrorConvId) {
-      // Use sender's ID if available, otherwise generate numeric ID
-      mirrorConvId = senderId || (Math.max(...Object.keys(otherConvs).map(id => {
-        const n = Number(id);
-        return isNaN(n) ? 0 : n;
-      }), 0) + 1);
-      
-      updatedOtherConversations[otherRole] = {
-        ...otherConvs,
-        [mirrorConvId]: {
-          id: mirrorConvId,
-          senderId: senderId || null,
-          name: senderName,
-          avatar: senderAvatar,
-          online: true,
-          lastMessage: messageInput,
-          timestamp: now,
-          unread: 1,
-        }
-      };
-    } else {
-      const prev = otherConvs[mirrorConvId];
-      updatedOtherConversations[otherRole] = {
-        ...otherConvs,
-        [mirrorConvId]: {
-          ...prev,
-          lastMessage: messageInput,
-          timestamp: now,
-          unread: (prev.unread || 0) + 1,
-        }
-      };
-    }
-
-    // Add as 'received' on the other side
-    const otherMessages = newAllMessages[otherRole] || {};
-    const otherConvMessages = otherMessages[mirrorConvId] || [];
-    newAllMessages[otherRole] = {
-      ...otherMessages,
-      [mirrorConvId]: [...otherConvMessages, { id: now + 1, sender: 'received', text: messageInput, timestamp: now }]
-    };
-
-    setAllMessages(newAllMessages);
-    Storage.set(STORAGE_KEYS.messages, newAllMessages);
-
-    // Update last message in conversation for current role
-    updatedOtherConversations[role] = {
-      ...(updatedOtherConversations[role] || {}),
-      [selectedConvId]: {
-        ...selectedConv,
-        lastMessage: messageInput,
-        timestamp: now,
-      }
-    };
-    setConversations(updatedOtherConversations);
-    Storage.set(STORAGE_KEYS.conversations, updatedOtherConversations);
-
-    // Clear input
+    const text = messageInput.trim();
     setMessageInput('');
 
-    // Show notification if enabled
-    if (notificationEnabled) {
-      showDesktopNotification('Message sent', messageInput.substring(0, 50));
+    // Optimistic: add bubble immediately
+    const optimistic = {
+      id: `opt_${Date.now()}`,
+      senderId: user.id,
+      content: text,
+      conversationId: selectedConvId,
+      createdAt: new Date().toISOString(),
+      read: false,
+    };
+    setConversationMessages(prev => [...prev, optimistic]);
+
+    // Persist to backend
+    await messagesAPI.sendMessage(user.id, partnerId, text, selectedConvId);
+
+    // Replace optimistic with real backend data
+    const [msgs, convs] = await Promise.all([
+      messagesAPI.getConversationMessages(selectedConvId),
+      messagesAPI.getConversations(user.id),
+    ]);
+    setConversationMessages(Array.isArray(msgs)  ? msgs  : []);
+    setApiConversations(Array.isArray(convs) ? convs : []);
+
+    if (notificationEnabled) showDesktopNotification('Message sent', text.substring(0, 50));
+  }, [messageInput, selectedConvId, apiConversations, user?.id, notificationEnabled, isAdminConversationSelected]);
+
+  // ── Delete a single message ──────────────────────────────
+  const handleDeleteMessage = useCallback(async (msgId) => {
+    // Remove optimistic bubbles locally
+    if (String(msgId).startsWith('opt_')) {
+      setConversationMessages(prev => prev.filter(m => m.id !== msgId));
+      return;
     }
+    await messagesAPI.deleteMessage(msgId);
+    setConversationMessages(prev => prev.filter(m => m.id !== msgId));
+  }, []);
 
-    // Mark as delivered after 1 second
-    setTimeout(() => {
-      const latest = Storage.get(STORAGE_KEYS.messages) || newAllMessages;
-      const msgs = [...(latest[role]?.[selectedConvId] || [])];
-      const lastMsg = msgs.find(m => m.id === now);
-      if (lastMsg) {
-        lastMsg.status = 'delivered';
-        latest[role] = { ...latest[role], [selectedConvId]: msgs };
-        setAllMessages({ ...latest });
-        Storage.set(STORAGE_KEYS.messages, latest);
-      }
-    }, 1000);
-
-    // Mark as read after 2 seconds
-    setTimeout(() => {
-      const latest = Storage.get(STORAGE_KEYS.messages) || newAllMessages;
-      const msgs = [...(latest[role]?.[selectedConvId] || [])];
-      const lastMsg = msgs.find(m => m.id === now);
-      if (lastMsg) {
-        lastMsg.status = 'read';
-        latest[role] = { ...latest[role], [selectedConvId]: msgs };
-        setAllMessages({ ...latest });
-        Storage.set(STORAGE_KEYS.messages, latest);
-      }
-    }, 2000);
-  }, [messageInput, selectedConv, selectedConvId, role, otherRole, messages, allMessages, roleMessages, conversations, notificationEnabled, user, isAdminConversationSelected]);
-
-  // ═══════════════════════════════════════════════════════════
-  // DELETE MESSAGE
-  // ═══════════════════════════════════════════════════════════
-  const handleDeleteMessage = useCallback((msgId) => {
-    const updatedMessages = messages.filter(m => m.id !== msgId);
-    const newAllMessages = { ...allMessages };
-    newAllMessages[role] = { ...roleMessages, [selectedConvId]: updatedMessages };
-    setAllMessages(newAllMessages);
-    Storage.set(STORAGE_KEYS.messages, newAllMessages);
-
-    // Update last message in conversation
-    const lastMsg = updatedMessages[updatedMessages.length - 1];
-    const updatedConversations = { ...conversations };
-    if (updatedConversations[role]?.[selectedConvId]) {
-      updatedConversations[role][selectedConvId] = {
-        ...updatedConversations[role][selectedConvId],
-        lastMessage: lastMsg ? lastMsg.text : 'No messages',
-        timestamp: lastMsg ? lastMsg.timestamp : Date.now(),
-      };
-      setConversations(updatedConversations);
-      Storage.set(STORAGE_KEYS.conversations, updatedConversations);
-    }
-  }, [messages, allMessages, roleMessages, selectedConvId, role, conversations]);
-
-  // ═══════════════════════════════════════════════════════════
-  // MARK AS READ when switching conversations
-  // ═══════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (selectedConv?.unread > 0) {
-      setConversations((prev) => {
-        const updated = {
-          ...prev,
-          [role]: {
-            ...prev[role],
-            [selectedConvId]: { ...prev[role][selectedConvId], unread: 0 },
-          },
-        };
-        Storage.set(STORAGE_KEYS.conversations, updated);
-        return updated;
-      });
-    }
-  }, [selectedConvId, selectedConv?.unread, role]);
-
-  // ═══════════════════════════════════════════════════════════
-  // DELETE CONVERSATION
-  // ═══════════════════════════════════════════════════════════
-  const handleDeleteConversation = useCallback((convId) => {
-    const key = String(convId);
-    const updatedConversations = { ...conversations };
-    const roleConvs = updatedConversations[role] || {};
-    const { [key]: deleted, ...remaining } = roleConvs;
-    updatedConversations[role] = remaining;
-    setConversations(updatedConversations);
-    Storage.set(STORAGE_KEYS.conversations, updatedConversations);
-
-    // Also delete associated messages
-    const updatedMessages = { ...allMessages };
-    const roleMsgs = updatedMessages[role] || {};
-    const { [key]: deletedMsgs, ...remainingMsgs } = roleMsgs;
-    updatedMessages[role] = remainingMsgs;
-    setAllMessages(updatedMessages);
-    Storage.set(STORAGE_KEYS.messages, updatedMessages);
-
-    // If the deleted conversation was selected, clear selection
-    if (String(selectedConvId) === key) {
+  // ── Delete a conversation ────────────────────────────────
+  const handleDeleteConversation = useCallback(async (convId) => {
+    if (user?.id) await messagesAPI.deleteConversation(String(convId), user.id);
+    setApiConversations(prev => prev.filter(c => c.conversationId !== String(convId)));
+    if (String(selectedConvId) === String(convId)) {
       setSelectedConvId(null);
+      setConversationMessages([]);
     }
-  }, [conversations, allMessages, selectedConvId, role]);
+  }, [selectedConvId, user?.id]);
 
-  // ═══════════════════════════════════════════════════════════
-  // THEME TOKENS
-  // ═══════════════════════════════════════════════════════════
+  // ── Notification toggle ──────────────────────────────────
+  const toggleNotifications = () => {
+    if (Notification.permission === 'granted') {
+      setNotificationEnabled(prev => !prev);
+    } else {
+      requestNotificationPermission();
+    }
+  };
   const c = {
     mainBg:          darkMode ? '#1a1a2e' : '#ffffff',
     sidebarBg:       darkMode ? '#16213e' : '#ffffff',
@@ -771,14 +429,6 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   const filteredConversations = Object.values(mergedConversations).filter((conv) =>
     conv.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const toggleNotifications = () => {
-    if (Notification.permission === 'granted') {
-      setNotificationEnabled((prev) => !prev);
-    } else {
-      requestNotificationPermission();
-    }
-  };
 
   // ═══════════════════════════════════════════════════════════
   // RENDER
@@ -898,10 +548,14 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       <div className="messaging-chat" style={{ background: c.chatBg }}>
 
         <div className="messaging-chat__header" style={{ borderBottom: `1px solid ${c.border}` }}>
-          <Avatar initials={selectedConv?.avatar || 'XX'} size={40} online={selectedConv?.online} />
+          <Avatar
+            initials={selectedConv?.avatar || fallbackContactInitials}
+            size={40}
+            online={selectedConv?.online}
+          />
           <div className="messaging-chat__header-info">
             <h3 style={{ color: c.text }}>
-              {selectedConv?.name}
+              {selectedConv?.name || fallbackContactName || 'Conversation'}
               <span className="messaging-chat__header-role" style={{ color: c.secondaryText }}>
                 {selectedConvRoleLabel}
               </span>
@@ -1017,7 +671,8 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                 onClick={() => {
                   const convId = contextMenuOpen;
                   setContextMenuOpen(null);
-                  navigate(`/profile/${convId}`);
+                  const convData = apiConversations.find(c => c.conversationId === String(convId));
+                  navigate(`/profile/${convData?.partnerId || convId}`);
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
