@@ -43,7 +43,6 @@ export default function Login() {
                     return;
                 }
 
-                localStorage.setItem('userType', realUserType);
                 navigate('/overview');
             } else {
                 setError(result.message);

@@ -120,14 +120,7 @@ export default function BookingPage({ darkMode = false }) {
       setBookings(mergedBookings);
     } catch (error) {
       console.error('Failed to load bookings:', error);
-      // Fallback to localStorage
-      try {
-        const stored = JSON.parse(localStorage.getItem('bookings') || '[]');
-        const myBookings = stored.filter(b => String(b.tenantId) === String(user.id));
-        setBookings(myBookings);
-      } catch (_) {
-        setBookings([]);
-      }
+      setBookings([]);
     } finally {
       setLoading(false);
     }

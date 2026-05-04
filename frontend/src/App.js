@@ -48,11 +48,85 @@ function App() {
       return false;
     }
   });
-  const [userType, setUserType] = useState(() => {
-    return localStorage.getItem('userType') || null;
-  });
 
   const location = useLocation();
+
+  const AppRoutes = () => {
+    const { user } = useAuth();
+    const userType = user?.userType || null;
+
+    return (
+      <Routes>
+        <Route path="/" element={<Homepage key={location.key} />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+
+        {/* Protected Routes */}
+        <Route path="/overview" element={
+            <ProtectedRoute>
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+        } />
+        <Route path="/map" element={
+            <ProtectedRoute>
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+        } />
+        <Route path="/listing" element={
+            <ProtectedRoute>
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+        } />
+        <Route path="/booking" element={
+            <ProtectedRoute>
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+        } />
+        <Route path="/bookmarks" element={
+            <ProtectedRoute>
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+        } />
+        <Route path="/notifications" element={
+            <ProtectedRoute>
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+        } />
+        <Route path="/messages" element={
+            <ProtectedRoute>
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+        } />
+        <Route path="/settings" element={
+            <ProtectedRoute>
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+        } />
+        <Route path="/reviews" element={
+            <ProtectedRoute>
+              <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+        } />
+
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <ProfilePage userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+          </ProtectedRoute>
+        } />
+        <Route path="/support" element={<Support darkMode={darkMode} setDarkMode={setDarkMode} />} />
+        <Route path="/about" element={<AboutUs darkMode={darkMode} setDarkMode={setDarkMode} />} />
+        <Route path="/admin" element={<AdminPage />} />
+
+        <Route path="/report" element={
+          <ProtectedRoute>
+            <Report userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+          </ProtectedRoute>
+        } />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    );
+  };
 
   useEffect(() => {
     try {
@@ -66,75 +140,7 @@ function App() {
     <AuthProvider>
       <BookingProvider>
         <div className="app-shell">
-          <Routes>
-            <Route path="/" element={<Homepage key={location.key} />} />
-            <Route path="/login" element={<Login setUserType={setUserType} />} />
-            <Route path="/register" element={<Register setUserType={setUserType} />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-
-            {/* Protected Routes */}
-            <Route path="/overview" element={
-                <ProtectedRoute>
-                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-                </ProtectedRoute>
-            } />
-            <Route path="/map" element={
-                <ProtectedRoute>
-                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-                </ProtectedRoute>
-            } />
-            <Route path="/listing" element={
-                <ProtectedRoute>
-                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-                </ProtectedRoute>
-            } />
-            <Route path="/booking" element={
-                <ProtectedRoute>
-                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-                </ProtectedRoute>
-            } />
-            <Route path="/bookmarks" element={
-                <ProtectedRoute>
-                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-                </ProtectedRoute>
-            } />
-            <Route path="/notifications" element={
-                <ProtectedRoute>
-                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-                </ProtectedRoute>
-            } />
-            <Route path="/messages" element={
-                <ProtectedRoute>
-                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-                </ProtectedRoute>
-            } />
-            <Route path="/settings" element={
-                <ProtectedRoute>
-                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-                </ProtectedRoute>
-            } />
-            <Route path="/reviews" element={
-                <ProtectedRoute>
-                  <Dashboard userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-                </ProtectedRoute>
-            } />
-
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <ProfilePage userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-              </ProtectedRoute>
-            } />
-            <Route path="/support" element={<Support darkMode={darkMode} setDarkMode={setDarkMode} />} />
-            <Route path="/about" element={<AboutUs darkMode={darkMode} setDarkMode={setDarkMode} />} />
-            <Route path="/admin" element={<AdminPage />} />
-          
-            <Route path="/report" element={
-              <ProtectedRoute>
-                <Report userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
-              </ProtectedRoute>
-            } />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
+          <AppRoutes />
         </div>
       </BookingProvider>
     </AuthProvider>

@@ -19,22 +19,14 @@ function notifyMessagingChange()    { messagingListeners.forEach(l => l());    }
 
 export function BookingProvider({ children }) {
   const [bookings,      setBookings]      = useState([]);
-  const [notifications, setNotifications] = useState(() => {
-    try {
-      const storedNotifs = localStorage.getItem('dormscout_notifications');
-      return storedNotifs ? JSON.parse(storedNotifs) : [];
-    } catch (_) {
-      return [];
-    }
-  });
+  const [notifications, setNotifications] = useState([]);
   const [chatMessages,  setChatMessages]  = useState({});
   const [tenants,       setTenants]       = useState([]);
   const [listings,      setListings]      = useState([]);
   const [loading,       setLoading]       = useState(false);
 
-  // ── Persist notifications ─────────────────────────────────
+  // ── Notify listeners when notifications change ───────────
   useEffect(() => {
-    localStorage.setItem('dormscout_notifications', JSON.stringify(notifications));
     notifyNotificationChange();
   }, [notifications]);
 

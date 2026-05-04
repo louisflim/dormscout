@@ -22,19 +22,17 @@ import {
   MessageSquare,
 } from 'lucide-react';
 
-const ADMIN_LOGIN_KEY = 'dormscout_admin_logged_in';
 const ADMIN_DARKMODE_KEY = 'admin_darkMode';
 
-const STORAGE_KEYS = {
-  users: 'dormScoutUsers',
-  listings: 'dormscout_listings',
-  bookings: 'dormscout_bookings',
-  bookmarks: 'dormscout_bookmarks',
-  reports: 'dormscout_reports',
-  reviews: 'dormscout_reviews',
-  notifications: 'dormscout_notifications',
-  adminMessages: 'dormscout_admin_messages',
-  supportMessages: 'dormscout_support_messages',
+const buildConversationId = (idA, idB) => {
+  const [a, b] = [Number(idA), Number(idB)].sort((x, y) => x - y);
+  return `conv_${a}_${b}`;
+};
+
+const parseApiData = (json, fallback = []) => {
+  if (Array.isArray(json)) return json;
+  if (json && Array.isArray(json.data)) return json.data;
+  return fallback;
 };
 
 const SIDEBAR_ITEMS = [
@@ -49,16 +47,6 @@ const SIDEBAR_ITEMS = [
   { id: 'notifications', label: 'Notifications', icon: Bell      },
   { id: 'settings',   label: 'Settings',    icon: SettingsIcon    },
 ];
-
-const safeParse = (value, fallback = []) => {
-  if (!value) return fallback;
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-};
 
 const toDisplayDate = (value) => {
   if (!value) return 'N/A';
@@ -92,7 +80,8 @@ const truncate = (text, max = 80) => {
 export default function AdminPage() {
   const navigate = useNavigate();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem(ADMIN_LOGIN_KEY) === 'true');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [adminUser, setAdminUser] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -133,14 +122,47 @@ export default function AdminPage() {
   const [selectedLandlord, setSelectedLandlord] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const loadLocalData = () => {
-    setBookmarks(safeParse(localStorage.getItem(STORAGE_KEYS.bookmarks), []));
-    setNotifications(safeParse(localStorage.getItem(STORAGE_KEYS.notifications), []));
-    const localSupportMessages = safeParse(localStorage.getItem(STORAGE_KEYS.supportMessages), []);
-    setSupportMessages(localSupportMessages);
+  const loadAdminDerivedData = async (usersData, adminAccount) => {
+    // Load bookmarks from all tenants
+    const tenants = (usersData || users).filter(u => getRole(u) === 'tenant');
+    try {
+      const bmResults = await Promise.all(
+        tenants.map(t =>
+          fetch(`http://localhost:8080/api/bookmarks/tenant/${t.id}`)
+            .then(r => r.ok ? r.json() : [])
+            .then(j => parseApiData(j, []))
+            .catch(() => [])
+        )
+      );
+      setBookmarks(bmResults.flat());
+    } catch { setBookmarks([]); }
 
-    if (localSupportMessages.length > 0 && !selectedSupportId && !selectedDirectUser) {
-      setSelectedSupportId(localSupportMessages[0].id);
+    // Load activities as notifications (all users)
+    try {
+      const allUsers = usersData || users;
+      const actResults = await Promise.all(
+        allUsers.map(u =>
+          fetch(`http://localhost:8080/api/activities/user/${u.id}`)
+            .then(r => r.ok ? r.json() : [])
+            .then(j => parseApiData(j, []))
+            .catch(() => [])
+        )
+      );
+      setNotifications(actResults.flat());
+    } catch { setNotifications([]); }
+
+    // Load support inbox (admin's conversations)
+    const adminId = adminAccount?.id || adminUser?.id;
+    if (adminId) {
+      try {
+        const convRes = await fetch(`http://localhost:8080/api/messages/conversations/${adminId}`);
+        const convData = convRes.ok ? await convRes.json() : [];
+        const convList = parseApiData(convData, []);
+        setSupportMessages(convList);
+        if (convList.length > 0 && !selectedSupportId && !selectedDirectUser) {
+          setSelectedSupportId(convList[0].id);
+        }
+      } catch { setSupportMessages([]); }
     }
   };
 
@@ -156,31 +178,24 @@ export default function AdminPage() {
           fetch('http://localhost:8080/api/reviews').then(r => r.json()),
         ]);
 
-      setUsers(Array.isArray(usersRes) ? usersRes : []);
+      const usersData = Array.isArray(usersRes) ? usersRes : [];
+      setUsers(usersData);
       setListings(Array.isArray(listingsRes) ? listingsRes : []);
       setBookings(Array.isArray(bookingsRes) ? bookingsRes : []);
       setReports(Array.isArray(reportsRes) ? reportsRes : []);
       setReviews(Array.isArray(reviewsRes) ? reviewsRes : []);
+      await loadAdminDerivedData(usersData, null);
     } catch (err) {
       console.error('Failed to load admin data:', err);
     } finally {
       setDataLoading(false);
     }
-    loadLocalData();
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isLoggedIn) loadAdminData();
   }, [isLoggedIn, activeSection]);
-
-  useEffect(() => {
-    const onStorage = () => {
-      if (isLoggedIn) loadLocalData();
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [isLoggedIn]);
 
   useEffect(() => {
     localStorage.setItem(ADMIN_DARKMODE_KEY, darkMode ? 'true' : 'false');
@@ -269,8 +284,7 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        localStorage.setItem(ADMIN_LOGIN_KEY, 'true');
-        localStorage.setItem('dormscout_admin_user', JSON.stringify(data.user));
+        setAdminUser(data.user || null);
         setIsLoggedIn(true);
       } else {
         setLoginError(data.message || 'Invalid credentials');
@@ -283,15 +297,10 @@ export default function AdminPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem(ADMIN_LOGIN_KEY);
     setIsLoggedIn(false);
+    setAdminUser(null);
     setShowDropdown(false);
     setActiveSection('overview');
-  };
-
-  const updateStorage = (key, nextValue) => {
-    localStorage.setItem(key, JSON.stringify(nextValue));
-    loadLocalData();
   };
 
   const showInlineNotice = (message, tone = 'is-good') => {
@@ -299,9 +308,7 @@ export default function AdminPage() {
     setInlineNoticeTone(tone);
   };
 
-  const removeByMatcher = (items, matcher) => items.filter((item, idx) => !matcher(item, idx));
-
-  const handleDeleteUser = async (userId) => {
+const handleDeleteUser = async (userId) => {
     try {
       const response = await fetch(`http://localhost:8080/api/users/admin/users/${userId}`, {
         method: 'DELETE'
@@ -385,29 +392,41 @@ export default function AdminPage() {
     }
   };
 
-  const deleteReview = (target, index) => {
-    const next = removeByMatcher(reviews, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
-      }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.reviews, next);
+  const deleteReview = async (target) => {
+    if (!target?.id) return;
+    try {
+      await fetch(`http://localhost:8080/api/reviews/${target.id}`, { method: 'DELETE' });
+      setReviews(prev => prev.filter(r => String(r.id) !== String(target.id)));
+      showInlineNotice('Review deleted.', 'is-good');
+    } catch (err) {
+      console.error('Failed to delete review:', err);
+      showInlineNotice('Failed to delete review.', 'is-bad');
+    }
   };
 
-  const deleteNotification = (target, index) => {
-    const next = removeByMatcher(notifications, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
-      }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.notifications, next);
+  const deleteNotification = async (target) => {
+    if (!target?.id) return;
+    try {
+      await fetch(`http://localhost:8080/api/activities/${target.id}`, { method: 'DELETE' });
+      setNotifications(prev => prev.filter(n => String(n.id) !== String(target.id)));
+      showInlineNotice('Notification deleted.', 'is-good');
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+      showInlineNotice('Failed to delete notification.', 'is-bad');
+    }
   };
 
-  const clearNotifications = () => {
-    updateStorage(STORAGE_KEYS.notifications, []);
-    showInlineNotice('Notifications cleared.', 'is-good');
+  const clearNotifications = async () => {
+    try {
+      await Promise.all(notifications.map(n =>
+        fetch(`http://localhost:8080/api/activities/${n.id}`, { method: 'DELETE' }).catch(() => {})
+      ));
+      setNotifications([]);
+      showInlineNotice('Notifications cleared.', 'is-good');
+    } catch (err) {
+      console.error('Failed to clear notifications:', err);
+      showInlineNotice('Failed to clear notifications.', 'is-bad');
+    }
   };
 
   const selectedSupportMessage = useMemo(() => {
@@ -437,79 +456,92 @@ export default function AdminPage() {
     setActiveSection('messages');
   };
 
-  const handleSendAdminMessage = () => {
+  const handleSendAdminMessage = async () => {
     if (!broadcastSubject.trim() || !broadcastMessage.trim()) {
       showInlineNotice('Please provide both a subject and a message.', 'is-pending');
       return;
     }
 
-    const timestamp = new Date().toISOString();
-    const adminMessage = {
-      id: `admin-msg-${Date.now()}`,
-      title: broadcastSubject.trim(),
-      text: broadcastMessage.trim(),
-      forRole: broadcastRole,
-      createdAt: timestamp,
-    };
+    const adminId = adminUser?.id;
+    if (!adminId) {
+      showInlineNotice('Admin session missing. Please log in again.', 'is-bad');
+      return;
+    }
 
-    const existingMessages = safeParse(localStorage.getItem(STORAGE_KEYS.adminMessages), []);
-    localStorage.setItem(STORAGE_KEYS.adminMessages, JSON.stringify([{ ...adminMessage, mode: 'broadcast' }, ...existingMessages]));
-    setBroadcastSubject('');
-    setBroadcastMessage('');
-    showInlineNotice('Broadcast message sent.', 'is-good');
+    const recipients = broadcastRole === 'all'
+      ? users
+      : users.filter(u => getRole(u) === broadcastRole);
+
+    const content = `[${broadcastSubject.trim()}] ${broadcastMessage.trim()}`;
+
+    try {
+      await Promise.all(recipients.map(u => {
+        const convId = buildConversationId(adminId, u.id);
+        return fetch(`http://localhost:8080/api/messages?senderId=${adminId}&receiverId=${u.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, conversationId: convId }),
+        }).catch(() => {});
+      }));
+      setBroadcastSubject('');
+      setBroadcastMessage('');
+      showInlineNotice('Broadcast message sent.', 'is-good');
+    } catch (err) {
+      console.error('Failed to send broadcast:', err);
+      showInlineNotice('Failed to send broadcast.', 'is-bad');
+    }
   };
 
-  const handleSendDirectReply = () => {
+  const handleSendDirectReply = async () => {
     if (!selectedSupportMessage) {
       showInlineNotice('Select a concern first.', 'is-pending');
       return;
     }
-
     if (!directReply.trim()) {
       showInlineNotice('Please type your reply.', 'is-pending');
       return;
     }
 
-    const timestamp = new Date().toISOString();
-    const existingMessages = safeParse(localStorage.getItem(STORAGE_KEYS.adminMessages), []);
-    const directMessage = {
-      id: `admin-direct-${Date.now()}`,
-      mode: 'direct',
-      title: `Re: ${selectedSupportMessage.subject || 'Support Concern'}`,
-      text: directReply.trim(),
-      forRole: selectedSupportMessage.forRole || 'all',
-      recipientEmail: String(selectedSupportMessage.email || '').toLowerCase(),
-      recipientName: selectedSupportMessage.name || 'User',
-      createdAt: timestamp,
-    };
-
-    localStorage.setItem(STORAGE_KEYS.adminMessages, JSON.stringify([directMessage, ...existingMessages]));
-
-    const isSupportConcern = supportMessages.some((item) => item.id === selectedSupportMessage.id);
-    if (isSupportConcern) {
-      const nextSupportMessages = supportMessages.map((item) =>
-        item.id === selectedSupportMessage.id
-          ? {
-              ...item,
-              replied: true,
-              repliedAt: timestamp,
-              latestReply: directReply.trim(),
-            }
-          : item
-      );
-
-      setSupportMessages(nextSupportMessages);
-      localStorage.setItem(STORAGE_KEYS.supportMessages, JSON.stringify(nextSupportMessages));
+    const adminId = adminUser?.id;
+    const recipientId = selectedSupportMessage.otherUserId || selectedSupportMessage.userId || selectedSupportMessage.id;
+    if (!adminId) {
+      showInlineNotice('Admin session missing. Please log in again.', 'is-bad');
+      return;
     }
 
-    setDirectReply('');
-    showInlineNotice(`Reply sent to ${selectedSupportMessage.name || selectedSupportMessage.email}.`, 'is-good');
+    try {
+      const convId = buildConversationId(adminId, recipientId);
+      await fetch(`http://localhost:8080/api/messages?senderId=${adminId}&receiverId=${recipientId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: directReply.trim(), conversationId: convId }),
+      });
+      setSupportMessages(prev =>
+        prev.map(item =>
+          item.id === selectedSupportMessage.id
+            ? { ...item, replied: true, repliedAt: new Date().toISOString(), latestReply: directReply.trim() }
+            : item
+        )
+      );
+      setDirectReply('');
+      showInlineNotice(`Reply sent to ${selectedSupportMessage.name || selectedSupportMessage.email}.`, 'is-good');
+    } catch (err) {
+      console.error('Failed to send reply:', err);
+      showInlineNotice('Failed to send reply.', 'is-bad');
+    }
   };
 
-  const handleDeleteSupportMessage = (targetId) => {
+  const handleDeleteSupportMessage = async (targetId) => {
+    const adminId = adminUser?.id;
+    try {
+      if (adminId) {
+        await fetch(`http://localhost:8080/api/messages/conversation/${targetId}?userId=${adminId}`, { method: 'DELETE' });
+      }
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+    }
     const nextMessages = supportMessages.filter((item) => item.id !== targetId);
     setSupportMessages(nextMessages);
-    localStorage.setItem(STORAGE_KEYS.supportMessages, JSON.stringify(nextMessages));
     if (targetId === selectedSupportId) {
       setSelectedSupportId(nextMessages[0]?.id || null);
     }
@@ -549,34 +581,73 @@ export default function AdminPage() {
     }
   };
 
-  const clearAllReports = () => {
-    updateStorage(STORAGE_KEYS.reports, []);
-    showInlineNotice('All reports cleared.', 'is-good');
+  const clearAllReports = async () => {
+    try {
+      await Promise.all(reports.map(r =>
+        fetch(`http://localhost:8080/api/reports/${r.id}`, { method: 'DELETE' }).catch(() => {})
+      ));
+      setReports([]);
+      showInlineNotice('All reports cleared.', 'is-good');
+    } catch (err) {
+      console.error('Failed to clear reports:', err);
+      showInlineNotice('Failed to clear reports.', 'is-bad');
+    }
   };
 
-  const clearAllBookings = () => {
-    updateStorage(STORAGE_KEYS.bookings, []);
-    showInlineNotice('All bookings cleared.', 'is-good');
+  const clearAllBookings = async () => {
+    try {
+      await Promise.all(bookings.map(b =>
+        fetch(`http://localhost:8080/api/bookings/${b.id}`, { method: 'DELETE' }).catch(() => {})
+      ));
+      setBookings([]);
+      showInlineNotice('All bookings cleared.', 'is-good');
+    } catch (err) {
+      console.error('Failed to clear bookings:', err);
+      showInlineNotice('Failed to clear bookings.', 'is-bad');
+    }
   };
 
-  const deleteBookmark = (target, index) => {
-    const next = removeByMatcher(bookmarks, (item, idx) => {
-      if (target?.id !== undefined && item?.id !== undefined) {
-        return String(item.id) === String(target.id);
-      }
-      return idx === index;
-    });
-    updateStorage(STORAGE_KEYS.bookmarks, next);
+  const deleteBookmark = async (target) => {
+    if (!target?.tenantId || !target?.listingId) {
+      setBookmarks(prev => prev.filter(b => b !== target));
+      return;
+    }
+    try {
+      await fetch(`http://localhost:8080/api/bookmarks?tenantId=${target.tenantId}&listingId=${target.listingId}`, { method: 'DELETE' });
+      setBookmarks(prev => prev.filter(b => !(String(b.tenantId) === String(target.tenantId) && String(b.listingId) === String(target.listingId))));
+      showInlineNotice('Bookmark deleted.', 'is-good');
+    } catch (err) {
+      console.error('Failed to delete bookmark:', err);
+      showInlineNotice('Failed to delete bookmark.', 'is-bad');
+    }
   };
 
-  const clearAllBookmarks = () => {
-    updateStorage(STORAGE_KEYS.bookmarks, []);
-    showInlineNotice('All bookmarks cleared.', 'is-good');
+  const clearAllBookmarks = async () => {
+    try {
+      await Promise.all(bookmarks.map(bm =>
+        bm.tenantId && bm.listingId
+          ? fetch(`http://localhost:8080/api/bookmarks?tenantId=${bm.tenantId}&listingId=${bm.listingId}`, { method: 'DELETE' }).catch(() => {})
+          : Promise.resolve()
+      ));
+      setBookmarks([]);
+      showInlineNotice('All bookmarks cleared.', 'is-good');
+    } catch (err) {
+      console.error('Failed to clear bookmarks:', err);
+      showInlineNotice('Failed to clear bookmarks.', 'is-bad');
+    }
   };
 
-  const clearAllListings = () => {
-    updateStorage(STORAGE_KEYS.listings, []);
-    showInlineNotice('All listings cleared.', 'is-good');
+  const clearAllListings = async () => {
+    try {
+      await Promise.all(listings.map(l =>
+        fetch(`http://localhost:8080/api/listings/${l.id}`, { method: 'DELETE' }).catch(() => {})
+      ));
+      setListings([]);
+      showInlineNotice('All listings cleared.', 'is-good');
+    } catch (err) {
+      console.error('Failed to clear listings:', err);
+      showInlineNotice('Failed to clear listings.', 'is-bad');
+    }
   };
 
   if (!isLoggedIn) {
@@ -907,7 +978,7 @@ export default function AdminPage() {
                         <td>{bm.listingPrice ? `₱${Number(bm.listingPrice).toLocaleString()}` : 'N/A'}</td>
                         <td>{toDisplayDate(bm.savedAt)}</td>
                         <td>
-                          <button className="admin-icon-btn danger" onClick={() => deleteBookmark(bm, idx)}>
+                          <button className="admin-icon-btn danger" onClick={() => deleteBookmark(bm)}>
                             <Trash2 size={15} /> Delete
                           </button>
                         </td>
@@ -1002,7 +1073,7 @@ export default function AdminPage() {
                           <td>{truncate(rv.body || rv.comment || rv.review, 90)}</td>
                           <td>{toDisplayDate(rv.date || rv.createdAt)}</td>
                           <td>
-                            <button className="admin-icon-btn danger" onClick={() => deleteReview(rv, idx)}>
+                            <button className="admin-icon-btn danger" onClick={() => deleteReview(rv)}>
                               <Trash2 size={15} /> Delete
                             </button>
                           </td>
@@ -1051,7 +1122,7 @@ export default function AdminPage() {
                           </span>
                         </td>
                         <td>
-                          <button className="admin-icon-btn danger" onClick={() => deleteNotification(n, idx)}>
+                          <button className="admin-icon-btn danger" onClick={() => deleteNotification(n)}>
                             <Trash2 size={15} /> Delete
                           </button>
                         </td>
@@ -1191,17 +1262,10 @@ export default function AdminPage() {
 
                 <article className="admin-card">
                   <h3>Admin Account</h3>
-                  {(() => {
-                    const adminUser = JSON.parse(localStorage.getItem('dormscout_admin_user') || '{}');
-                    return (
-                      <>
-                        <p><strong>Email:</strong> {adminUser.email || 'admin@dormscout.com'}</p>
-                        <p><strong>Name:</strong> {adminUser.firstName && adminUser.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : 'Admin DormScout'}</p>
-                        <p><strong>Role:</strong> Administrator</p>
-                        <p><strong>User Type:</strong> {adminUser.userType || 'admin'}</p>
-                      </>
-                    );
-                  })()}
+                  <p><strong>Email:</strong> {adminUser?.email || 'admin@dormscout.com'}</p>
+                  <p><strong>Name:</strong> {adminUser?.firstName && adminUser?.lastName ? `${adminUser.firstName} ${adminUser.lastName}` : 'Admin DormScout'}</p>
+                  <p><strong>Role:</strong> Administrator</p>
+                  <p><strong>User Type:</strong> {adminUser?.userType || 'admin'}</p>
                 </article>
 
                 <article className="admin-card admin-danger-card">
