@@ -40,7 +40,7 @@ import {
 
 const NAV_ITEMS = {
   landlord: [
-    { id: 'overview',      label: 'Overview'       },
+    { id: 'overview',      label: 'Dashboard'       },
     { id: 'map',           label: 'Map View'        },
     { id: 'listing',       label: 'Listing'         },
     { id: 'notifications', label: 'Notifications'   },
@@ -49,7 +49,7 @@ const NAV_ITEMS = {
     { id: 'reviews',       label: 'Reviews'         },
   ],
   tenant: [
-    { id: 'overview',      label: 'Overview'       },
+    { id: 'overview',      label: 'Dashboard'       },
     { id: 'map',           label: 'Map View'        },
     { id: 'booking',       label: 'Booking'         },
     { id: 'bookmarks',     label: 'Saved'           },
@@ -79,6 +79,45 @@ const ACTIVITY_ICON = {
   booking:      <CalendarDays  size={15} color="#5BADA8" />,
   listing:      <Home          size={15} color="#E8622E" />,
 };
+
+const SAMPLE_LISTINGS = [
+  {
+    id: 'sample-1',
+    title: 'Sunshine Dormitory',
+    address: 'P. Burgos St., Cebu City',
+    price: 3500,
+    rooms: 'Single Room',
+    availableRooms: 3,
+    genderPolicy: 'Girls Only',
+    university: 'University of San Carlos',
+    images: [],
+    isSample: true,
+  },
+  {
+    id: 'sample-2',
+    title: 'Campus View Residences',
+    address: 'Gorordo Ave., Lahug, Cebu City',
+    price: 4800,
+    rooms: 'Double Room',
+    availableRooms: 2,
+    genderPolicy: 'Boys Only',
+    university: 'University of the Philippines Cebu',
+    images: [],
+    isSample: true,
+  },
+  {
+    id: 'sample-3',
+    title: 'Green Haven Boarding House',
+    address: 'F. Ramos St., Cebu City',
+    price: 2800,
+    rooms: 'Shared Room',
+    availableRooms: 5,
+    genderPolicy: 'Co-ed',
+    university: 'Cebu Normal University',
+    images: [],
+    isSample: true,
+  },
+];
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -183,6 +222,9 @@ function TenantOverview({ darkMode, onNavigate, user }) {
   const [bookings, setBookings] = useState(user?.bookings || []);
   const [activities, setActivities] = useState([]);
 
+  const [listings,    setListings]    = useState([]);
+  const [listingsLoading, setListingsLoading] = useState(true);
+
   useEffect(() => {
     if (!user?.id) return;
     bookingsAPI.getBookingsByTenant(user.id)
@@ -232,11 +274,21 @@ function TenantOverview({ darkMode, onNavigate, user }) {
       });
   }, [user?.id]);
 
+  useEffect(() => {
+    listingsAPI.getAllListings()
+      .then(data => {
+        const real = Array.isArray(data) ? data : [];
+        setListings(real.length > 0 ? real.slice(0, 3) : SAMPLE_LISTINGS);
+      })
+      .catch(() => setListings(SAMPLE_LISTINGS))
+      .finally(() => setListingsLoading(false));
+  }, [])
+
   const activeBooking   = bookings.find(b => b.status === 'accepted');
   const pendingBookings = bookings.filter(b => b.status === 'pending');
   const totalBookings   = bookings.length;
-  const activeCount    = activeBooking ? 1 : 0;
   const pendingCount   = pendingBookings.length;
+  const usingSamples   = listings.length > 0 && listings[0]?.isSample;
 
   return (
     <div className="overview-new">
@@ -246,116 +298,313 @@ function TenantOverview({ darkMode, onNavigate, user }) {
             {getGreeting()}, {displayName}! 
           </h2>
           <p className="overview-greeting-sub" style={{ color: subText }}>
-            Here's your housing update for today.
+            {totalBookings === 0
+              ? 'Ready to find your next home near campus?'
+              : 'Here\'s your housing update for today.'}
           </p>
         </div>
       </div>
 
-      <div className="overview-row-2col">
+      {totalBookings === 0 ? (
+        <div style={{
+          borderRadius: 16,
+          overflow: 'hidden',
+          position: 'relative',
+          minHeight: 180,
+          display: 'flex',
+          alignItems: 'center',
+          background: 'linear-gradient(135deg, #f5d5c0 0%, #d4ece8 100%)',
+        }}>
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: 'url(https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=800&q=80)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.18,   
+          }} />
+
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(90deg, rgba(245,213,192,0.97) 40%, rgba(212,236,232,0.6) 100%)',
+          }} />
+
+          {/* Content */}
+          <div style={{ position: 'relative', padding: '28px 32px', flex: 1 }}>
+            <h3 style={{
+              margin: '0 0 8px 0',
+              fontSize: 22,
+              fontWeight: 800,
+              color: '#1a1a1a',
+              lineHeight: 1.2,
+            }}>
+              Your next home is<br />
+              <span style={{ color: '#E8622E' }}>closer than you think.</span>
+            </h3>
+            <p style={{
+              margin: '0 0 20px 0',
+              fontSize: 13,
+              color: '#555',
+              lineHeight: 1.5,
+              maxWidth: 340,
+            }}>
+              Verified dorms near your university. Browse, book, and move in — all in one place.
+            </p>
+            <button
+              onClick={() => onNavigate('map')}
+              style={{
+                background: '#E8622E',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 10,
+                padding: '11px 22px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                boxShadow: '0 4px 12px rgba(232,98,46,0.3)',
+              }}
+            >
+              <Search size={14} /> Explore Dorms
+            </button>
+          </div>
+
+          <div style={{
+            position: 'relative',
+            width: 180,
+            alignSelf: 'stretch',
+            flexShrink: 0,
+            margin: '16px 20px 16px 0',
+            borderRadius: 12,
+            overflow: 'hidden',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          }}>
+            <div style={{
+              width: '100%',
+              height: '100%',
+              backgroundImage: 'url(https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=400&q=80)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }} />
+            <div style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: '8px 10px',
+              background: 'linear-gradient(transparent, rgba(0,0,0,0.5))',
+            }}>
+              <p style={{ margin: 0, fontSize: 10, color: '#fff', fontWeight: 600 }}>
+                Dorms near USC, UP, CNU & more
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
         <div className="overview-card-new" style={{ background: cardBg }}>
           <div className="overview-card-header">
             <Home size={16} color="#E8622E" />
-            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Current Booking</span>
-          </div>
-
-          {totalBookings === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <p style={{ color: subText, fontSize: 13, marginBottom: 12 }}>
-                You don't have any bookings yet.
-              </p>
-              <button className="ov-action-btn-primary" onClick={() => onNavigate('map')}>
-                <Search size={14} /> Find a Dorm
-              </button>
-            </div>
-          ) : activeBooking ? (
+            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>My Current Booking</span>
+            {pendingCount > 0 && (
+              <span style={{
+                marginLeft: 'auto', background: '#F59E0B', color: '#fff',
+                fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+              }}>
+                {pendingCount} pending
+              </span>
+            )}
+        </div>
+      {activeBooking ? (
             <>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 800, fontSize: 16, color: text }}>{activeBooking.dormName || activeBooking.listingTitle || 'Property'}</span>
-                  <StatusBadge status="Active" />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {[
-                    ['Room',     activeBooking.room     || 'N/A'],
-                    ['Landlord', activeBooking.landlord || 'N/A'],
-                    ['Price',    activeBooking.price ? `₱${Number(activeBooking.price).toLocaleString()}` : 'N/A'],
-                  ].map(([label, val]) => (
-                    <div key={label} style={{ display: 'flex', gap: 8, fontSize: 13 }}>
-                      <span style={{ color: subText, width: 60, flexShrink: 0 }}>{label}</span>
-                      <span style={{ color: text, fontWeight: 600 }}>{val}</span>
-                    </div>
-                  ))}
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontWeight: 800, fontSize: 16, color: text }}>
+                  {activeBooking.dormName || activeBooking.listingTitle || 'Property'}
+                </span>
+                <StatusBadge status="Active" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 14 }}>
+                {[
+                  ['Room',     activeBooking.room     || 'N/A'],
+                  ['Landlord', activeBooking.landlord || 'N/A'],
+                  ['Price',    activeBooking.price ? `₱${Number(activeBooking.price).toLocaleString()}/mo` : 'N/A'],
+                ].map(([label, val]) => (
+                  <div key={label} style={{ display: 'flex', gap: 8, fontSize: 13 }}>
+                    <span style={{ color: subText, width: 65, flexShrink: 0 }}>{label}</span>
+                    <span style={{ color: text, fontWeight: 600 }}>{val}</span>
+                  </div>
+                ))}
               </div>
               <button className="ov-link-btn" onClick={() => onNavigate('booking')} style={{ color: '#E8622E' }}>
                 View booking details <ChevronRight size={13} />
               </button>
             </>
           ) : (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <p style={{ color: subText, fontSize: 13, marginBottom: 12 }}>
-                No active booking.{' '}
-                {pendingCount > 0
-                  ? `${pendingCount} pending request(s) waiting for approval.`
-                  : 'Find a dorm to get started!'}
-              </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: '0 0 4px 0', fontSize: 13, fontWeight: 600, color: text }}>
+                  {pendingCount > 0
+                    ? `${pendingCount} booking request${pendingCount > 1 ? 's' : ''} pending approval`
+                    : 'No active booking yet'}
+                </p>
+                <p style={{ margin: 0, fontSize: 12, color: subText }}>
+                  {pendingCount > 0 ? 'Landlord will respond soon.' : 'Keep browsing to find your dorm.'}
+                </p>
+              </div>
               <button className="ov-action-btn-primary" onClick={() => onNavigate('map')}>
-                <Search size={14} /> Find a Dorm
+                <Search size={13} /> Browse
               </button>
             </div>
           )}
         </div>
+      )}
 
-        <div className="overview-card-new" style={{ background: cardBg }}>
-          <div className="overview-card-header">
-            <TrendingUp size={16} color="#E8622E" />
-            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Quick Actions</span>
-          </div>
-          <div className="quick-actions-grid">
-            {[
-              { label: 'Find a Dorm', icon: <Search       size={18} color="#E8622E" />, nav: 'map'      },
-              { label: 'Messages',    icon: <MessageCircle size={18} color="#5BADA8" />, nav: 'messages' },
-              { label: 'My Booking',  icon: <CalendarDays  size={18} color="#E8622E" />, nav: 'booking'  },
-              { label: 'Reviews',     icon: <Star          size={18} color="#F59E0B" />, nav: 'reviews'  },
-            ].map(({ label, icon, nav }) => (
-              <button
-                key={label}
-                className="quick-action-tile"
-                style={{ background: rowBg, color: text }}
-                onClick={() => onNavigate(nav)}
-              >
-                {icon}
-                <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
-              </button>
-            ))}
-          </div>
+      <div className="overview-card-new" style={{ background: cardBg }}>
+        <div className="overview-card-header">
+          <MapPin size={16} color="#E8622E" />
+          <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>
+            {usingSamples ? 'Dorms Near Campus' : 'Available Listings'}
+          </span>
+          {usingSamples && (
+            <span style={{
+              marginLeft: 8, fontSize: 10, fontWeight: 600,
+              background: 'rgba(91,173,168,0.15)', color: '#5BADA8',
+              padding: '2px 8px', borderRadius: 99,
+            }}>
+              Sample listings
+            </span>
+          )}
+          <button
+            className="ov-link-btn"
+            onClick={() => onNavigate('map')}
+            style={{ color: '#E8622E', marginLeft: 'auto' }}
+          >
+            View all <ChevronRight size={13} />
+          </button>
         </div>
-      </div>
-
-      {totalBookings > 0 && (
-        <div className="overview-card-new" style={{ background: cardBg }}>
-          <div className="overview-card-header">
-            <ClipboardList size={16} color="#E8622E" />
-            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>My Bookings</span>
+        {listingsLoading ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: subText, fontSize: 13 }}>
+            Loading listings...
           </div>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-            {[
-              { label: 'Total',   value: totalBookings, color: '#333'    },
-              { label: 'Active',  value: activeCount,   color: '#5BADA8' },
-              { label: 'Pending', value: pendingCount,  color: '#F59E0B' },
-            ].map(({ label, value, color }) => (
-              <div key={label} style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 12, background: rowBg }}>
-                <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color }}>{value}</p>
-                <p style={{ margin: 0, fontSize: 11, color: subText, marginTop: 2 }}>{label}</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {listings.map((listing) => (
+          <div
+                key={listing.id}
+                onClick={() => onNavigate('map')}
+                style={{
+                  display: 'flex',
+                  gap: 12,
+                  padding: '12px',
+                  background: rowBg,
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  transition: 'transform 0.15s, box-shadow 0.15s',
+                  border: '1px solid transparent',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+          {/* Listing image placeholder */}
+                <div style={{
+                  width: 72, height: 72, borderRadius: 10,
+                  overflow: 'hidden', flexShrink: 0,
+                  background: darkMode ? '#1a2a50' : '#f0f0f0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {listing.images && listing.images.length > 0 ? (
+                    <img
+                      src={listing.images[0]}
+                      alt={listing.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 28 }}>🏠</span>
+                  )}
+                </div>
+        {/* Listing details */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 3 }}>
+                    <p style={{
+                      margin: 0, fontSize: 13, fontWeight: 700, color: text,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      maxWidth: '65%',
+                    }}>
+                      {listing.title}
+                    </p>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#E8622E', flexShrink: 0 }}>
+                      ₱{Number(listing.price).toLocaleString()}<span style={{ fontSize: 10, fontWeight: 500, color: subText }}>/mo</span>
+                    </span>
+                  </div>
+ 
+                  <p style={{
+                    margin: '0 0 6px 0', fontSize: 11, color: subText,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    📍 {listing.address}
+                  </p>
+          {/* Tags row */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: 10, padding: '2px 7px',
+                      background: 'rgba(91,173,168,0.15)', color: '#5BADA8',
+                      borderRadius: 6, fontWeight: 600,
+                    }}>
+                      🛏 {listing.rooms || 'Room'}
+                    </span>
+                    <span style={{
+                      fontSize: 10, padding: '2px 7px',
+                      background: parseInt(listing.availableRooms) > 0
+                        ? 'rgba(232,98,46,0.12)' : 'rgba(220,53,69,0.12)',
+                      color: parseInt(listing.availableRooms) > 0 ? '#E8622E' : '#dc3545',
+                      borderRadius: 6, fontWeight: 600,
+                    }}>
+                      {listing.availableRooms} vacant
+                    </span>
+                    {listing.genderPolicy && (
+                      <span style={{
+                        fontSize: 10, padding: '2px 7px',
+                        background: 'rgba(59,130,246,0.12)', color: '#3b82f6',
+                        borderRadius: 6, fontWeight: 600,
+                      }}>
+                        {listing.genderPolicy === 'Girls Only' ? '♀ Girls' :
+                         listing.genderPolicy === 'Boys Only'  ? '♂ Boys' : '⚥ Co-ed'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <ChevronRight size={16} color={subText} style={{ alignSelf: 'center', flexShrink: 0 }} />
               </div>
             ))}
           </div>
-          <button className="ov-link-btn" onClick={() => onNavigate('booking')} style={{ color: '#E8622E' }}>
-            View all bookings <ChevronRight size={13} />
+        )}
+
+        {/* Bottom CTA */}
+        <div style={{
+          marginTop: 14, paddingTop: 12,
+          borderTop: `1px solid ${darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+          textAlign: 'center',
+        }}>
+          <button
+            className="ov-action-btn-primary"
+            onClick={() => onNavigate('map')}
+            style={{ width: '100%', justifyContent: 'center' }}
+          >
+            <MapPin size={14} /> View All Dorms on Map
           </button>
         </div>
-      )}
+      </div>
 
+      {/* ── 4. ACTIVITY + BOOKING STATUS ROW ───────────────────────────────*/}
       <div className="overview-row-2col">
         <div className="overview-card-new" style={{ background: cardBg }}>
           <div className="overview-card-header">
@@ -363,54 +612,81 @@ function TenantOverview({ darkMode, onNavigate, user }) {
             <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Recent Activity</span>
           </div>
           {activities.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px 0', color: subText, fontSize: 13 }}>
-              No recent activity yet. Start by exploring dorms!
+            <div style={{ textAlign: 'center', padding: '16px 0', color: subText, fontSize: 13 }}>
+              No activity yet. Start by exploring dorms!
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(Array.isArray(activities) ? activities : []).slice(0, 5).map((item) => (
+              {activities.slice(0, 4).map((item) => (
                 <ActivityItem key={item.id || item.createdAt} item={item} onNavigate={onNavigate} />
               ))}
             </div>
           )}
         </div>
 
+      {/* Booking summary/tips for new users */}
+      {totalBookings > 0 ? (
         <div className="overview-card-new" style={{ background: cardBg }}>
           <div className="overview-card-header">
-            <MapPin size={16} color="#E8622E" />
-            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>Browse Dorms</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button
-              className="quick-action-tile"
-              style={{ background: rowBg, color: text, justifyContent: 'flex-start', padding: '12px 16px', gap: 12 }}
-              onClick={() => onNavigate('map')}
-            >
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(91,173,168,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Search size={16} color="#5BADA8" />
-              </div>
-              <div>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: text }}>Explore Dormitories</p>
-                <p style={{ margin: 0, fontSize: 11, color: subText }}>Find your perfect place near campus</p>
-              </div>
+            <CalendarDays size={16} color="#E8622E" />
+            <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>My Bookings</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+              {[
+                { label: 'Total',   value: totalBookings,           color: text     },
+                { label: 'Active',  value: activeBooking ? 1 : 0,   color: '#5BADA8'},
+                { label: 'Pending', value: pendingCount,             color: '#F59E0B'},
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{
+                  flex: 1, textAlign: 'center', padding: '10px 6px',
+                  borderRadius: 10, background: rowBg,
+                }}>
+                  <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color }}>{value}</p>
+                  <p style={{ margin: 0, fontSize: 11, color: subText, marginTop: 2 }}>{label}</p>
+                </div>
+              ))}
+            </div>
+            <button className="ov-link-btn" onClick={() => onNavigate('booking')} style={{ color: '#E8622E' }}>
+              View all bookings <ChevronRight size={13} />
             </button>
-
-            {pendingCount > 0 && (
-              <div style={{ padding: '12px 16px', background: '#F59E0B20', borderRadius: 10, border: '1px solid #F59E0B' }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#B45309' }}>
-                  ⏳ {pendingCount} pending booking{pendingCount > 1 ? 's' : ''}
-                </p>
-                <p style={{ margin: '4px 0 0 0', fontSize: 11, color: subText }}>
-                  Waiting for landlord approval
-                </p>
-              </div>
-            )}
           </div>
-        </div>
+        ) : (
+      
+          <div className="overview-card-new" style={{ background: cardBg }}>
+            <div className="overview-card-header">
+              <Star size={16} color="#F59E0B" />
+              <span style={{ color: text, fontWeight: 700, fontSize: 14 }}>How it works</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { step: '1', text: 'Browse dorms on the map near your university' },
+                { step: '2', text: 'Pick a listing and send a booking request'     },
+                { step: '3', text: 'Landlord reviews and approves your request'    },
+                { step: '4', text: 'Move in and leave a review!'                   },
+              ].map(({ step, text: stepText }) => (
+                <div key={step} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: '#E8622E', color: '#fff',
+                    fontSize: 11, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, marginTop: 1,
+                  }}>
+                    {step}
+                  </div>
+                  <p style={{ margin: 0, fontSize: 12, color: subText, lineHeight: 1.5 }}>
+                    {stepText}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+      
 
 // ─── Landlord Overview ────────────────────────────────────────────────────────
 
