@@ -448,7 +448,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   };
 
   /* ── Save Personal Information Only ── */
-  function savePersonalInfo() {
+  async function savePersonalInfo() {
     // Validation for personal info only
     if (!firstName.trim()) {
       setProfileMessage({ text: 'First name is required', type: 'error' });
@@ -476,7 +476,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
 
       // Save to AuthContext - PERSONAL INFO ONLY
       if (user) {
-        updateUser({
+        const result = await updateUser({
           firstName: normalizedFirstName,
           lastName: normalizedLastName,
           name: fullName,
@@ -486,6 +486,11 @@ export default function Settings({ userType: propUserType, darkMode = false, set
           gender,
           profileImage,
         });
+
+        if (!result?.success) {
+          setProfileMessage({ text: result?.message || 'Failed to update profile. Please try again.', type: 'error' });
+          return;
+        }
       }
 
       window.dispatchEvent(new CustomEvent('dormscout:profileUpdated', {
@@ -502,7 +507,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   }
 
   /* ── Save Student Information Only ── */
-  function saveStudentInfo() {
+  async function saveStudentInfo() {
     // Validation for student info only
     if (!isLandlord && !university) {
       setStudentMessage({ text: 'Please select your university', type: 'error' });
@@ -514,13 +519,18 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     try {
       // Save to AuthContext - STUDENT INFO ONLY
       if (user) {
-        updateUser({
+        const result = await updateUser({
           university,
           school: university,
           course,
           yearLevel,
           studentId,
         });
+
+        if (!result?.success) {
+          setStudentMessage({ text: result?.message || 'Failed to update student information. Please try again.', type: 'error' });
+          return;
+        }
       }
 
       setStudentMessage({ text: 'Student information saved! ✓', type: 'success' });
@@ -557,7 +567,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     return errors;
   }
 
-  function handlePasswordChange() {
+  async function handlePasswordChange() {
     const errors = validatePasswordChange();
     setPasswordErrors(errors);
 
@@ -570,7 +580,11 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     try {
       // Update password via AuthContext
       if (user) {
-        updateUser({ password: newPassword });
+        const result = await updateUser({ password: newPassword });
+        if (!result?.success) {
+          setPasswordMessage({ text: result?.message || 'Failed to change password. Please try again.', type: 'error' });
+          return;
+        }
       }
 
       // Clear fields
@@ -588,12 +602,12 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     }
   }
 
-  function saveNotificationSettings() {
+  async function saveNotificationSettings() {
     setIsLoading(true);
 
     try {
       if (user) {
-        updateUser({
+        const result = await updateUser({
           settings: {
             ...(user.settings || {}),
             emailNotifications,
@@ -602,6 +616,11 @@ export default function Settings({ userType: propUserType, darkMode = false, set
             darkMode,
           }
         });
+
+        if (!result?.success) {
+          setApplicationMessage({ text: result?.message || 'Failed to save settings', type: 'error' });
+          return;
+        }
       }
 
       setApplicationMessage({ text: 'Notification settings saved! ✓', type: 'success' });

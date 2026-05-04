@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBooking } from '../../../context/BookingContext';
-import { useAuth } from '../../../context/AuthContext';
 
 const SECONDARY = '#5BADA8';
 
@@ -123,7 +122,6 @@ function TenantDetailView({ booking, onClose, onAccept, onReject, onMessage, dar
 // --- Main TenantManagement component ---
 export default function TenantManagement({ listingId, listingTitle, darkMode = false, onMessageTenant }) {
   const { getBookingsForListing, getTenantsForListing, acceptBooking, rejectBooking, removeTenant, deleteRejectedBooking } = useBooking();
-  const {updateBookingStatus, addActivity } = useAuth();
   const navigate = useNavigate();
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [removeModal, setRemoveModal] = useState(null);
@@ -147,30 +145,20 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
 
   const statusColors = { pending: '#ffc107', accepted: '#28a745', rejected: '#dc3545', active: '#28a745' };
 
-  const handleAccept = (bookingId) => {
-    // Update BookingContext
-    acceptBooking(bookingId);
+  const handleAccept = async (bookingId) => {
+    const result = await acceptBooking(bookingId);
 
-    // Update AuthContext - notify tenant
-    updateBookingStatus(bookingId, 'accepted');
-
-    // Add activity for landlord
-    addActivity('notification', 'You accepted a booking request', 'listing');
-
-    setSelectedBooking(null);
+    if (result?.success) {
+      setSelectedBooking(null);
+    }
   };
 
-  const handleReject = (bookingId) => {
-    // Update BookingContext
-    rejectBooking(bookingId);
+  const handleReject = async (bookingId) => {
+    const result = await rejectBooking(bookingId);
 
-    // Update AuthContext - notify tenant
-    updateBookingStatus(bookingId, 'rejected');
-
-    // Add activity for landlord
-    addActivity('notification', 'You rejected a booking request', 'listing');
-
-    setSelectedBooking(null);
+    if (result?.success) {
+      setSelectedBooking(null);
+    }
   };
 
   const handleConfirmRemove = () => {

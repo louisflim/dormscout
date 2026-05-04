@@ -16,10 +16,6 @@
   flex-shrink: 0;
 }
 
-.messaging-sidebar__header {
-  padding: 16px;
-}
-
 .messaging-sidebar__title {
   margin: 0 0 12px 0;
   font-size: 24px;
@@ -280,10 +276,6 @@
   border-radius: 50%;
   border: 3px solid transparent; /* border-color set inline per instance */
 }
-
-Now add these CSS styles to your `Messaging.css`:
-
-```css
 /* ═══════════════════════════════════════════════════════════ */
 /* TYPOGRAPHY & INDICATORS */
 /* ═══════════════════════════════════════════════════════════ */

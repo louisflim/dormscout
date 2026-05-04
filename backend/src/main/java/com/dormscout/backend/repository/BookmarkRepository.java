@@ -11,6 +11,8 @@ import java.util.Optional;
 @Repository
 public interface BookmarkRepository extends JpaRepository<Bookmark, Long> {
     List<Bookmark> findByTenant(User tenant);
+    List<Bookmark> findByListing(Listing listing);
     Optional<Bookmark> findByTenantAndListing(User tenant, Listing listing);
     void deleteByTenantAndListing(User tenant, Listing listing);
+    void deleteAllByListing(Listing listing);
 }

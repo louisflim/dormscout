@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { bookingsAPI, listingsAPI } from '../utils/api';
+import { bookingsAPI } from '../utils/api';
 
 const BookingContext = createContext();
 
@@ -22,32 +22,12 @@ export function BookingProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [chatMessages,  setChatMessages]  = useState({});
   const [tenants,       setTenants]       = useState([]);
-  const [listings,      setListings]      = useState([]);
   const [loading,       setLoading]       = useState(false);
 
   // ── Notify listeners when notifications change ───────────
   useEffect(() => {
     notifyNotificationChange();
   }, [notifications]);
-
-  // ── Helper: Update listing available rooms ──────────────
-  const _updateListingAvailableRooms = useCallback(async (listingId, delta) => {
-    try {
-      const listing = listings.find(l => l.id === listingId) ||
-                      (await listingsAPI.getById(listingId)).data;
-
-      if (listing) {
-        const currentRooms = parseInt(listing.availableRooms) || 0;
-        const newRooms = Math.max(0, currentRooms + delta);
-
-        await listingsAPI.update(listingId, { availableRooms: newRooms });
-        setListings(prev => prev.map(l =>
-          l.id === listingId ? { ...l, availableRooms: newRooms } : l
-        ));
-        notifyListingChange();
-      }
-    } catch (_) { /* ignore */ }
-  }, [listings]);
 
   // ── Create Booking (Tenant) ─────────────────────────────
   const createBooking = useCallback(async (listing, moveInDate, tenantInfo) => {
@@ -74,8 +54,6 @@ export function BookingProvider({ children }) {
           forRole:   'tenant',
         });
 
-        await _updateListingAvailableRooms(listing.id, -1);
-
         return { success: true, booking: newBooking };
       } else {
         return { success: false, message: response.data.message || 'Booking failed' };
@@ -86,7 +64,7 @@ export function BookingProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [_updateListingAvailableRooms]);
+  }, []);
 
   // ── Accept Booking (Landlord) ────────────────────────────
   const acceptBooking = useCallback(async (bookingId) => {
@@ -144,12 +122,6 @@ export function BookingProvider({ children }) {
           b.id === bookingId ? { ...b, status: 'rejected' } : b
         ));
 
-        // Restore available rooms
-        const booking = bookings.find(b => b.id === bookingId);
-        if (booking?.listing?.id) {
-          await _updateListingAvailableRooms(booking.listing.id, +1);
-        }
-
         addNotification({
           type:      'booking_rejected',
           title:     'Booking Rejected',
@@ -168,7 +140,7 @@ export function BookingProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [bookings, _updateListingAvailableRooms]);
+  }, []);
 
   // ── Cancel Booking (Tenant) ─────────────────────────────
   const cancelBooking = useCallback(async (bookingId) => {
@@ -177,14 +149,8 @@ export function BookingProvider({ children }) {
       const response = await bookingsAPI.delete(bookingId);
 
       if (response.ok && response.data.success) {
-        const booking = bookings.find(b => b.id === bookingId);
-
         setBookings(prev => prev.filter(b => b.id !== bookingId));
         setTenants(prev => prev.filter(t => t.bookingId !== bookingId));
-
-        if (booking?.listing?.id) {
-          await _updateListingAvailableRooms(booking.listing.id, +1);
-        }
 
         addNotification({
           type:    'booking_cancelled',
@@ -203,7 +169,7 @@ export function BookingProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [bookings, _updateListingAvailableRooms]);
+  }, []);
 
   // ── Remove Tenant (Landlord) ────────────────────────────
   const removeTenant = useCallback(async (tenantRecordId) => {
@@ -219,10 +185,6 @@ export function BookingProvider({ children }) {
       setTenants(prev => prev.filter(t => t.id !== tenantRecordId));
       setBookings(prev => prev.filter(b => b.id !== tenant.bookingId));
 
-      if (tenant.listingId) {
-        await _updateListingAvailableRooms(tenant.listingId, +1);
-      }
-
       addNotification({
         type:    'tenant_removed',
         title:   'Tenant Removed',
@@ -237,7 +199,7 @@ export function BookingProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [tenants, _updateListingAvailableRooms]);
+  }, [tenants]);
 
   // ── Add Notification ────────────────────────────────────
   function addNotification(notif) {

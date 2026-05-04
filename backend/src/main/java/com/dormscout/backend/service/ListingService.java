@@ -2,9 +2,12 @@ package com.dormscout.backend.service;
 
 import com.dormscout.backend.entity.Listing;
 import com.dormscout.backend.entity.User;
+import com.dormscout.backend.repository.BookmarkRepository;
 import com.dormscout.backend.repository.ListingRepository;
+import com.dormscout.backend.repository.ReviewRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.List;
@@ -13,6 +16,12 @@ import java.util.List;
 public class ListingService {
     @Autowired
     private ListingRepository listingRepository;
+
+    @Autowired
+    private BookmarkRepository bookmarkRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
 
     public Listing createListing(Listing listing, User landlord) {
         listing.setLandlord(landlord);
@@ -93,7 +102,13 @@ public class ListingService {
         throw new RuntimeException("Listing not found");
     }
 
+    @Transactional
     public void deleteListing(Long id) {
-        listingRepository.deleteById(id);
+        Listing listing = listingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Listing not found"));
+
+        bookmarkRepository.deleteAllByListing(listing);
+        reviewRepository.deleteAllByListing(listing);
+        listingRepository.delete(listing);
     }
 }

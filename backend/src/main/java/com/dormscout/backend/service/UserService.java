@@ -84,6 +84,13 @@ public class UserService {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
 
+            if (updates.getEmail() != null && !updates.getEmail().equalsIgnoreCase(user.getEmail())) {
+                Optional<User> existingUser = userRepository.findByEmail(updates.getEmail());
+                if (existingUser.isPresent() && !existingUser.get().getId().equals(id)) {
+                    throw new RuntimeException("Email already exists");
+                }
+                user.setEmail(updates.getEmail());
+            }
             if (updates.getFirstName() != null) {
                 user.setFirstName(updates.getFirstName());
             }
@@ -93,11 +100,44 @@ public class UserService {
             if (updates.getPhone() != null) {
                 user.setPhone(updates.getPhone());
             }
+            if (updates.getGender() != null) {
+                user.setGender(updates.getGender());
+            }
+            if (updates.getSchool() != null) {
+                user.setSchool(updates.getSchool());
+            }
+            if (updates.getCourse() != null) {
+                user.setCourse(updates.getCourse());
+            }
+            if (updates.getYearLevel() != null) {
+                user.setYearLevel(updates.getYearLevel());
+            }
+            if (updates.getStudentId() != null) {
+                user.setStudentId(updates.getStudentId());
+            }
+            if (updates.getProfileImage() != null) {
+                user.setProfileImage(updates.getProfileImage());
+            }
+            if (updates.getPassword() != null && !updates.getPassword().trim().isEmpty()) {
+                user.setPassword(passwordEncoder.encode(updates.getPassword()));
+            }
             if (updates.getBusinessName() != null) {
                 user.setBusinessName(updates.getBusinessName());
             }
             if (updates.getBusinessPermit() != null) {
                 user.setBusinessPermit(updates.getBusinessPermit());
+            }
+            if (updates.getEmailNotifications() != null) {
+                user.setEmailNotifications(updates.getEmailNotifications());
+            }
+            if (updates.getInAppNotifications() != null) {
+                user.setInAppNotifications(updates.getInAppNotifications());
+            }
+            if (updates.getMessageAlerts() != null) {
+                user.setMessageAlerts(updates.getMessageAlerts());
+            }
+            if (updates.getDarkMode() != null) {
+                user.setDarkMode(updates.getDarkMode());
             }
             if (updates.getBusinessName() != null || updates.getBusinessPermit() != null) {
                 user.setVerified(false);
@@ -132,11 +172,18 @@ public class UserService {
                 user.getPhone(),
                 user.getUserType()
         );
+            dto.setGender(user.getGender());
+            dto.setSchool(user.getSchool());
+            dto.setCourse(user.getCourse());
+            dto.setYearLevel(user.getYearLevel());
+            dto.setStudentId(user.getStudentId());
+            dto.setProfileImage(user.getProfileImage());
         dto.setBusinessName(user.getBusinessName());
         dto.setBusinessPermit(user.getBusinessPermit());
         dto.setVerified(user.isVerified());
         dto.setVerificationStatus(user.getVerificationStatus());
         dto.setRejectionReason(user.getRejectionReason());
+            dto.setSettings(user.getSettings());
         return dto;
     }
 
