@@ -24,6 +24,46 @@ export function BookingProvider({ children }) {
   const [tenants,       setTenants]       = useState([]);
   const [loading,       setLoading]       = useState(false);
 
+  // ── Keep bookings synced from backend so all sessions/roles see current data ──
+  useEffect(() => {
+    let cancelled = false;
+
+    const mapAcceptedTenants = (allBookings) => {
+      return (Array.isArray(allBookings) ? allBookings : [])
+        .filter(b => {
+          const status = String(b?.status || '').toLowerCase();
+          return status === 'accepted' || status === 'approved' || status === 'confirmed' || status === 'active';
+        })
+        .map(b => ({
+          id: `booking-${b.id}`,
+          bookingId: b.id,
+          listingId: b.listing?.id || b.listingId,
+          tenantId: b.tenant?.id || b.tenantId,
+          tenantName: `${b.tenant?.firstName || ''} ${b.tenant?.lastName || ''}`.trim() || b.tenantName || 'Tenant',
+          tenantEmail: b.tenant?.email || b.tenantEmail,
+          tenantAvatar: `${(b.tenant?.firstName || b.tenantName || 'T').charAt(0)}`.toUpperCase(),
+          roomNumber: b.roomNumber || 'Assigned Room',
+          moveInDate: b.moveInDate || b.checkInDate,
+          status: 'active',
+        }));
+    };
+
+    const loadBookings = async () => {
+      const all = await bookingsAPI.getAll();
+      if (cancelled) return;
+      setBookings(Array.isArray(all) ? all : []);
+      setTenants(mapAcceptedTenants(all));
+      notifyBookingChange();
+    };
+
+    loadBookings();
+    const intervalId = setInterval(loadBookings, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, []);
+
   // ── Notify listeners when notifications change ───────────
   useEffect(() => {
     notifyNotificationChange();
@@ -266,11 +306,11 @@ export function BookingProvider({ children }) {
 
   // ── Getters ───────────────────────────────────────────────
   function getBookingsForListing(listingId) {
-    return bookings.filter(b => b.listing?.id === listingId || b.listingId === listingId);
+    return bookings.filter(b => Number(b.listing?.id || b.listingId) === Number(listingId));
   }
   function getPendingCount(listingId) {
     return bookings.filter(b =>
-      (b.listing?.id === listingId || b.listingId === listingId) &&
+      Number(b.listing?.id || b.listingId) === Number(listingId) &&
       b.status === 'pending'
     ).length;
   }

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../context/AuthContext';
 import './AboutUs.css';
 import {
   User,
@@ -35,11 +36,20 @@ const FEATURES = [
 
 export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScreen }) {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
   const isDark = typeof setDarkMode === 'function' ? Boolean(darkMode) : localDarkMode;
   const theme = isDark ? 'dark' : 'light';
   const dropdownRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || user?.name || user?.email || 'Account';
+  const userInitials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'A';
 
   useEffect(() => {
     setLocalDarkMode(Boolean(darkMode));
@@ -55,8 +65,7 @@ export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScre
   }, [showDropdown]);
 
   const handleLogout = () => {
-    localStorage.removeItem('dormScoutUser');
-    localStorage.removeItem('userType');
+    logout();
     navigate('/');
   };
 
@@ -96,13 +105,17 @@ export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScre
         </button>
         <div ref={dropdownRef} className="dashboard-dropdown-wrap">
           <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
-            <User size={20} color="#fff" />
+            {user?.profileImage ? (
+              <img src={user.profileImage} alt="Profile" />
+            ) : (
+              <span>{userInitials}</span>
+            )}
           </div>
           {showDropdown && (
             <div className="dashboard-dropdown">
               <div className="dropdown-item dropdown-item-profile"
                 onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
-                <User size={15} /> My Profile
+                <User size={15} /> {displayName}
               </div>
               <div className="dropdown-item dropdown-item-default"
                 onClick={() => { navigate('/support'); setShowDropdown(false); }}>

@@ -88,13 +88,22 @@ function getStatusColor(status, darkMode) {
 // ═══════════════════════════════════════════════════════════
 // COMPONENTS
 // ═══════════════════════════════════════════════════════════
-function Avatar({ initials, size = 42, online = false, borderColor = '#16213e' }) {
-  const colorIndex = (initials.charCodeAt(0) + (initials.charCodeAt(1) || 0)) % AVATAR_COLORS.length;
+function Avatar({ initials, imageUrl = null, size = 42, online = false, borderColor = '#16213e' }) {
+  const safeInitials = (initials || '??').slice(0, 2).toUpperCase();
+  const colorIndex = (safeInitials.charCodeAt(0) + (safeInitials.charCodeAt(1) || 0)) % AVATAR_COLORS.length;
 
   return (
     <div className="avatar-wrapper" style={{ width: size, height: size }}>
-      <div className="avatar-circle" style={{ width: size, height: size, background: AVATAR_COLORS[colorIndex], fontSize: size * 0.38 }}>
-        {initials}
+      <div className="avatar-circle" style={{ width: size, height: size, background: AVATAR_COLORS[colorIndex], fontSize: size * 0.38, overflow: 'hidden' }}>
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt="Profile"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          safeInitials
+        )}
       </div>
       {online && <div className="avatar-online-dot" style={{ width: size * 0.35, height: size * 0.35, borderColor }} />}
     </div>
@@ -116,7 +125,7 @@ function StatusIndicator({ status, darkMode }) {
 export default function Messaging({ darkMode = false, userType = 'tenant', contactLandlord = null, contactTenant = null }) {
   const role = userType;
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   useEffect(() => { requestNotificationPermission(); }, []);
 
@@ -131,9 +140,11 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   const [selectedConvId, setSelectedConvId]     = useState(null);
   const [searchQuery,    setSearchQuery]         = useState('');
   const [messageInput,   setMessageInput]        = useState('');
-  const [notificationEnabled, setNotificationEnabled] = useState(Notification.permission === 'granted');
+  const [notificationEnabled, setNotificationEnabled] = useState(user?.settings?.messageAlerts !== false);
   const [contextMenuOpen, setContextMenuOpen]    = useState(null);
   const [contextMenuPos,  setContextMenuPos]     = useState({ top: 0, left: 0 });
+  const initializedConversationsRef = useRef(new Set());
+  const seenIncomingMessagesRef = useRef(new Set());
 
   const messagesEndRef = useRef(null);
 
@@ -251,8 +262,10 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     apiConversations.forEach(conv => {
       map[conv.conversationId] = {
         id: conv.conversationId,
+        partnerId: conv.partnerId,
         name: conv.partnerName || 'Unknown',
         avatar: conv.partnerInitials || '??',
+        avatarImage: conv.partnerProfileImage || null,
         online: false,
         lastMessage: conv.lastMessage || 'Start a conversation',
         timestamp: conv.lastMessageTime,
@@ -263,6 +276,34 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     });
     return map;
   }, [apiConversations, role]);
+
+  const pendingContactConversation = useMemo(() => {
+    if (!user?.id) return null;
+
+    const pendingContact = role === 'tenant' ? contactLandlord : contactTenant;
+    const partnerId = pendingContact?.id;
+    if (!partnerId) return null;
+
+    const conversationId = makeConvId(user.id, partnerId);
+    if (roleConversations[conversationId]) return null;
+
+    const name = pendingContact?.name || (role === 'tenant' ? 'Landlord' : 'Tenant');
+    const initials = (pendingContact?.avatar
+      || name.split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2)
+      || 'XX');
+
+    return {
+      id: conversationId,
+      partnerId: Number(partnerId),
+      name,
+      avatar: initials,
+      avatarImage: pendingContact?.profileImage || null,
+      online: false,
+      lastMessage: 'Start a conversation',
+      timestamp: Date.now(),
+      unread: 0,
+    };
+  }, [contactLandlord, contactTenant, role, roleConversations, user?.id]);
 
   // ── Admin system messages (unchanged logic) ──────────────
   const verificationSystemMessages = useMemo(() => {
@@ -303,12 +344,25 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   }, [adminMessages]);
 
   const mergedConversations = useMemo(() => {
-    if (!adminConversation) return roleConversations;
-    return { ...roleConversations, [ADMIN_CONVERSATION_ID]: adminConversation };
-  }, [roleConversations, adminConversation]);
+    const merged = { ...roleConversations };
+
+    if (pendingContactConversation) {
+      merged[pendingContactConversation.id] = pendingContactConversation;
+    }
+
+    if (adminConversation) {
+      merged[ADMIN_CONVERSATION_ID] = adminConversation;
+    }
+
+    return merged;
+  }, [roleConversations, pendingContactConversation, adminConversation]);
 
   const isAdminConversationSelected = selectedConvId === ADMIN_CONVERSATION_ID;
   const selectedConvRoleLabel = isAdminConversationSelected ? '· System' : role === 'tenant' ? '· Landlord' : '· Tenant';
+
+  useEffect(() => {
+    setNotificationEnabled(user?.settings?.messageAlerts !== false);
+  }, [user?.settings?.messageAlerts]);
 
   // ── Messages array for the chat window ──────────────────
   const messages = useMemo(() => {
@@ -319,6 +373,8 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       text: msg.content,
       timestamp: msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now(),
       status: msg.read ? 'read' : 'delivered',
+      senderProfileImage: msg.senderProfileImage || null,
+      receiverProfileImage: msg.receiverProfileImage || null,
     }));
   }, [conversationMessages, user?.id, isAdminConversationSelected, adminMessages]);
 
@@ -327,6 +383,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   const fallbackContactInitials = fallbackContactName
     ? fallbackContactName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'XX';
+  const fallbackContactImage = contactLandlord?.profileImage || contactTenant?.profileImage || null;
 
   // Auto-select admin conversation on first load if it exists and nothing is selected
   useEffect(() => {
@@ -344,11 +401,39 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   const scrollToBottom = useCallback(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, []);
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
+  // Notify only for newly-arrived incoming messages after a conversation is initialized.
+  useEffect(() => {
+    if (!selectedConvId || isAdminConversationSelected) return;
+
+    const key = String(selectedConvId);
+    if (!initializedConversationsRef.current.has(key)) {
+      initializedConversationsRef.current.add(key);
+      conversationMessages.forEach((msg) => {
+        if (Number(msg.senderId) !== Number(user?.id)) {
+          seenIncomingMessagesRef.current.add(String(msg.id));
+        }
+      });
+      return;
+    }
+
+    conversationMessages.forEach((msg) => {
+      const messageId = String(msg.id);
+      const isIncoming = Number(msg.senderId) !== Number(user?.id);
+      if (!isIncoming || seenIncomingMessagesRef.current.has(messageId)) return;
+
+      seenIncomingMessagesRef.current.add(messageId);
+      if (notificationEnabled && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+        showDesktopNotification(selectedConv?.name || 'New message', (msg.content || '').substring(0, 80));
+      }
+    });
+  }, [conversationMessages, selectedConvId, selectedConv?.name, user?.id, notificationEnabled, isAdminConversationSelected]);
+
   // ── Send message ─────────────────────────────────────────
   const sendMessage = useCallback(async () => {
     if (!messageInput.trim() || !selectedConvId || isAdminConversationSelected) return;
 
-    const selectedConvData = apiConversations.find(c => c.conversationId === selectedConvId);
+    const selectedConvData = mergedConversations[selectedConvId]
+      || apiConversations.find(c => c.conversationId === selectedConvId);
     const partnerId = selectedConvData?.partnerId;
     if (!partnerId || !user?.id) return;
 
@@ -363,6 +448,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       conversationId: selectedConvId,
       createdAt: new Date().toISOString(),
       read: false,
+      senderProfileImage: user?.profileImage || null,
     };
     setConversationMessages(prev => [...prev, optimistic]);
 
@@ -377,8 +463,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     setConversationMessages(Array.isArray(msgs)  ? msgs  : []);
     setApiConversations(Array.isArray(convs) ? convs : []);
 
-    if (notificationEnabled) showDesktopNotification('Message sent', text.substring(0, 50));
-  }, [messageInput, selectedConvId, apiConversations, user?.id, notificationEnabled, isAdminConversationSelected]);
+  }, [messageInput, selectedConvId, mergedConversations, apiConversations, user?.id, isAdminConversationSelected]);
 
   // ── Delete a single message ──────────────────────────────
   const handleDeleteMessage = useCallback(async (msgId) => {
@@ -402,11 +487,26 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   }, [selectedConvId, user?.id]);
 
   // ── Notification toggle ──────────────────────────────────
-  const toggleNotifications = () => {
-    if (Notification.permission === 'granted') {
-      setNotificationEnabled(prev => !prev);
-    } else {
-      requestNotificationPermission();
+  const toggleNotifications = async () => {
+    const currentValue = user?.settings?.messageAlerts !== false;
+    const nextValue = !currentValue;
+
+    let effectiveValue = nextValue;
+    if (nextValue && Notification.permission !== 'granted') {
+      if (Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+      effectiveValue = Notification.permission === 'granted';
+    }
+
+    setNotificationEnabled(effectiveValue);
+    if (user?.id) {
+      await updateUser({
+        settings: {
+          ...(user.settings || {}),
+          messageAlerts: effectiveValue,
+        },
+      });
     }
   };
   const c = {
@@ -485,7 +585,13 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                   onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = c.hoverBg; }}
                   onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <Avatar initials={conv.avatar} size={48} online={conv.online} borderColor={c.sidebarBg} />
+                  <Avatar
+                    initials={conv.avatar}
+                    imageUrl={conv.avatarImage}
+                    size={48}
+                    online={conv.online}
+                    borderColor={c.sidebarBg}
+                  />
 
                   <div className="conv-item__body">
                     <div className="conv-item__top">
@@ -550,6 +656,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
         <div className="messaging-chat__header" style={{ borderBottom: `1px solid ${c.border}` }}>
           <Avatar
             initials={selectedConv?.avatar || fallbackContactInitials}
+            imageUrl={selectedConv?.avatarImage || fallbackContactImage}
             size={40}
             online={selectedConv?.online}
           />
@@ -581,7 +688,13 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                   </div>
                 )}
                 <div className={`msg-row msg-row--${isReceived ? 'received' : 'sent'}`}>
-                  {isReceived && <Avatar initials={selectedConv?.avatar || 'XX'} size={32} />}
+                  {isReceived && (
+                    <Avatar
+                      initials={selectedConv?.avatar || 'XX'}
+                      imageUrl={msg.senderProfileImage || selectedConv?.avatarImage || fallbackContactImage}
+                      size={32}
+                    />
+                  )}
                   <div
                     className={`msg-bubble ${isReceived ? '' : 'msg-bubble--sent'}`}
                     style={{

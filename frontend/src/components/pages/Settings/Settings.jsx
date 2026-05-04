@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import { userAPI } from '../../../utils/api';
 import { UNIVERSITY_NAMES } from '../../../constants/universities';
 import './Settings.css';
 
@@ -578,6 +579,13 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     setIsLoading(true);
 
     try {
+      const loginCheck = await userAPI.login(user?.email || email, currentPassword);
+      if (!loginCheck?.success) {
+        setPasswordErrors({ currentPassword: 'Current password is incorrect' });
+        setPasswordMessage({ text: 'Current password is incorrect', type: 'error' });
+        return;
+      }
+
       // Update password via AuthContext
       if (user) {
         const result = await updateUser({ password: newPassword });

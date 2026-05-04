@@ -112,6 +112,7 @@ public class MessageService {
             conv.put("partnerId",        partner.getId());
             conv.put("partnerName",      partnerName);
             conv.put("partnerInitials",  initials);
+            conv.put("partnerProfileImage", partner.getProfileImage());
             conv.put("lastMessage",      latest.getContent());
             conv.put("lastMessageTime",  lastMsgTime);
             conv.put("unreadCount",      unreadByConv.getOrDefault(convId, 0L).intValue());

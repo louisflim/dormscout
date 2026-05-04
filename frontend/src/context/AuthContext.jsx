@@ -126,6 +126,30 @@ export function AuthProvider({ children }) {
         }
     }, [user, userType]);
 
+    const deleteAccount = useCallback(async () => {
+        try {
+            if (!user?.id) {
+                return { success: false, message: 'No user logged in' };
+            }
+
+            const result = await userAPI.deleteUser(user.id);
+            if (result?.success === false) {
+                return { success: false, message: result.message || 'Failed to delete account' };
+            }
+
+            setUser(null);
+            setUserType(null);
+            sessionStorage.removeItem('authUser');
+            sessionStorage.removeItem('token');
+            localStorage.removeItem('userType');
+
+            return { success: true };
+        } catch (error) {
+            console.error('❌ AuthContext: deleteAccount error:', error);
+            return { success: false, message: 'Connection error. Please try again.' };
+        }
+    }, [user?.id]);
+
     return (
         <AuthContext.Provider value={{
             user,
@@ -134,6 +158,7 @@ export function AuthProvider({ children }) {
             register,
             logout,
             updateUser,
+            deleteAccount,
             loading,
             setUser,
             setUserType

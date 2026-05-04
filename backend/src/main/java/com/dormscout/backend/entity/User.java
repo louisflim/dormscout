@@ -28,7 +28,7 @@ public class User {
     private String email;
 
     @Column(nullable = false)
-    @JsonIgnore  // NEVER expose password in API responses
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)  // accept in requests, hide in responses
     private String password;
 
     @Column(nullable = false)

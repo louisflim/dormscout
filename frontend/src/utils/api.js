@@ -69,6 +69,19 @@ export const userAPI = {
             return null;
         }
     },
+
+    deleteUser: async (id) => {
+        try {
+            const response = await api.delete(`/users/${id}`);
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: deleteUser error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to delete account',
+            };
+        }
+    },
 };
 
 export const listingsAPI = {
@@ -155,6 +168,16 @@ export const listingsAPI = {
 };
 
 export const bookingsAPI = {
+    getAll: async () => {
+        try {
+            const response = await api.get('/bookings');
+            return Array.isArray(response.data) ? response.data : [];
+        } catch (error) {
+            console.error('❌ API: getAllBookings error:', error);
+            return [];
+        }
+    },
+
     getBookingsByTenant: async (tenantId) => {
         try {
             const response = await api.get(`/bookings/tenant/${tenantId}`);

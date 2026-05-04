@@ -27,6 +27,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const dk = darkMode;
+  const inAppNotificationsEnabled = user?.settings?.inAppNotifications !== false;
 
   const c = {
     text:          dk ? '#eaeaea'           : '#333',
@@ -37,7 +38,10 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
   };
 
   const loadNotifications = useCallback(() => {
-    if (!user?.id) return;
+    if (!user?.id || !inAppNotificationsEnabled) {
+      setNotifications([]);
+      return;
+    }
     activitiesAPI.getActivitiesByUser(user.id).then(response => {
       const acts = Array.isArray(response?.data?.data) ? response.data.data : [];
       setNotifications(acts.map(a => ({
@@ -49,13 +53,18 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
         createdAt: a.createdAt,
       })));
     });
-  }, [user?.id]);
+  }, [user?.id, inAppNotificationsEnabled]);
 
   useEffect(() => {
+    if (!inAppNotificationsEnabled) {
+      setNotifications([]);
+      return undefined;
+    }
+
     loadNotifications();
     const interval = setInterval(loadNotifications, 10000);
     return () => clearInterval(interval);
-  }, [loadNotifications]);
+  }, [loadNotifications, inAppNotificationsEnabled]);
 
   const markAsRead = async (id) => {
     await activitiesAPI.markAsRead(id);
@@ -86,6 +95,13 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
 
   return (
     <div>
+      {!inAppNotificationsEnabled ? (
+        <div className="notif-empty" style={{ background: c.cardBg, color: c.secondaryText }}>
+          <div className="notif-empty__icon">🔕</div>
+          <p className="notif-empty__text">In-app notifications are turned off in Settings.</p>
+        </div>
+      ) : (
+        <>
       {/* ── Header ── */}
       <div className="notif-header">
         <h3 className="notif-header__title" style={{ color: c.text }}>
@@ -173,6 +189,8 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
             </div>
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );

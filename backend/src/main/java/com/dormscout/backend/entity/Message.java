@@ -70,4 +70,14 @@ public class Message {
         String full  = (first + " " + last).trim();
         return !full.isEmpty() ? full : receiver.getEmail();
     }
+
+    @JsonProperty("senderProfileImage")
+    public String getSenderProfileImage() {
+        return sender != null ? sender.getProfileImage() : null;
+    }
+
+    @JsonProperty("receiverProfileImage")
+    public String getReceiverProfileImage() {
+        return receiver != null ? receiver.getProfileImage() : null;
+    }
 }
