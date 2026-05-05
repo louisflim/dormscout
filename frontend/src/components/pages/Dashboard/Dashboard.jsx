@@ -1156,6 +1156,8 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'ME';
 
+  const isFullscreen = activeNav === 'messages' || activeNav === 'map';
+  
   return (
     <div className={`dashboard-wrapper ${theme}`}>
       {/* Navbar */}
@@ -1247,8 +1249,8 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
         </aside>
 
         {/* Content */}
-        <div className="dashboard-content">
-          {!isOverview && (
+        <div className={`dashboard-content ${isFullscreen ? 'no-padding' : ''}`}>
+          {!isOverview && !isFullscreen && (
             <div className="dashboard-subheader">
               <h4>{subLabel}</h4>
               <p>{subDesc}</p>

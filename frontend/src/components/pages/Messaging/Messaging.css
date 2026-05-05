@@ -2,18 +2,26 @@
 
 .messaging-wrapper {
   display: flex;
-  height: calc(100vh - 180px);
+  height: 100%;
+  min-height: 0;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+
 /* ── Sidebar ── */
 .messaging-sidebar {
-  width: 340px;
+  width: 300px;        
+  padding: 20px 16px;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+}
+
+.messaging-sidebar__header {
+  padding-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .messaging-sidebar__title {

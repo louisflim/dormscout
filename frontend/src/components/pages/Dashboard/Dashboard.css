@@ -4,6 +4,10 @@
   flex-direction: column;
 }
 
+.dashboard-content.no-padding {
+  padding: 0;
+}
+
 .dashboard-wrapper.light { background: #F7F6F3; }
 .dashboard-wrapper.dark  { background: #1a1a2e; }
 
@@ -261,6 +265,9 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
+  height: 100%;        
+  display: flex;       
+  flex-direction: column; 
 }
 
 .dashboard-subheader { margin-bottom: 12px; }
