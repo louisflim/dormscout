@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminPage.css';
 import {
@@ -129,7 +129,7 @@ export default function AdminPage() {
   const [selectedLandlord, setSelectedLandlord] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const loadAdminDerivedData = async (usersData, adminAccount) => {
+  const loadAdminDerivedData = useCallback(async (usersData, adminAccount) => {
     // Load bookmarks from all tenants
     const tenants = (usersData || users).filter(u => getRole(u) === 'tenant');
     try {
@@ -202,9 +202,9 @@ export default function AdminPage() {
         }
       } catch { setSupportMessages([]); }
     }
-  };
+  }, [users, adminUser, selectedSupportId, selectedDirectUser]);
 
-  const loadAdminData = async () => {
+  const loadAdminData = useCallback(async () => {
     setDataLoading(true);
     try {
       const [usersRes, listingsRes, bookingsRes, reportsRes, reviewsRes] =
@@ -228,12 +228,11 @@ export default function AdminPage() {
     } finally {
       setDataLoading(false);
     }
-  };
+  }, [loadAdminDerivedData]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isLoggedIn) loadAdminData();
-  }, [isLoggedIn, activeSection]);
+  }, [isLoggedIn, activeSection, loadAdminData]);
 
   useEffect(() => {
     localStorage.setItem(ADMIN_DARKMODE_KEY, darkMode ? 'true' : 'false');

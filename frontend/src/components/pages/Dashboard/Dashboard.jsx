@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Map from '../Map/Map';
 import ListingPage from '../Listing/ListingPage';
@@ -651,7 +650,6 @@ function TenantOverview({ darkMode, onNavigate, user }) {
 
 function LandlordOverview({ darkMode, onNavigate, user }) {
   const [requests, setRequests] = useState([]);
-  const { updateBookingStatus } = useAuth();
   const { bookings: contextBookings, acceptBooking, rejectBooking, subscribeToBookings } = useBooking();
 
   const cardBg  = darkMode ? '#16213e' : '#fff';
@@ -777,38 +775,51 @@ function LandlordOverview({ darkMode, onNavigate, user }) {
   const refreshActivities = () => {
     activitiesAPI.getActivitiesByUser(user.id)
       .then(response => {
-        const data = Array.isArray(response) ? response : (response?.data || []);
+        let data = [];
+        if (Array.isArray(response)) {
+          data = response;
+        } else if (response?.data && Array.isArray(response.data)) {
+          data = response.data;
+        } else if (response?.data?.data && Array.isArray(response.data.data)) {
+          data = response.data.data;
+        }
         setActivities(data);
       })
       .catch(() => {});
   };
 
   const handleAccept = (request) => {
-    acceptBooking(request.id);
-    updateBookingStatus(request.id, 'accepted');
-
-    const text = `You accepted ${request.tenantName || 'a tenant'}'s booking for "${request.listingTitle || 'property'}"`;
-
-    // Save to backend
-    activitiesAPI.createActivity(user.id, 'booking', text, 'Just now', 'listing')
-      .then(() => refreshActivities())
-      .catch(err => console.error('Failed to create activity:', err));
-
-    window.dispatchEvent(new CustomEvent('dormscout:bookingUpdated'));
+    // Update booking status via API
+    bookingsAPI.updateBookingStatus(request.id, 'accepted')
+      .then(() => {
+        acceptBooking(request.id);
+        const text = `You accepted ${request.tenantName || 'a tenant'}'s booking for "${request.listingTitle || 'property'}"`;
+        activitiesAPI.createActivity(user.id, 'booking', text, 'Just now', 'listing')
+          .then(() => refreshActivities())
+          .catch(err => console.error('Failed to create activity:', err));
+        window.dispatchEvent(new CustomEvent('dormscout:bookingUpdated'));
+      })
+      .catch(err => {
+        console.error('Failed to accept booking:', err);
+        alert('Failed to accept booking. Please try again.');
+      });
   };
 
   const handleReject = (request) => {
-    rejectBooking(request.id);
-    updateBookingStatus(request.id, 'rejected');
-
-    const text = `You rejected ${request.tenantName || 'a tenant'}'s booking for "${request.listingTitle || 'property'}"`;
-
-    // Save to backend
-    activitiesAPI.createActivity(user.id, 'booking', text, 'Just now', 'listing')
-      .then(() => refreshActivities())
-      .catch(err => console.error('Failed to create activity:', err));
-
-    window.dispatchEvent(new CustomEvent('dormscout:bookingUpdated'));
+    // Update booking status via API
+    bookingsAPI.updateBookingStatus(request.id, 'rejected')
+      .then(() => {
+        rejectBooking(request.id);
+        const text = `You rejected ${request.tenantName || 'a tenant'}'s booking for "${request.listingTitle || 'property'}"`;
+        activitiesAPI.createActivity(user.id, 'booking', text, 'Just now', 'listing')
+          .then(() => refreshActivities())
+          .catch(err => console.error('Failed to create activity:', err));
+        window.dispatchEvent(new CustomEvent('dormscout:bookingUpdated'));
+      })
+      .catch(err => {
+        console.error('Failed to reject booking:', err);
+        alert('Failed to reject booking. Please try again.');
+      });
   };
 
   return (
