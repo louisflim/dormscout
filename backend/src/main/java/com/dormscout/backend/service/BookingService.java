@@ -114,6 +114,15 @@ public class BookingService {
             throw new RuntimeException("Tenant is required");
         }
 
+        // Check if tenant already has an active booking (pending or accepted)
+        List<Booking> existingBookings = bookingRepository.findByTenant(tenant);
+        for (Booking existing : existingBookings) {
+            String status = existing.getStatus() != null ? existing.getStatus().toLowerCase() : "";
+            if ("pending".equals(status) || "accepted".equals(status) || "approved".equals(status) || "confirmed".equals(status) || "active".equals(status)) {
+                throw new RuntimeException("You already have an active booking. A tenant can only have one active booking at a time.");
+            }
+        }
+
         validateBookingGenderPolicy(tenant, listing);
 
         int available = listing.getAvailableRooms() != null ? listing.getAvailableRooms() : 0;

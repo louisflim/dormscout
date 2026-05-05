@@ -509,7 +509,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     setConversationMessages(Array.isArray(msgs)  ? msgs  : []);
     setApiConversations(Array.isArray(convs) ? convs : []);
 
-  }, [messageInput, selectedConvId, mergedConversations, apiConversations, user?.id, isAdminConversationSelected]);
+  }, [messageInput, selectedConvId, mergedConversations, apiConversations, user?.id, user?.profileImage, isAdminConversationSelected]);
 
   // ── Delete a single message ──────────────────────────────
   const handleDeleteMessage = useCallback(async (msgId) => {
@@ -526,7 +526,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     }
     await messagesAPI.deleteMessage(msgId);
     setConversationMessages(prev => prev.filter(m => m.id !== msgId));
-  }, []);
+  }, [conversationMessages, user?.id]);
 
   // ── Delete a conversation ────────────────────────────────
   const handleDeleteConversation = useCallback(async (convId) => {
