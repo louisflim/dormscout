@@ -145,15 +145,12 @@ export default function BookingPage({ darkMode = false }) {
     setActionError('');
 
     try {
-      const response = await bookingsAPI.delete(selectedBooking.id);
+      const response = await contextCancelBooking(selectedBooking.id);
 
-      if (response.success || response.ok) {
-        // Call context cancel
-        contextCancelBooking(selectedBooking.id);
-
+      if (response?.success) {
         setBookings(prev => prev.filter(b => String(b.id) !== String(selectedBooking.id)));
       } else {
-        setActionError(response.message || 'Failed to cancel booking');
+        setActionError(response?.message || 'Failed to cancel booking');
       }
     } catch (error) {
       console.error('Cancel booking error:', error);

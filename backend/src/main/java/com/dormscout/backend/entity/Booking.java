@@ -1,5 +1,6 @@
 package com.dormscout.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -50,5 +51,24 @@ public class Booking {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    @JsonProperty("tenantName")
+    public String getTenantName() {
+        if (tenant == null) return null;
+        String first = tenant.getFirstName() != null ? tenant.getFirstName().trim() : "";
+        String last = tenant.getLastName() != null ? tenant.getLastName().trim() : "";
+        String fullName = (first + " " + last).trim();
+        return fullName.isEmpty() ? tenant.getEmail() : fullName;
+    }
+
+    @JsonProperty("listingTitle")
+    public String getListingTitle() {
+        return listing != null ? listing.getTitle() : null;
+    }
+
+    @JsonProperty("moveInDate")
+    public LocalDate getMoveInDate() {
+        return checkInDate;
     }
 }

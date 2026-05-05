@@ -50,17 +50,30 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
       setNotifications([]);
       return;
     }
-    activitiesAPI.getActivitiesByUser(user.id).then(response => {
-      const acts = Array.isArray(response?.data?.data) ? response.data.data : [];
-      setNotifications(acts.map(a => ({
-        id:        a.id,
-        type:      a.type,
-        title:     TYPE_TITLES[a.type] || 'Notification',
-        message:   a.text,
-        read:      a.read,
-        createdAt: a.createdAt,
-      })));
-    });
+    activitiesAPI.getActivitiesByUser(user.id)
+      .then(response => {
+        let acts = [];
+        if (Array.isArray(response?.data?.data)) {
+          acts = response.data.data;
+        } else if (Array.isArray(response?.data)) {
+          acts = response.data;
+        } else if (Array.isArray(response)) {
+          acts = response;
+        }
+
+        setNotifications(acts.map((a) => ({
+          id: a.id,
+          type: a.type || 'general',
+          title: TYPE_TITLES[a.type] || a.title || 'Notification',
+          message: a.text || a.message || '',
+          read: Boolean(a.read ?? a.isRead),
+          createdAt: a.createdAt,
+        })));
+      })
+      .catch(() => {
+        // Avoid stale cards when request fails.
+        setNotifications([]);
+      });
   }, [user?.id, inAppNotificationsEnabled]);
 
   useEffect(() => {
@@ -120,6 +133,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
       {/* ── Header ── */}
       <div className="notif-header">
         <h3 className="notif-header__title" style={{ color: c.text }}>
+          Notifications
           {unreadCount > 0 && (
             <span className="notif-header__badge">{unreadCount} new</span>
           )}

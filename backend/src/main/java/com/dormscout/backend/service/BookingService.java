@@ -30,6 +30,53 @@ public class BookingService {
                 || "confirmed".equals(normalized) || "active".equals(normalized);
     }
 
+    private String normalizeGender(String gender) {
+        if (gender == null) {
+            return "";
+        }
+
+        String normalized = gender.trim().toLowerCase();
+        if (normalized.startsWith("m")) {
+            return "male";
+        }
+        if (normalized.startsWith("f")) {
+            return "female";
+        }
+        return normalized;
+    }
+
+    private String normalizeGenderPolicy(String genderPolicy) {
+        if (genderPolicy == null) {
+            return "mixed";
+        }
+
+        String normalized = genderPolicy.trim().toLowerCase();
+        if (normalized.contains("girl") || normalized.contains("women") || normalized.contains("female")) {
+            return "female_only";
+        }
+        if (normalized.contains("boy") || normalized.contains("men") || normalized.contains("male")) {
+            return "male_only";
+        }
+        return "mixed";
+    }
+
+    private void validateBookingGenderPolicy(User tenant, Listing listing) {
+        if (tenant == null || listing == null) {
+            return;
+        }
+
+        String tenantGender = normalizeGender(tenant.getGender());
+        String policy = normalizeGenderPolicy(listing.getGenderPolicy());
+
+        if ("female_only".equals(policy) && "male".equals(tenantGender)) {
+            throw new RuntimeException("This listing is for female tenants only");
+        }
+
+        if ("male_only".equals(policy) && "female".equals(tenantGender)) {
+            throw new RuntimeException("This listing is for male tenants only");
+        }
+    }
+
     private void applyListingRoomTransition(Listing listing, boolean oldAccepted, boolean newAccepted) {
         if (listing == null || oldAccepted == newAccepted) {
             return;
@@ -58,9 +105,16 @@ public class BookingService {
 
     public Booking createBooking(Booking booking) {
         Listing listing = booking.getListing();
+        User tenant = booking.getTenant();
         if (listing == null) {
             throw new RuntimeException("Listing is required");
         }
+
+        if (tenant == null) {
+            throw new RuntimeException("Tenant is required");
+        }
+
+        validateBookingGenderPolicy(tenant, listing);
 
         int available = listing.getAvailableRooms() != null ? listing.getAvailableRooms() : 0;
         if (available <= 0) {

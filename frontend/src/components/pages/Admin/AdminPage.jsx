@@ -77,6 +77,13 @@ const truncate = (text, max = 80) => {
   return `${value.slice(0, max)}...`;
 };
 
+const toFullName = (person) => {
+  if (!person) return 'N/A';
+  if (person.name) return person.name;
+  const joined = `${person.firstName || ''} ${person.lastName || ''}`.trim();
+  return joined || person.email || 'N/A';
+};
+
 export default function AdminPage() {
   const navigate = useNavigate();
 
@@ -148,7 +155,16 @@ export default function AdminPage() {
             .catch(() => [])
         )
       );
-      setNotifications(actResults.flat());
+      setNotifications(
+        actResults
+          .flat()
+          .map((item) => ({
+            ...item,
+            title: item?.title || item?.type || 'Notification',
+            message: item?.message || item?.text || '',
+            read: Boolean(item?.read ?? item?.isRead),
+          }))
+      );
     } catch { setNotifications([]); }
 
     // Load support inbox (admin's conversations)
@@ -157,10 +173,32 @@ export default function AdminPage() {
       try {
         const convRes = await fetch(`http://localhost:8080/api/messages/conversations/${adminId}`);
         const convData = convRes.ok ? await convRes.json() : [];
-        const convList = parseApiData(convData, []);
-        setSupportMessages(convList);
-        if (convList.length > 0 && !selectedSupportId && !selectedDirectUser) {
-          setSelectedSupportId(convList[0].id);
+        const convList = parseApiData(convData, []).map((conv) => {
+          const partnerId = Number(conv?.partnerId);
+          const partnerUser = (usersData || users).find((u) => Number(u.id) === partnerId);
+          const partnerName = conv?.partnerName || partnerUser?.name || `${partnerUser?.firstName || ''} ${partnerUser?.lastName || ''}`.trim() || 'User';
+          const partnerEmail = partnerUser?.email || conv?.partnerEmail || '';
+          const lastMessage = String(conv?.lastMessage || '');
+          const extractedSubject = lastMessage.startsWith('[') && lastMessage.includes(']')
+            ? lastMessage.slice(1, lastMessage.indexOf(']')).trim()
+            : 'Support concern';
+
+          return {
+            id: conv?.conversationId || `conv_${adminId}_${partnerId}`,
+            conversationId: conv?.conversationId,
+            otherUserId: partnerId,
+            name: partnerName,
+            email: partnerEmail,
+            subject: extractedSubject,
+            message: lastMessage,
+            replied: false,
+            createdAt: conv?.lastMessageTime ? new Date(conv.lastMessageTime).toISOString() : new Date().toISOString(),
+          };
+        });
+        const supportOnly = convList.filter((item) => !String(item.message || '').startsWith('[BROADCAST]'));
+        setSupportMessages(supportOnly);
+        if (supportOnly.length > 0 && !selectedSupportId && !selectedDirectUser) {
+          setSelectedSupportId(supportOnly[0].id);
         }
       } catch { setSupportMessages([]); }
     }
@@ -252,11 +290,13 @@ export default function AdminPage() {
     const q = bookingQuery.trim().toLowerCase();
     if (!q) return bookings;
     return bookings.filter((b) => {
+      const tenantName = b.tenantName || toFullName(b.tenant);
+      const listingTitle = b.listingTitle || b.listing?.title;
       const fields = [
-        b.tenantName,
-        b.listingTitle,
+        tenantName,
+        listingTitle,
         b.status,
-        b.moveInDate,
+        b.moveInDate || b.checkInDate,
         b.bookedOn,
         b.createdAt,
       ].filter(Boolean);
@@ -309,6 +349,11 @@ export default function AdminPage() {
   };
 
 const handleDeleteUser = async (userId) => {
+    const targetUser = users.find((u) => Number(u.id) === Number(userId));
+    if (String(targetUser?.userType || '').toLowerCase() === 'admin') {
+      showInlineNotice('Admin accounts cannot be deleted from this panel.', 'is-bad');
+      return;
+    }
     try {
       const response = await fetch(`http://localhost:8080/api/users/admin/users/${userId}`, {
         method: 'DELETE'
@@ -472,7 +517,7 @@ const handleDeleteUser = async (userId) => {
       ? users
       : users.filter(u => getRole(u) === broadcastRole);
 
-    const content = `[${broadcastSubject.trim()}] ${broadcastMessage.trim()}`;
+    const content = `[BROADCAST][${broadcastSubject.trim()}] ${broadcastMessage.trim()}`;
 
     try {
       await Promise.all(recipients.map(u => {
@@ -931,9 +976,9 @@ const handleDeleteUser = async (userId) => {
                       <tr><td colSpan={5} className="admin-empty">No bookings found.</td></tr>
                     ) : filteredBookings.map((b) => (
                       <tr key={b.id || `${b.tenantName}-${b.listingTitle}-${b.createdAt}`}>
-                        <td>{b.tenantName || 'N/A'}</td>
-                        <td>{b.listingTitle || 'N/A'}</td>
-                        <td>{toDisplayDate(b.moveInDate)}</td>
+                        <td>{b.tenantName || toFullName(b.tenant)}</td>
+                        <td>{b.listingTitle || b.listing?.title || 'N/A'}</td>
+                        <td>{toDisplayDate(b.moveInDate || b.checkInDate)}</td>
                         <td>
                           <span className={`admin-badge ${getStatusClass(b.status)}`}>
                             {b.status || 'pending'}
@@ -1111,9 +1156,9 @@ const handleDeleteUser = async (userId) => {
                       <tr><td colSpan={7} className="admin-empty">No notifications available.</td></tr>
                     ) : notifications.map((n, idx) => (
                       <tr key={n.id || `${n.title}-${n.createdAt}-${idx}`}>
-                        <td>{n.title || 'N/A'}</td>
-                        <td>{n.message || 'N/A'}</td>
-                        <td>{n.type || 'general'}</td>
+                        <td>{n.title || n.type || 'N/A'}</td>
+                        <td>{n.message || n.text || 'N/A'}</td>
+                        <td>{n.type || n.nav || 'general'}</td>
                         <td>{n.forRole || n.role || 'all'}</td>
                         <td>{toDisplayDate(n.createdAt)}</td>
                         <td>

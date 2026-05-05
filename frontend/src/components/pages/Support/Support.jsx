@@ -92,17 +92,7 @@ export default function Support({ darkMode = false, setDarkMode }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDropdown]);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     let existingSupportMessages = [];
@@ -117,6 +107,7 @@ export default function Support({ darkMode = false, setDarkMode }) {
 
     const supportMessage = {
       id: `support-${Date.now()}`,
+      userId: user?.id,
       name: formData.name,
       email: formData.email,
       subject: formData.subject,
@@ -131,9 +122,43 @@ export default function Support({ darkMode = false, setDarkMode }) {
       JSON.stringify([supportMessage, ...existingSupportMessages])
     );
 
+    if (user?.id) {
+      try {
+        const adminsRes = await fetch('http://localhost:8080/api/users/type/admin');
+        const adminsJson = adminsRes.ok ? await adminsRes.json() : [];
+        const admins = Array.isArray(adminsJson) ? adminsJson : (adminsJson?.data || []);
+        const adminUser = admins[0];
+
+        if (adminUser?.id) {
+          await fetch('http://localhost:8080/api/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              senderId: Number(user.id),
+              receiverId: Number(adminUser.id),
+              content: `[${formData.subject}] ${formData.message}`,
+            }),
+          });
+        }
+      } catch (_) {
+        // Keep local submission as fallback if backend delivery fails.
+      }
+    }
+
     setSubmitted(true);
     setFormData({ name: '', email: '', subject: '', message: '' });
-    setTimeout(() => setSubmitted(false), 3000);
+    setTimeout(() => setSubmitted(false), 4000);
+  };
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleLogout = () => {
+    logout();
+    localStorage.removeItem('userType');
+    navigate('/');
   };
 
   const toggleTheme = () => {

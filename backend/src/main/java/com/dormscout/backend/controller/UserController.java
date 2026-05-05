@@ -124,10 +124,13 @@ public class UserController {
                     "success", true,
                     "message", "User deleted successfully"
             ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+        } catch (RuntimeException e) {
+            HttpStatus status = "User not found".equalsIgnoreCase(e.getMessage())
+                ? HttpStatus.NOT_FOUND
+                : HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status).body(Map.of(
                     "success", false,
-                    "message", "User not found"
+                "message", e.getMessage()
             ));
         }
     }
@@ -222,11 +225,18 @@ public class UserController {
                     "message", "User not found"
             ));
         }
-        userService.deleteUser(id);
-        return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "User deleted successfully"
-        ));
+        try {
+            userService.deleteUser(id);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "User deleted successfully"
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
     }
 
     @PostMapping("/admin/verify-landlord/{id}/approve")

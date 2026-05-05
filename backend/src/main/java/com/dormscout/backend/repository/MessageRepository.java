@@ -34,4 +34,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Modifying
     @Query("DELETE FROM Message m WHERE m.conversationId = :convId AND (m.sender.id = :userId OR m.receiver.id = :userId)")
     void deleteByConversationIdAndUserId(@Param("convId") String convId, @Param("userId") Long userId);
+
+    @Modifying
+    @Query("DELETE FROM Message m WHERE m.sender.id = :userId OR m.receiver.id = :userId")
+    void deleteAllByUserId(@Param("userId") Long userId);
 }

@@ -1,12 +1,21 @@
 package com.dormscout.backend.service;
 
+import com.dormscout.backend.entity.Listing;
 import com.dormscout.backend.entity.User;
+import com.dormscout.backend.repository.ActivityRepository;
+import com.dormscout.backend.repository.BookingRepository;
+import com.dormscout.backend.repository.BookmarkRepository;
+import com.dormscout.backend.repository.ListingRepository;
+import com.dormscout.backend.repository.MessageRepository;
+import com.dormscout.backend.repository.ReportRepository;
+import com.dormscout.backend.repository.ReviewRepository;
 import com.dormscout.backend.repository.UserRepository;
 import com.dormscout.backend.dto.RegisterRequest;
 import com.dormscout.backend.dto.UserDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.List;
@@ -18,6 +27,30 @@ public class UserService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private ListingService listingService;
+
+    @Autowired
+    private ListingRepository listingRepository;
+
+    @Autowired
+    private BookmarkRepository bookmarkRepository;
+
+    @Autowired
+    private BookingRepository bookingRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
+    private ReportRepository reportRepository;
+
+    @Autowired
+    private ActivityRepository activityRepository;
+
+    @Autowired
+    private MessageRepository messageRepository;
 
     public User register(RegisterRequest request) {
         // Check if user already exists
@@ -155,8 +188,26 @@ public class UserService {
         return userRepository.findAll();
     }
 
+    @Transactional
     public void deleteUser(Long id) {
-        userRepository.deleteById(id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if ("landlord".equalsIgnoreCase(user.getUserType())) {
+            List<Listing> ownedListings = listingRepository.findByLandlord(user);
+            for (Listing listing : ownedListings) {
+                listingService.deleteListing(listing.getId());
+            }
+        }
+
+        bookmarkRepository.deleteByTenant(user);
+        bookingRepository.deleteByTenant(user);
+        reviewRepository.deleteByTenant(user);
+        reportRepository.deleteByReporter(user);
+        activityRepository.deleteByUserId(id);
+        messageRepository.deleteAllByUserId(id);
+
+        userRepository.delete(user);
     }
 
     public boolean checkPassword(String rawPassword, String encodedPassword) {

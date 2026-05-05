@@ -10,4 +10,5 @@ import java.util.List;
 public interface ReportRepository extends JpaRepository<Report, Long> {
     List<Report> findByReporter(User reporter);
     List<Report> findByStatus(String status);
+    void deleteByReporter(User reporter);
 }

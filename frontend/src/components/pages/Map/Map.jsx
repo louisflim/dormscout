@@ -78,6 +78,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [mapReady, setMapReady] = useState(false);
   const [bookmarkedIds, setBookmarkedIds] = useState(new Set());
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [landlordMetaById, setLandlordMetaById] = useState({});
 
   const { user } = useAuth();
   const isLandlordUser = user?.userType === 'landlord';
@@ -118,6 +119,29 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       }
     }
     loadListings();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('http://localhost:8080/api/users')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (cancelled) return;
+        const byId = (Array.isArray(data) ? data : []).reduce((acc, item) => {
+          const name = item?.name || `${item?.firstName || ''} ${item?.lastName || ''}`.trim() || item?.email || 'Admin';
+          acc[String(item.id)] = {
+            name,
+            verified: Boolean(item?.verified || item?.isVerified || item?.verificationStatus === 'approved'),
+          };
+          return acc;
+        }, {});
+        setLandlordMetaById(byId);
+      })
+      .catch(() => {
+        if (!cancelled) setLandlordMetaById({});
+      });
+
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -333,6 +357,15 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     ? (user?.school ? getDistanceFromUniversity(selectedListing.latitude, selectedListing.longitude, user.school) : null) || findNearestUniversity(selectedListing.latitude, selectedListing.longitude)
     : null;
 
+  const getLandlordMeta = (listing) => {
+    const fromUserList = landlordMetaById[String(listing?.landlordId)];
+    const fallbackName = listing?.landlordName || 'Admin';
+    return {
+      name: fromUserList?.name || fallbackName,
+      verified: fromUserList?.verified || false,
+    };
+  };
+
   // Remove the debug useEffect from the top - it's not needed anymore
 
   if (loading) {
@@ -512,6 +545,9 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
           </div>
         ) : (
           filteredListings.map((listing) => (
+            (() => {
+              const landlord = getLandlordMeta(listing);
+              return (
             <button
               key={listing.id}
               type="button"
@@ -524,12 +560,20 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
             >
               <div className="map-listing-card-title">{listing.title}</div>
               <div className="map-listing-card-address">{listing.address}</div>
+              <div className="map-listing-card-address" style={{ fontSize: '12px' }}>
+                Admin: {landlord.name} {landlord.verified ? '✓' : '⚠ Admin not verified'}
+              </div>
             </button>
+              );
+            })()
           ))
         )}
       </div>
 
       {selectedListing && (
+        (() => {
+          const landlord = getLandlordMeta(selectedListing);
+          return (
         <div className="map-overlay">
           <div className="map-modal">
             <button className="map-modal-close" onClick={closeModal}>&times;</button>
@@ -537,6 +581,9 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
             <div className="map-modal-body">
               <h2 className="map-modal-title">{selectedListing.title}</h2>
               <p className="map-modal-address">{selectedListing.address}</p>
+              <p className="map-modal-address" style={{ marginTop: '-4px' }}>
+                Admin: {landlord.name} {landlord.verified ? '✓ Verified' : '⚠ Admin not verified'}
+              </p>
 
               <div className="map-modal-details-grid">
                 <div>
@@ -676,6 +723,8 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
             </div>
           </div>
         </div>
+          );
+        })()
       )}
     </div>
   );

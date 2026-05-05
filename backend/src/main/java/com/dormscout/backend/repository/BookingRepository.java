@@ -12,4 +12,5 @@ import java.util.List;
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByTenant(User tenant);
     List<Booking> findByListing(Listing listing);
+    void deleteByTenant(User tenant);
 }

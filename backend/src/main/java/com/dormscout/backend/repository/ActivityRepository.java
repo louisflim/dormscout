@@ -9,4 +9,5 @@ import java.util.List;
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
     List<Activity> findByUserIdOrderByCreatedAtDesc(Long userId);
     List<Activity> findByUserIdAndIsReadOrderByCreatedAtDesc(Long userId, Boolean isRead);
+    void deleteByUserId(Long userId);
 }

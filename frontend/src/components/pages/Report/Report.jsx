@@ -40,9 +40,9 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
   const location = useLocation();
   const { user, logout } = useAuth();
   const stateUserType = location.state?.userType;
-  const stateSubject  = location.state?.subject || '';
+  const stateSubject = location.state?.subject || location.state?.reportedUser || '';
 
-  const resolvedUserType = stateUserType || userType;
+  const resolvedUserType = String(stateUserType || userType || 'tenant').toLowerCase();
   const [localDarkMode, setLocalDarkMode] = useState(() => {
     try {
       return typeof darkMode === 'boolean' ? darkMode : localStorage.getItem('darkMode') === 'true';

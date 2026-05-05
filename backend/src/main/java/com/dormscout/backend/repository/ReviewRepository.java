@@ -11,5 +11,6 @@ import java.util.List;
 public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByListing(Listing listing);
     List<Review> findByTenant(User tenant);
+    void deleteByTenant(User tenant);
     void deleteAllByListing(Listing listing);
 }

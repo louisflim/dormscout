@@ -21,6 +21,18 @@ function lsGet(key, fallback) {
   catch { return fallback; }
 }
 
+function fullName(user) {
+  if (!user) return '';
+  if (user.name) return user.name;
+  const joined = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+  return joined || user.email || '';
+}
+
+function withLandlordBadge(name, isLandlord, isVerified) {
+  if (!isLandlord) return name;
+  return isVerified ? `${name} ✓` : `${name} ⚠`;
+}
+
 // ═══════════════════════════════════════════════════════════
 // TIMESTAMP HELPERS
 // ═══════════════════════════════════════════════════════════
@@ -132,6 +144,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   // ── Backend-persisted conversations & messages ──────────
   const [apiConversations, setApiConversations] = useState([]);
   const [conversationMessages, setConversationMessages] = useState([]);
+  const [userDirectory, setUserDirectory] = useState({});
 
   // ── Admin broadcasts stay in localStorage (system-generated) ─
   const [adminBroadcasts, setAdminBroadcasts] = useState(() => lsGet(ADMIN_BROADCASTS_KEY, []));
@@ -161,6 +174,26 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     const id = setInterval(load, 5000);
     return () => { cancelled = true; clearInterval(id); };
   }, [user?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('http://localhost:8080/api/users')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (cancelled) return;
+        const users = Array.isArray(data) ? data : [];
+        const byId = users.reduce((acc, item) => {
+          acc[String(item.id)] = item;
+          return acc;
+        }, {});
+        setUserDirectory(byId);
+      })
+      .catch(() => {
+        if (!cancelled) setUserDirectory({});
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Load & poll messages for the selected conversation ──
   useEffect(() => {
@@ -260,10 +293,18 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   const roleConversations = useMemo(() => {
     const map = {};
     apiConversations.forEach(conv => {
+      const partnerUser = userDirectory[String(conv.partnerId)] || null;
+      const partnerRole = String(partnerUser?.userType || '').toLowerCase();
+      const isLandlordPartner = partnerRole === 'landlord';
+      const isVerifiedPartner = Boolean(partnerUser?.verified || partnerUser?.isVerified || partnerUser?.verificationStatus === 'approved');
+      const partnerName = conv.partnerName || fullName(partnerUser) || 'Unknown';
       map[conv.conversationId] = {
         id: conv.conversationId,
         partnerId: conv.partnerId,
-        name: conv.partnerName || 'Unknown',
+        name: partnerName,
+        displayName: withLandlordBadge(partnerName, isLandlordPartner, isVerifiedPartner),
+        partnerRole,
+        partnerVerified: isVerifiedPartner,
         avatar: conv.partnerInitials || '??',
         avatarImage: conv.partnerProfileImage || null,
         online: false,
@@ -275,7 +316,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       };
     });
     return map;
-  }, [apiConversations, role]);
+  }, [apiConversations, role, userDirectory]);
 
   const pendingContactConversation = useMemo(() => {
     if (!user?.id) return null;
@@ -288,6 +329,8 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     if (roleConversations[conversationId]) return null;
 
     const name = pendingContact?.name || (role === 'tenant' ? 'Landlord' : 'Tenant');
+    const isLandlordPartner = role === 'tenant';
+    const isVerifiedPartner = Boolean(pendingContact?.verified || pendingContact?.isVerified || pendingContact?.verificationStatus === 'approved');
     const initials = (pendingContact?.avatar
       || name.split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2)
       || 'XX');
@@ -296,6 +339,9 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       id: conversationId,
       partnerId: Number(partnerId),
       name,
+      displayName: withLandlordBadge(name, isLandlordPartner, isVerifiedPartner),
+      partnerRole: isLandlordPartner ? 'landlord' : 'tenant',
+      partnerVerified: isVerifiedPartner,
       avatar: initials,
       avatarImage: pendingContact?.profileImage || null,
       online: false,
@@ -602,7 +648,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                   <div className="conv-item__body">
                     <div className="conv-item__top">
                       <span className="conv-item__name" style={{ fontWeight: conv.unread > 0 ? '700' : '600', color: isActive ? c.activeConvText : c.text }}>
-                        {conv.name}
+                        {conv.displayName || conv.name}
                       </span>
                       <span className="conv-item__time" style={{ color: isActive ? 'rgba(255,255,255,0.8)' : c.secondaryText }}>
                         {formatTimestamp(conv.timestamp)}
@@ -668,7 +714,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
           />
           <div className="messaging-chat__header-info">
             <h3 style={{ color: c.text }}>
-              {selectedConv?.name || fallbackContactName || 'Conversation'}
+              {selectedConv?.displayName || selectedConv?.name || fallbackContactName || 'Conversation'}
               <span className="messaging-chat__header-role" style={{ color: c.secondaryText }}>
                 {selectedConvRoleLabel}
               </span>
@@ -810,7 +856,14 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                 onClick={() => {
                   const conv = mergedConversations[contextMenuOpen];
                   setContextMenuOpen(null);
-                  navigate('/report', { state: { reportedUser: conv?.name, conversationId: contextMenuOpen } });
+                  navigate('/report', {
+                    state: {
+                      reportedUser: conv?.name,
+                      subject: conv?.name,
+                      conversationId: contextMenuOpen,
+                      userType: role,
+                    }
+                  });
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '10px',

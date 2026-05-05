@@ -38,10 +38,11 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
   const isLandlord = userRole === 'landlord';
 
   // Real user data from AuthContext
-  const displayName  = user?.name || 'Guest User';
+  const displayName  = user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Guest User';
   const userEmail    = user?.email || '';
   const userSchool   = user?.school || user?.university || '';
   const profileImage = user?.profileImage || null;
+  const isVerifiedLandlord = isLandlord && Boolean(user?.verified || user?.isVerified || user?.verificationStatus === 'approved');
 
   // Real stats from user data
   const listingsCount = user?.listings?.length || 0;
@@ -217,8 +218,14 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
 
           {/* Name */}
           <h1 className="profile-card__name" style={{ color: isDark ? '#fff' : '#000' }}>
-            {displayName}
+            {displayName} {isLandlord ? (isVerifiedLandlord ? '✓' : '⚠') : ''}
           </h1>
+
+          {isLandlord && (
+            <p style={{ color: colors.secondaryText, fontSize: '13px', marginBottom: '8px' }}>
+              {isVerifiedLandlord ? 'Verified business' : 'Admin not verified'}
+            </p>
+          )}
 
           {/* Email */}
           {userEmail && (
