@@ -3,15 +3,23 @@ import { useAuth } from '../../../context/AuthContext';
 import { activitiesAPI } from '../../../utils/api';
 import './Notifications.css';
 
+import{
+  BellOff,
+  Package,
+  CheckCircle,
+  XCircle,
+  MessageCircle,
+  UserX,
+} from 'lucide-react';
 const PRIMARY = '#E8622E';
 
 const NOTIF_ICONS = {
-  new_booking:       '📦',
-  booking_accepted:  '✅',
-  booking_rejected:  '❌',
-  booking_cancelled: '❌',
-  new_message:       '💬',
-  tenant_removed:    '🚫',
+  new_booking:       <Package size={20} className="icon-primary" />,
+  booking_accepted:  <CheckCircle size={20} className="icon-success" />,
+  booking_rejected:  <XCircle size={20} className="icon-danger" />,
+  booking_cancelled: <XCircle size={20} className="icon-muted" />,
+  new_message:       <MessageCircle size={20} className="icon-info" />,
+  tenant_removed:    <UserX size={20} className="icon-warning" />,
 };
 
 const TYPE_TITLES = {
@@ -96,9 +104,16 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
   return (
     <div>
       {!inAppNotificationsEnabled ? (
-        <div className="notif-empty" style={{ background: c.cardBg, color: c.secondaryText }}>
-          <div className="notif-empty__icon">🔕</div>
-          <p className="notif-empty__text">In-app notifications are turned off in Settings.</p>
+        <div 
+          className="notif-empty" 
+          style={{ background: c.cardBg, color: c.secondaryText }}
+        >
+          <div className="notif-empty__icon">
+            <BellOff size={36} strokeWidth={1.5} />
+          </div>
+          <p className="notif-empty__text">
+            In-app notifications are turned off in Settings.
+          </p>
         </div>
       ) : (
         <>
@@ -131,9 +146,16 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
 
       {/* ── Empty State ── */}
       {notifications.length === 0 ? (
-        <div className="notif-empty" style={{ background: c.cardBg, color: c.secondaryText }}>
-          <div className="notif-empty__icon">🔕</div>
-          <p className="notif-empty__text">No notifications yet.</p>
+        <div 
+          className="notif-empty" 
+          style={{ background: c.cardBg, color: c.secondaryText }}
+        >
+          <div className="notif-empty__icon">
+            <BellOff size={36} strokeWidth={1.5} />
+          </div>
+          <p className="notif-empty__text">
+            No notifications yet.
+          </p>
         </div>
       ) : (
         /* ── Notification List ── */

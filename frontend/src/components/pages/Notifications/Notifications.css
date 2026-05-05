@@ -41,8 +41,14 @@
 }
 
 .notif-empty__icon {
-  font-size: 40px;
-  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.05); 
 }
 
 .notif-empty__text {
@@ -129,3 +135,10 @@
   line-height: 1;
   transition: color 0.2s ease;
 }
+
+.icon-primary { color: #6366f1; }   
+.icon-success { color: #22c55e; }   
+.icon-danger  { color: #ef4444; }   
+.icon-warning { color: #f59e0b; }   
+.icon-info    { color: #3b82f6; }   
+.icon-muted   { color: #9ca3af; }   
