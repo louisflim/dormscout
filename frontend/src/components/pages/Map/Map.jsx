@@ -57,6 +57,15 @@ const matchesUni = (u, s) =>
   (u.name && u.name.toLowerCase().includes(s)) ||
   (u.abbr && u.abbr.toLowerCase().includes(s));
 
+const getListingCoords = (listing) => {
+  const latRaw = listing?.latitude ?? listing?.lat;
+  const lngRaw = listing?.longitude ?? listing?.lng;
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+};
+
 export default function Map({ darkMode = false, userType = 'tenant', onEditListing }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -196,10 +205,20 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       });
 
       console.log('🗺️ Map created successfully!');
+      // Force Leaflet to recalculate container size so tiles render
+      setTimeout(() => map.invalidateSize(), 50);
       setMapReady(true);
     }, 100);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      // Clean up Leaflet instance so StrictMode remount works correctly
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+        setMapReady(false);
+      }
+    };
   }, [isMounted]);
 
   // Add markers for listings
@@ -225,15 +244,18 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         console.log('🔍 Checking listing:', l.title, '| landlord:', l.landlord, '| user.id:', user?.id);
         if (Number(l.price) > maxPrice) return false;
         if (isLandlord) {
-          if (l.landlord?.id && user?.id && String(l.landlord?.id) !== String(user.id)) return false;
+          const ownerId = l.landlord?.id ?? l.landlordId;
+          if (ownerId && user?.id && String(ownerId) !== String(user.id)) return false;
           if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
         } else {
+          const coords = getListingCoords(l);
+          if (!coords) return false;
           const dist = user?.school
-            ? getDistanceFromUniversity(l.latitude, l.longitude, user.school)
-            : findNearestUniversity(l.latitude, l.longitude);
+            ? getDistanceFromUniversity(coords.lat, coords.lng, user.school)
+            : findNearestUniversity(coords.lat, coords.lng);
           if (dist && dist.distance > maxDistance) return false;
           if (schoolFilter === 'myschool' && user?.school) {
-            const listingUni = findNearestUniversity(l.latitude, l.longitude);
+            const listingUni = findNearestUniversity(coords.lat, coords.lng);
             if (listingUni?.name !== user.school) return false;
           }
         }
@@ -242,12 +264,14 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
       console.log('📍 Final filtered:', finalFiltered);
 
-      const withCoords = finalFiltered.filter(l => l.latitude && l.longitude);
+      const withCoords = finalFiltered
+        .map((l) => ({ listing: l, coords: getListingCoords(l) }))
+        .filter((item) => Boolean(item.coords));
       console.log('📍 With coords:', withCoords);
 
-      markersRef.current = withCoords.map((listing, index) => {
-          console.log('📍 Adding marker', index, ':', listing.title, 'at', listing.latitude, listing.longitude);
-          const marker = L.marker([listing.latitude, listing.longitude], { icon: orangePinIcon }).addTo(mapInstance.current);
+      markersRef.current = withCoords.map(({ listing, coords }, index) => {
+          console.log('📍 Adding marker', index, ':', listing.title, 'at', coords.lat, coords.lng);
+          const marker = L.marker([coords.lat, coords.lng], { icon: orangePinIcon }).addTo(mapInstance.current);
           marker.on('click', () => openModal(listing));
           return marker;
       });
@@ -335,15 +359,18 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     if (search.trim() && !matchesSearch(l, s)) return false;
     if (Number(l.price) > maxPrice) return false;
     if (isLandlord) {
-      if (l.landlord?.id && user?.id && String(l.landlord?.id) !== String(user.id)) return false;
+      const ownerId = l.landlord?.id ?? l.landlordId;
+      if (ownerId && user?.id && String(ownerId) !== String(user.id)) return false;
       if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
     } else {
+      const coords = getListingCoords(l);
+      if (!coords) return false;
       const dist = user?.school
-        ? getDistanceFromUniversity(l.latitude, l.longitude, user.school)
-        : findNearestUniversity(l.latitude, l.longitude);
+        ? getDistanceFromUniversity(coords.lat, coords.lng, user.school)
+        : findNearestUniversity(coords.lat, coords.lng);
       if (dist && dist.distance > maxDistance) return false;
       if (schoolFilter === 'myschool' && user?.school) {
-        const listingUni = findNearestUniversity(l.latitude, l.longitude);
+        const listingUni = findNearestUniversity(coords.lat, coords.lng);
         if (listingUni?.name !== user.school) return false;
       }
     }
@@ -354,7 +381,11 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const noResults = filteredListings.length === 0 && filteredUnis.length === 0;
 
   const nearest = selectedListing
-    ? (user?.school ? getDistanceFromUniversity(selectedListing.latitude, selectedListing.longitude, user.school) : null) || findNearestUniversity(selectedListing.latitude, selectedListing.longitude)
+    ? (() => {
+        const coords = getListingCoords(selectedListing);
+        if (!coords) return null;
+        return (user?.school ? getDistanceFromUniversity(coords.lat, coords.lng, user.school) : null) || findNearestUniversity(coords.lat, coords.lng);
+      })()
     : null;
 
   const getLandlordMeta = (listing) => {
@@ -368,19 +399,16 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
   // Remove the debug useEffect from the top - it's not needed anymore
 
-  if (loading) {
-    return (
-      <div className={`map-wrapper ${theme}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem' }}>⏳</div>
-          <p style={{ marginTop: '12px', color: darkMode ? '#a0a0b0' : '#666' }}>Loading listings...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className={`map-wrapper ${theme}`}>
+    <div className={`map-wrapper ${theme}`} style={{ position: 'relative' }}>
+      {loading && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.7)', borderRadius: '28px' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem' }}>⏳</div>
+            <p style={{ marginTop: '12px', color: darkMode ? '#a0a0b0' : '#666' }}>Loading listings...</p>
+          </div>
+        </div>
+      )}
       <div className="map-search-wrap" style={{ alignItems: 'center', gap: '8px', position: 'relative' }}>
         {/* ... search input and filters ... same as before */}
         <div style={{
@@ -553,8 +581,9 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
               type="button"
               className="map-card-btn map-listing-card"
               onClick={() => {
-                if (listing.latitude && listing.longitude && mapInstance.current)
-                  mapInstance.current.setView([listing.latitude, listing.longitude], 15);
+                const coords = getListingCoords(listing);
+                if (coords && mapInstance.current)
+                  mapInstance.current.setView([coords.lat, coords.lng], 15);
                 openModal(listing);
               }}
             >
