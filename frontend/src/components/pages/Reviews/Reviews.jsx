@@ -119,7 +119,257 @@ function ReviewCard({ review, onHelpful, darkMode = false, colors = {} }) {
   
   const finalColors = { ...defaultColors, ...colors };
 
+<<<<<<< Updated upstream
   const c = {
+=======
+<<<<<<< HEAD
+  return (
+    <div className="review-card" style={{ background: finalColors.cardBg, borderColor: finalColors.border }}>
+      {/* Header */}
+      <div className="review-card-header">
+        <Avatar initials={review.avatar} />
+        <div className="review-card-meta">
+          <div className="review-card-top">
+            <span className="review-author" style={{ color: finalColors.text }}>{review.author}</span>
+            <span className="review-date" style={{ color: finalColors.secondaryText }}>{review.date}</span>
+          </div>
+          <div className="review-rating-row">
+            <StarRating value={review.rating} size={18} readonly />
+            <span className={`review-rating-badge ${BADGE_CLASSES[review.rating]}`}>
+              {RATING_LABELS[review.rating]}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tags */}
+      {review.tags.length > 0 && (
+        <div className="review-tags">
+          {review.tags.map(tag => (
+            <span key={tag} className="review-tag">{tag}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Body */}
+      <p className="review-body" style={{ color: finalColors.text }}>{review.body}</p>
+
+      {/* Helpful */}
+      <div className="review-footer" style={{ borderTopColor: darkMode ? '#2a2a4a' : '#f5f5f5' }}>
+        <button
+          className={`helpful-btn ${review.userMarkedHelpful ? 'marked' : ''} ${animating ? 'animating' : ''}`}
+          style={{
+            background: darkMode ? '#0f3460' : 'transparent',
+            borderColor: darkMode ? '#2a2a4a' : '#ddd',
+            color: darkMode ? '#ffffff' : '#888',
+          }}
+          onClick={handleHelpful}
+        >
+          👍 Helpful ({review.helpful})
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WriteReviewModal({ onClose, onSubmit, dormName, darkMode = false }) {
+  const [rating, setRating] = useState(0);
+  const [body, setBody] = useState('');
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [submitted, setSubmitted] = useState(false);
+
+  const colors = {
+    modalBg: darkMode ? '#16213e' : '#fff',
+    text: darkMode ? '#ffffff' : '#1a1a1a',
+    secondaryText: darkMode ? '#a0a0b0' : '#666',
+    inputBg: darkMode ? '#0f3460' : '#f5f5f5',
+    border: darkMode ? '#2a2a4a' : '#e0e0e0',
+  };
+
+  const toggleTag = (tag) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : prev.length < 5 ? [...prev, tag] : prev
+    );
+  };
+
+  const isValid = rating > 0 && body.trim().length >= 5;
+
+  const handleSubmit = () => {
+    if (!isValid) return;
+    setSubmitted(true);
+    setTimeout(() => {
+      onSubmit({ rating, body, tags: selectedTags });
+      onClose();
+    }, 1500);
+  };
+
+  return (
+    <div
+      className="modal-overlay"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      style={{ background: darkMode ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)' }}
+    >
+      <div className="modal-card" style={{ background: colors.modalBg, color: colors.text }}>
+        {submitted ? (
+          <div className="modal-success">
+            <div className="modal-success-icon">🎉</div>
+            <h3 style={{ color: colors.text }}>Review Submitted!</h3>
+            <p style={{ color: colors.secondaryText }}>Thank you for helping fellow students.</p>
+          </div>
+        ) : (
+          <>
+            <div>
+              <h3 className="modal-title" style={{ color: colors.text }}>Write a Review</h3>
+              <p className="modal-dorm-name" style={{ color: colors.secondaryText }}>{dormName}</p>
+            </div>
+
+            {/* Star Rating */}
+            <div>
+              <label className="modal-field-label" style={{ color: colors.text }}>
+                Your Rating <span className="required">*</span>
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <StarRating value={rating} onChange={setRating} size={36} />
+                {rating > 0 && (
+                  <span className="rating-feedback" style={{ color: colors.secondaryText }}>{RATING_LABELS[rating]}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div>
+              <label className="modal-field-label" style={{ color: colors.text }}>
+                Tags <span className="optional" style={{ color: colors.secondaryText }}>(pick up to 5)</span>
+              </label>
+              <div className="modal-tags">
+                {ALL_TAGS.map(tag => (
+                  <button
+                    key={tag}
+                    className={`modal-tag-btn ${selectedTags.includes(tag) ? 'selected' : ''}`}
+                    onClick={() => toggleTag(tag)}
+                    style={{
+                      background: darkMode ? '#0f3460' : '#f5f5f5',
+                      borderColor: darkMode ? '#2a2a4a' : '#e0e0e0',
+                      color: selectedTags.includes(tag) ? '#e8622e' : colors.text,
+                    }}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Body */}
+            <div>
+              <label className="modal-field-label" style={{ color: colors.text }}>
+                Your Review <span className="required">*</span>
+              </label>
+              <textarea
+                className="modal-textarea"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={4}
+                placeholder="Share details about cleanliness, safety, management, WiFi, location..."
+                style={{
+                  background: colors.inputBg,
+                  borderColor: colors.border,
+                  color: colors.text,
+                }}
+              />
+              <div className={`modal-char-hint ${body.length < 5 ? 'warn' : ''}`} style={{ color: colors.secondaryText }}>
+                {body.length} / minimum 5 characters
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="modal-actions">
+              <button className="modal-cancel-btn" onClick={onClose} style={{ background: colors.inputBg, color: colors.text, borderColor: colors.border }}>
+                Cancel
+              </button>
+              <button
+                className="modal-submit-btn"
+                onClick={handleSubmit}
+                disabled={!isValid}
+              >
+                Submit Review
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Main Reviews Component 
+
+export default function Reviews({ userType = 'tenant', darkMode = false, setDarkMode }) {
+  const { user } = useAuth();
+  const [availableDorms, setAvailableDorms] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [selectedDorm, setSelectedDorm] = useState(null);
+  const [loadingDorms, setLoadingDorms] = useState(true);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [sortBy, setSortBy] = useState('newest');
+  const [filterRating, setFilterRating] = useState(0);
+  const [showModal, setShowModal] = useState(false);
+
+  // Load listings from API
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDorms = async () => {
+      setLoadingDorms(true);
+      try {
+        const data = await listingsAPI.getAllListings();
+        const dorms = (Array.isArray(data) ? data : []).map(l => ({
+          id: Number(l.id),
+          name: l.title,
+          address: l.address || 'Address not specified',
+        }));
+
+        if (!cancelled) {
+          setAvailableDorms(dorms);
+          setSelectedDorm(prev => {
+            if (prev && dorms.some(d => d.id === Number(prev))) return Number(prev);
+            return dorms.length > 0 ? dorms[0].id : null;
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingDorms(false);
+      }
+    };
+
+    loadDorms();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load reviews when selectedDorm changes
+  useEffect(() => {
+    if (!selectedDorm) return;
+    let cancelled = false;
+    const loadReviews = async () => {
+      setLoadingReviews(true);
+      try {
+        const data = await reviewsAPI.getByListing(selectedDorm);
+        if (!cancelled) setReviews(Array.isArray(data) ? data : []);
+      } finally {
+        if (!cancelled) setLoadingReviews(false);
+      }
+    };
+
+    loadReviews();
+    return () => { cancelled = true; };
+  }, [selectedDorm]);
+
+  const canWriteReview = () => userType === 'tenant' && !!user?.id;
+
+  const colors = {
+    bg: darkMode ? '#1a1a2e' : 'transparent',
+=======
+  const c = {
+>>>>>>> abfb8affd1a2ce4739486b5e3c9bd3b1ed3d88de
+>>>>>>> Stashed changes
     cardBg: darkMode ? '#16213e' : '#faf9f7',
     text: darkMode ? '#ffffff' : '#222',
     secondaryText: darkMode ? '#a0a0b0' : '#aaa',
