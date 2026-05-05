@@ -472,6 +472,12 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       setConversationMessages(prev => prev.filter(m => m.id !== msgId));
       return;
     }
+    const msg = conversationMessages.find(m => String(m.id) === String(msgId));
+    if (!msg) return;
+    if (Number(msg.senderId) !== Number(user?.id)) {
+      console.warn('Attempted to delete a message you did not send.');
+      return;
+    }
     await messagesAPI.deleteMessage(msgId);
     setConversationMessages(prev => prev.filter(m => m.id !== msgId));
   }, []);
@@ -708,6 +714,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                     {!isReceived && msg.status && (
                       <StatusIndicator status={msg.status} darkMode={darkMode} />
                     )}
+                    {!isReceived && (
                     <button
                       className="msg-delete-btn"
                       title="Delete message"
@@ -724,6 +731,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                     >
                       ✕
                     </button>
+                    )}
                   </div>
                 </div>
               </div>
