@@ -4,6 +4,7 @@ import com.dormscout.backend.entity.Message;
 import com.dormscout.backend.entity.User;
 import com.dormscout.backend.service.MessageService;
 import com.dormscout.backend.service.UserService;
+import com.dormscout.backend.service.ActivityService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,9 @@ public class MessageController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private ActivityService activityService;
 
     // ── Send a message ──────────────────────────────────────────
     @PostMapping
@@ -42,6 +46,25 @@ public class MessageController {
             message.setReceiver(receiverOpt.get());
 
             Message sent = messageService.sendMessage(message);
+
+            // Notify the receiver about the new message
+            User receiver = receiverOpt.get();
+            User sender = senderOpt.get();
+            String senderName = (sender.getFirstName() != null ? sender.getFirstName() : "") +
+                                " " + (sender.getLastName() != null ? sender.getLastName() : "");
+            senderName = senderName.trim();
+            if (senderName.isEmpty()) senderName = sender.getEmail();
+            String preview = message.getContent() != null && message.getContent().length() > 50
+                ? message.getContent().substring(0, 50) + "…"
+                : message.getContent();
+            activityService.createActivity(
+                receiver.getId(),
+                "message",
+                senderName + ": " + preview,
+                "just now",
+                "messages"
+            );
+
             return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "success", true, "message", "Message sent", "data", sent
             ));

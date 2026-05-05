@@ -71,4 +71,24 @@ public class Booking {
     public LocalDate getMoveInDate() {
         return checkInDate;
     }
+
+    @JsonProperty("room")
+    public String getRoom() {
+        return listing != null ? listing.getRooms() : null;
+    }
+
+    @JsonProperty("landlord")
+    public String getLandlord() {
+        return listing != null ? listing.getLandlordName() : null;
+    }
+
+    @JsonProperty("price")
+    public Double getPrice() {
+        return listing != null ? listing.getPrice() : null;
+    }
+
+    @JsonProperty("listingId")
+    public Long getListingId() {
+        return listing != null ? listing.getId() : null;
+    }
 }

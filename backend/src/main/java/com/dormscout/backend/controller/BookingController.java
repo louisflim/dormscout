@@ -6,6 +6,7 @@ import com.dormscout.backend.entity.Listing;
 import com.dormscout.backend.service.BookingService;
 import com.dormscout.backend.service.UserService;
 import com.dormscout.backend.service.ListingService;
+import com.dormscout.backend.service.ActivityService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,9 @@ public class BookingController {
 
     @Autowired
     private ListingService listingService;
+
+    @Autowired
+    private ActivityService activityService;
 
     @PostMapping
     public ResponseEntity<?> createBooking(@RequestBody Booking booking, 
@@ -54,6 +58,21 @@ public class BookingController {
             booking.setListing(listingOpt.get());
 
             Booking createdBooking = bookingService.createBooking(booking);
+
+            // Notify landlord that a new booking request was made
+            Listing bookedListing = listingOpt.get();
+            User landlord = bookedListing.getLandlord();
+            if (landlord != null) {
+                String tenantName = tenantOpt.get().getFirstName() + " " + tenantOpt.get().getLastName();
+                activityService.createActivity(
+                    landlord.getId(),
+                    "booking",
+                    tenantName.trim() + " requested to book \"" + bookedListing.getTitle() + "\"",
+                    "just now",
+                    "listing"
+                );
+            }
+
             return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                     "success", true,
                     "message", "Booking created successfully",
@@ -150,6 +169,25 @@ public class BookingController {
             }
 
             Booking updatedBooking = bookingService.updateBookingStatus(id, resolvedStatus);
+
+            // Notify tenant about the status change
+            User tenant = updatedBooking.getTenant();
+            Listing listing = updatedBooking.getListing();
+            if (tenant != null && listing != null) {
+                String statusMsg;
+                String normalised = resolvedStatus.trim().toLowerCase();
+                if ("accepted".equals(normalised) || "approved".equals(normalised)) {
+                    statusMsg = "Your booking for \"" + listing.getTitle() + "\" has been accepted!";
+                } else if ("rejected".equals(normalised) || "declined".equals(normalised)) {
+                    statusMsg = "Your booking for \"" + listing.getTitle() + "\" was declined.";
+                } else if ("cancelled".equals(normalised) || "canceled".equals(normalised)) {
+                    statusMsg = "Your booking for \"" + listing.getTitle() + "\" has been cancelled.";
+                } else {
+                    statusMsg = "Your booking for \"" + listing.getTitle() + "\" status changed to " + resolvedStatus + ".";
+                }
+                activityService.createActivity(tenant.getId(), "booking", statusMsg, "just now", "booking");
+            }
+
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Booking status updated successfully",
