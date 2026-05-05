@@ -108,7 +108,7 @@ function formatTimeAgo(dateString) {
 const SECTION_LABELS = {
   map:           <><span style={{ color: '#E8622E' }}>Map </span><span style={{ color: '#5BADA8' }}>View</span></>,
   settings:      <><span style={{ color: '#E8622E' }}>Settings </span><span style={{ color: '#5BADA8' }}>View</span></>,
-  reviews:       <><span style={{ color: '#E8622E' }}>Reviews </span><span style={{ color: '#5BADA8' }}>View</span></>,
+  reviews:       <><span style={{ color: '#E8622E' }}>Dorm </span><span style={{ color: '#5BADA8' }}>Reviews</span></>,
   booking:       <><span style={{ color: '#E8622E' }}>Booking </span><span style={{ color: '#5BADA8' }}>View</span></>,
   bookmarks:     <><span style={{ color: '#E8622E' }}>Saved </span><span style={{ color: '#5BADA8' }}>Listings</span></>,
   notifications: <><span style={{ color: '#E8622E' }}>Notifications </span><span style={{ color: '#5BADA8' }}>View</span></>,
@@ -1270,7 +1270,12 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
             ) : activeNav === 'notifications' ? (
               <Notifications darkMode={darkMode} userType={normalizedUserType} />
             ) : activeNav === 'reviews' ? (
-              <Reviews userType={normalizedUserType} darkMode={darkMode} setDarkMode={setDarkMode} />
+              <Reviews
+                userType={normalizedUserType}
+                darkMode={darkMode}
+                setDarkMode={setDarkMode}
+                currentUser={user}
+              />
             ) : activeNav === 'messages' ? (
               <Messaging darkMode={darkMode} userType={normalizedUserType} contactLandlord={location.state?.contactLandlord} contactTenant={location.state?.contactTenant} />
             ) : activeNav === 'settings' ? (
