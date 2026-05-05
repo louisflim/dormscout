@@ -9,40 +9,6 @@ const ALL_TAGS = ['Clean', 'Safe', 'Quiet', 'Affordable', 'Fast WiFi', 'Great Lo
 
 const AVATAR_COLORS = ['#5BADA8', '#E8622E', '#7C3AED', '#059669', '#DC2626'];
 
-function generateMockReviews(dormId, dormIndex) {
-  const pools = [
-    [
-      { author: 'Maria Santos',   avatar: 'MS', rating: 5, tags: ['Clean', 'Safe', 'Great Location'],    body: 'Sobrang ganda ng dorm na ito! Malinis, malapit sa USC, at ang landlord ay very responsive. Highly recommend para sa mga students.',      helpful: 12, date: 'Apr 2025' },
-      { author: 'Juan dela Cruz', avatar: 'JD', rating: 4, tags: ['Affordable', 'Quiet', 'Secure'],       body: 'Okay naman ang presyo compared sa iba. Tahimik ang lugar kaya magaling mag-aral. Minsan mabagal ang WiFi pero okay lang overall.', helpful: 7,  date: 'Mar 2025' },
-      { author: 'Ana Reyes',      avatar: 'AR', rating: 5, tags: ['Friendly Staff', 'Modern', 'Clean'],   body: 'Ang bait ng landlord at laging available pag may concerns. Meron AC at hot shower. Worth it ang bayad!',                           helpful: 9,  date: 'Feb 2025' },
-      { author: 'Carlo Mendoza',  avatar: 'CM', rating: 3, tags: ['Affordable', 'Average'],               body: 'Pwede na for the price. May ilang maintenance issues na medyo matagal ma-ayos pero okay naman ang location. Malapit sa merkado.', helpful: 3,  date: 'Jan 2025' },
-      { author: 'Lea Torres',     avatar: 'LT', rating: 4, tags: ['Safe', 'Quiet', 'Great Location'],     body: 'Safe ang area, lagi may guard sa gabi. Malapit sa jeep stop papuntang school. Magandang pinaglagyan ng pera.',                    helpful: 5,  date: 'Dec 2024' },
-    ],
-    [
-      { author: 'Paolo Cruz',     avatar: 'PC', rating: 4, tags: ['Fast WiFi', 'Clean', 'Modern'],        body: 'Maganda ang WiFi dito, kaya magaling mag-online class o mag-Netflix after school. Malinis din ang common areas.',                  helpful: 8,  date: 'Apr 2025' },
-      { author: 'Sofia Lim',      avatar: 'SL', rating: 5, tags: ['Safe', 'Friendly Staff', 'Secure'],    body: 'Pinaka-safe na dorm na natitirhan ko. Meron CCTV, main door lock, at mabait ang caretaker. Perfect para sa babae.',             helpful: 14, date: 'Mar 2025' },
-      { author: 'Miguel Flores',  avatar: 'MF', rating: 2, tags: ['Average'],                             body: 'Medyo maingay sa labas lalo na sa gabi. Okay lang ang presyo pero may mas maganda pa na options nearby. Not bad, not great.',   helpful: 2,  date: 'Feb 2025' },
-      { author: 'Rina Garcia',    avatar: 'RG', rating: 5, tags: ['Clean', 'Affordable', 'Quiet'],        body: 'Pinakamababang presyo sa area pero hindi parang mukhang murang dorm. Malinis talaga at tahimik. Sobrang sulit!',                  helpful: 11, date: 'Jan 2025' },
-      { author: 'Kevin Navarro',  avatar: 'KN', rating: 4, tags: ['Great Location', 'Modern'],            body: 'Tig-dalawang minuto lang sa campus pag lakad. Bag-o pa ang furniture at may study table sa bawat kwarto.',                       helpful: 6,  date: 'Nov 2024' },
-    ],
-    [
-      { author: 'Trisha Bautista',avatar: 'TB', rating: 3, tags: ['Affordable', 'Average'],               body: 'For the price, acceptable naman. May mga bagay na kailangan pang i-improve tulad ng water pressure. Okay lang overall.',          helpful: 4,  date: 'Apr 2025' },
-      { author: 'Ramon Villanueva',avatar:'RV', rating: 5, tags: ['Clean', 'Safe', 'Friendly Staff'],     body: 'Best dorm experience ko ever. Ang landlord ay parang nanay sa amin. Laging malinis at meron siya palaging baon na mabibili.',    helpful: 16, date: 'Mar 2025' },
-      { author: 'Claire Aquino',  avatar: 'CA', rating: 4, tags: ['Fast WiFi', 'Quiet', 'Secure'],        body: 'Solid ang internet connection dito. Kaya kong mag-zoom calls nang walang buffering. Tahimik din ang building after 10pm.',       helpful: 7,  date: 'Feb 2025' },
-      { author: 'Jolo Ramos',     avatar: 'JR', rating: 1, tags: ['Average'],                             body: 'Di okay ang tubig pag rush hour sa umaga. Medyo mainit din ang kwarto. Sana ma-address ng management ang mga concerns namin.',  helpful: 1,  date: 'Jan 2025' },
-      { author: 'Bianca Santos',  avatar: 'BS', rating: 5, tags: ['Modern', 'Clean', 'Great Location'],   body: 'Grabe ang ganda ng view from my room! Bag-ong ayos lahat, malinis, at malapit sa lahat ng kailangan. Dito na ko forever!',       helpful: 10, date: 'Dec 2024' },
-    ],
-  ];
-
-  const pool = pools[dormIndex % pools.length];
-  return pool.map((r, i) => ({
-    ...r,
-    id: `mock_${dormId}_${i}`,
-    dormId: Number(dormId),
-    userMarkedHelpful: false,
-  }));
-}
-
 function StarRating({ value, onChange, size = 28, readonly = false }) {
   const [hovered, setHovered] = useState(0);
   const display = readonly ? value : (hovered || value);
@@ -611,18 +577,11 @@ export default function Reviews({ userType = 'tenant', darkMode = false, setDark
           const data = await reviewsAPI.getByListing(selectedDorm);
           if (!cancelled) {
             const real = Array.isArray(data) ? data : [];
-            if (real.length > 0) {
-              setReviews(real);
-            } else {
-              // No real reviews yet — seed with mock data for demo
-              const dormIndex = availableDorms.findIndex(d => d.id === Number(selectedDorm));
-              setReviews(generateMockReviews(selectedDorm, dormIndex >= 0 ? dormIndex : 0));
-            }
+            setReviews(real);
           }
         } catch {
           if (!cancelled) {
-            const dormIndex = availableDorms.findIndex(d => d.id === Number(selectedDorm));
-            setReviews(generateMockReviews(selectedDorm, dormIndex >= 0 ? dormIndex : 0));
+            setReviews([]);
           }
         } finally {
           if (!cancelled) setLoadingReviews(false);
