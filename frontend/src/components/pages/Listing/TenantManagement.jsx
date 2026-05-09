@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBooking } from '../../../context/BookingContext';
+import { getMinSchedulableDateYmd, isAtLeastDaysFromToday } from '../../../utils/bookingPolicy';
 
 const SECONDARY = '#5BADA8';
 
@@ -127,6 +128,7 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
   const [removeModal, setRemoveModal] = useState(null);
   const [removeReason, setRemoveReason] = useState('');
   const [removeMoveOutDate, setRemoveMoveOutDate] = useState('');
+  const [removeFieldError, setRemoveFieldError] = useState('');
 
   const dk = darkMode;
   const c = {
@@ -161,12 +163,25 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
     }
   };
 
-  const handleConfirmRemove = () => {
+  const handleConfirmRemove = async () => {
     if (!removeModal) return;
-    removeTenant(removeModal.id, removeReason, removeMoveOutDate);
-    setRemoveModal(null);
-    setRemoveReason('');
-    setRemoveMoveOutDate('');
+    if (!removeMoveOutDate) {
+      setRemoveFieldError('Please choose a move-out date.');
+      return;
+    }
+    if (!isAtLeastDaysFromToday(removeMoveOutDate)) {
+      setRemoveFieldError('Move-out must be at least 3 days from today.');
+      return;
+    }
+    setRemoveFieldError('');
+    const result = await removeTenant(removeModal.id, removeReason, removeMoveOutDate);
+    if (result?.success) {
+      setRemoveModal(null);
+      setRemoveReason('');
+      setRemoveMoveOutDate('');
+    } else {
+      setRemoveFieldError(result?.message || 'Could not remove tenant. Try again.');
+    }
   };
 
   return (
@@ -287,7 +302,7 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
       {removeModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: c.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: '20px' }}>
           <div style={{ background: c.cardBg, borderRadius: '16px', width: '100%', maxWidth: '440px', padding: '28px', position: 'relative', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }}>
-            <button onClick={() => setRemoveModal(null)} style={{ position: 'absolute', top: 10, right: 15, background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: c.secondaryText }}>&times;</button>
+            <button onClick={() => { setRemoveModal(null); setRemoveFieldError(''); }} style={{ position: 'absolute', top: 10, right: 15, background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: c.secondaryText }}>&times;</button>
             <h3 style={{ margin: '0 0 6px 0', color: c.text }}>Remove Tenant</h3>
             <p style={{ margin: '0 0 20px 0', color: c.secondaryText, fontSize: '14px' }}>
               You are removing <strong style={{ color: c.text }}>{removeModal.tenantName}</strong> from this listing.
@@ -297,9 +312,14 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
               <input
                 type="date"
                 value={removeMoveOutDate}
-                onChange={e => setRemoveMoveOutDate(e.target.value)}
+                min={getMinSchedulableDateYmd()}
+                onChange={e => { setRemoveMoveOutDate(e.target.value); setRemoveFieldError(''); }}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', fontSize: '14px', border: `1px solid ${c.border}`, background: c.inputBg, color: c.text, boxSizing: 'border-box' }}
               />
+              <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: c.secondaryText }}>At least 3 days from today.</p>
+              {removeFieldError ? (
+                <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#dc3545', fontWeight: 600 }}>{removeFieldError}</p>
+              ) : null}
             </div>
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: c.secondaryText }}>Reason for Removal</label>
@@ -312,7 +332,7 @@ export default function TenantManagement({ listingId, listingTitle, darkMode = f
               />
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setRemoveModal(null)} style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${c.border}`, color: c.text, borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+              <button onClick={() => { setRemoveModal(null); setRemoveFieldError(''); }} style={{ flex: 1, padding: '12px', background: 'transparent', border: `1px solid ${c.border}`, color: c.text, borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
                 Cancel
               </button>
               <button onClick={handleConfirmRemove} style={{ flex: 1, padding: '12px', background: '#dc3545', border: 'none', color: '#fff', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>

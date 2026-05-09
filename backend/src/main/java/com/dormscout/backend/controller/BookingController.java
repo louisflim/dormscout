@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -219,17 +221,32 @@ public class BookingController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteBooking(@PathVariable Long id) {
+    public ResponseEntity<?> deleteBooking(
+            @PathVariable Long id,
+            @RequestParam(required = false) String moveOutDate) {
         try {
-            bookingService.deleteBooking(id);
+            LocalDate moveOut = null;
+            if (moveOutDate != null && !moveOutDate.isBlank()) {
+                moveOut = LocalDate.parse(moveOutDate.trim());
+            }
+            bookingService.deleteBooking(id, moveOut);
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Booking deleted successfully"
             ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+        } catch (DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
-                    "message", "Booking not found"
+                    "message", "Invalid move-out date"
+            ));
+        } catch (RuntimeException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "Booking not found";
+            boolean badRequest = msg.contains("Move-out") || msg.contains("move-out")
+                    || msg.contains("required") || msg.contains("Invalid");
+            HttpStatus status = badRequest ? HttpStatus.BAD_REQUEST : HttpStatus.NOT_FOUND;
+            return ResponseEntity.status(status).body(Map.of(
+                    "success", false,
+                    "message", msg
             ));
         }
     }

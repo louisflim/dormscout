@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../context/AuthContext';
 import { useBooking } from '../../../context/BookingContext';
 import { bookingsAPI, listingsAPI } from '../../../utils/api';
+import { getMinSchedulableDateYmd, isAtLeastDaysFromToday } from '../../../utils/bookingPolicy';
 import './BookingPage.css';
 
 const defaultIcon = L.icon({
@@ -52,6 +53,7 @@ export default function BookingPage({ darkMode = false }) {
   const [cancelMoveOutDate, setCancelMoveOutDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [cancelFormError, setCancelFormError] = useState('');
 
   const dk = darkMode;
   const theme      = dk ? 'dark' : 'light';
@@ -141,25 +143,46 @@ export default function BookingPage({ darkMode = false }) {
   // ── Cancel ─────────────────────────────────────────────────────────────────
   const handleCancelBooking = async () => {
     if (!selectedBooking) return;
+    if (!cancelMoveOutDate) {
+      setCancelFormError('Please choose a move-out date.');
+      return;
+    }
+    if (!isAtLeastDaysFromToday(cancelMoveOutDate)) {
+      setCancelFormError('Move-out must be scheduled at least 3 days from today.');
+      return;
+    }
     setLoading(true);
     setActionError('');
+    setCancelFormError('');
 
     try {
-      const response = await contextCancelBooking(selectedBooking.id);
+      const response = await contextCancelBooking(
+        selectedBooking.id,
+        {
+          ...selectedBooking,
+          tenant: selectedBooking.tenant ?? {
+            firstName: user?.firstName,
+            lastName: user?.lastName,
+            email: user?.email,
+          },
+        },
+        cancelMoveOutDate
+      );
 
       if (response?.success) {
         setBookings(prev => prev.filter(b => String(b.id) !== String(selectedBooking.id)));
+        setCancelModal(false);
+        setCancelReason('');
+        setCancelMoveOutDate('');
+        setCancelFormError('');
+        setSelectedBooking(null);
       } else {
-        setActionError(response?.message || 'Failed to cancel booking');
+        setCancelFormError(response?.message || 'Failed to cancel booking');
       }
     } catch (error) {
       console.error('Cancel booking error:', error);
-      setActionError('Failed to cancel booking');
+      setCancelFormError('Failed to cancel booking');
     } finally {
-      setCancelModal(false);
-      setCancelReason('');
-      setCancelMoveOutDate('');
-      setSelectedBooking(null);
       setLoading(false);
     }
   };
@@ -260,7 +283,7 @@ export default function BookingPage({ darkMode = false }) {
                   )}
                   {(b.status === 'pending' || b.status === 'accepted') && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); setSelectedBooking(b); setCancelModal(true); }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedBooking(b); setCancelFormError(''); setCancelModal(true); }}
                       style={{
                         width: '100%', padding: '8px', marginTop: '4px',
                         background: 'transparent', border: '1px solid #dc3545',
@@ -336,7 +359,7 @@ export default function BookingPage({ darkMode = false }) {
 
               <div className="modal-actions">
                 {(selectedBooking.status === 'pending' || selectedBooking.status === 'accepted') && (
-                  <button className="btn-cancel-booking" onClick={() => setCancelModal(true)}>
+                  <button className="btn-cancel-booking" onClick={() => { setCancelFormError(''); setCancelModal(true); }}>
                     Cancel Booking
                   </button>
                 )}
@@ -365,8 +388,11 @@ export default function BookingPage({ darkMode = false }) {
       {cancelModal && selectedBooking && (
         <div className="booking-overlay" style={{ zIndex: 2000 }}>
           <div className="booking-modal cancel-modal">
-            <button className="booking-modal-close" onClick={() => setCancelModal(false)}>&times;</button>
+            <button className="booking-modal-close" onClick={() => { setCancelModal(false); setCancelFormError(''); }}>&times;</button>
             <h3 className="cancel-modal-title">Cancel Booking</h3>
+            {cancelFormError ? (
+              <p style={{ color: '#991b1b', fontWeight: 700, fontSize: 13, margin: '0 0 12px 0' }}>{cancelFormError}</p>
+            ) : null}
             <p className="cancel-modal-subtitle">
               You are cancelling your booking for{' '}
               <strong style={{ color: text }}>{selectedBooking.listingName}</strong>.
@@ -375,7 +401,11 @@ export default function BookingPage({ darkMode = false }) {
             <div className="cancel-field">
               <label className="cancel-label">Move-out Date</label>
               <input type="date" className="cancel-input" value={cancelMoveOutDate}
-                onChange={e => setCancelMoveOutDate(e.target.value)} />
+                min={getMinSchedulableDateYmd()}
+                onChange={e => { setCancelMoveOutDate(e.target.value); setCancelFormError(''); }} />
+              <p className="cancel-modal-subtitle" style={{ marginTop: 6, fontSize: 12 }}>
+                Must be at least 3 days from today.
+              </p>
             </div>
             <div className="cancel-field">
               <label className="cancel-label">Reason for Cancellation</label>
@@ -384,7 +414,7 @@ export default function BookingPage({ darkMode = false }) {
             </div>
 
             <div className="cancel-actions">
-              <button className="btn-keep-booking" onClick={() => setCancelModal(false)}>Keep Booking</button>
+              <button className="btn-keep-booking" onClick={() => { setCancelModal(false); setCancelFormError(''); }}>Keep Booking</button>
               <button className="btn-confirm-cancel" onClick={handleCancelBooking} disabled={loading}>
                 {loading ? 'Cancelling...' : 'Confirm Cancel'}
               </button>

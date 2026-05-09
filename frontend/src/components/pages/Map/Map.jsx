@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITIES, findNearestUniversity, getDistanceFromUniversity } from '../../../constants/universities';
 import { listingsAPI, bookingsAPI, activitiesAPI, bookmarksAPI } from '../../../utils/api';
+import { getMinSchedulableDateYmd, isAtLeastDaysFromToday } from '../../../utils/bookingPolicy';
 import './Map.css';
 
 const PRIMARY = '#E8622E';
@@ -308,6 +309,11 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
     if (!moveInDate) {
       setBookingError('Please select a move-in date.');
+      return;
+    }
+
+    if (!isAtLeastDaysFromToday(moveInDate)) {
+      setBookingError('Move-in must be at least 3 days from today.');
       return;
     }
 
@@ -699,8 +705,11 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                         className="map-date-input"
                         value={moveInDate}
                         onChange={(e) => setMoveInDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={getMinSchedulableDateYmd()}
                       />
+                      <p style={{ fontSize: '0.78rem', color: darkMode ? '#a0a0b0' : '#666', margin: '6px 0 10px 0' }}>
+                        Earliest move-in is 3 days from today.
+                      </p>
                       <button className="map-btn-confirm" onClick={() => handleConfirmBooking(selectedListing)}>
                         ✔ Confirm Booking
                       </button>

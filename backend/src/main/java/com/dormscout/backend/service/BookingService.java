@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.List;
 
@@ -58,6 +59,19 @@ public class BookingService {
             return "male_only";
         }
         return "mixed";
+    }
+
+    private static final int MIN_MOVE_IN_ADVANCE_DAYS = 3;
+
+    private void validateMoveInNotTooSoon(Booking booking) {
+        LocalDate moveIn = booking.getCheckInDate();
+        if (moveIn == null) {
+            throw new RuntimeException("Move-in date is required");
+        }
+        LocalDate earliest = LocalDate.now().plusDays(MIN_MOVE_IN_ADVANCE_DAYS);
+        if (moveIn.isBefore(earliest)) {
+            throw new RuntimeException("Move-in must be at least 3 days from today");
+        }
     }
 
     private void validateBookingGenderPolicy(User tenant, Listing listing) {
@@ -124,6 +138,7 @@ public class BookingService {
         }
 
         validateBookingGenderPolicy(tenant, listing);
+        validateMoveInNotTooSoon(booking);
 
         int available = listing.getAvailableRooms() != null ? listing.getAvailableRooms() : 0;
         if (available <= 0) {
@@ -194,16 +209,31 @@ public class BookingService {
         return bookingRepository.findAll();
     }
 
-    public void deleteBooking(Long id) {
+    /**
+     * Deletes a booking. Rejected-only rows may omit move-out validation.
+     * All other statuses require a move-out date at least {@link #MIN_MOVE_IN_ADVANCE_DAYS} days from today.
+     */
+    public void deleteBooking(Long id, LocalDate moveOutDate) {
         Optional<Booking> bookingOpt = bookingRepository.findById(id);
-        if (bookingOpt.isPresent()) {
-            Booking booking = bookingOpt.get();
-            if (isAcceptedStatus(booking.getStatus())) {
-                applyListingRoomTransition(booking.getListing(), true, false);
-            }
-            bookingRepository.delete(booking);
-            return;
+        if (bookingOpt.isEmpty()) {
+            throw new RuntimeException("Booking not found");
         }
-        throw new RuntimeException("Booking not found");
+        Booking booking = bookingOpt.get();
+        String st = booking.getStatus() == null ? "" : booking.getStatus().trim().toLowerCase();
+
+        if (!"rejected".equals(st)) {
+            if (moveOutDate == null) {
+                throw new RuntimeException("Move-out date is required to cancel or end this booking");
+            }
+            LocalDate earliest = LocalDate.now().plusDays(MIN_MOVE_IN_ADVANCE_DAYS);
+            if (moveOutDate.isBefore(earliest)) {
+                throw new RuntimeException("Move-out must be scheduled at least 3 days from today");
+            }
+        }
+
+        if (isAcceptedStatus(booking.getStatus())) {
+            applyListingRoomTransition(booking.getListing(), true, false);
+        }
+        bookingRepository.delete(booking);
     }
 }

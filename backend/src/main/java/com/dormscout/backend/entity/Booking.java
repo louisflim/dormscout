@@ -1,5 +1,6 @@
 package com.dormscout.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,6 +21,7 @@ public class Booking {
 
     private String status; // "pending", "approved", "rejected"
 
+    @JsonAlias({ "moveInDate" })
     private LocalDate checkInDate;
 
     private LocalDate checkOutDate;

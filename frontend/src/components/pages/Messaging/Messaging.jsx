@@ -10,6 +10,28 @@ const AVATAR_COLORS = ['#5BADA8', '#E8622E', '#7C3AED', '#059669', '#DC2626'];
 const ADMIN_CONVERSATION_ID = 'dormscout-admin';
 const ADMIN_BROADCASTS_KEY  = 'dormscout_admin_messages';
 
+/** Placeholder / demo lines that should not appear in the DormScout Admin thread */
+const STRIPPED_ADMIN_BROADCAST_TEXTS = new Set(['this is a test']);
+
+function sanitizeAdminBroadcasts(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item) => {
+    const t = String(item?.text ?? '').trim().toLowerCase();
+    return t.length > 0 && !STRIPPED_ADMIN_BROADCAST_TEXTS.has(t);
+  });
+}
+
+function loadAdminBroadcastsFromStorage() {
+  const raw = lsGet(ADMIN_BROADCASTS_KEY, []);
+  const cleaned = sanitizeAdminBroadcasts(raw);
+  if (cleaned.length !== raw.length) {
+    try {
+      localStorage.setItem(ADMIN_BROADCASTS_KEY, JSON.stringify(cleaned));
+    } catch { /* ignore */ }
+  }
+  return cleaned;
+}
+
 /** Helper: build deterministic conversationId for two users */
 function makeConvId(idA, idB) {
   return `conv_${Math.min(Number(idA), Number(idB))}_${Math.max(Number(idA), Number(idB))}`;
@@ -139,15 +161,13 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   const navigate = useNavigate();
   const { user, updateUser } = useAuth();
 
-  useEffect(() => { requestNotificationPermission(); }, []);
-
   // ── Backend-persisted conversations & messages ──────────
   const [apiConversations, setApiConversations] = useState([]);
   const [conversationMessages, setConversationMessages] = useState([]);
   const [userDirectory, setUserDirectory] = useState({});
 
   // ── Admin broadcasts stay in localStorage (system-generated) ─
-  const [adminBroadcasts, setAdminBroadcasts] = useState(() => lsGet(ADMIN_BROADCASTS_KEY, []));
+  const [adminBroadcasts, setAdminBroadcasts] = useState(() => loadAdminBroadcastsFromStorage());
 
   // ── UI state ─────────────────────────────────────────────
   const [selectedConvId, setSelectedConvId]     = useState(null);
@@ -282,7 +302,10 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   useEffect(() => {
     const handler = (e) => {
       if (e.key === ADMIN_BROADCASTS_KEY && e.newValue) {
-        try { setAdminBroadcasts(JSON.parse(e.newValue) || []); } catch { /* ignore */ }
+        try {
+          const parsed = JSON.parse(e.newValue) || [];
+          setAdminBroadcasts(sanitizeAdminBroadcasts(parsed));
+        } catch { /* ignore */ }
       }
     };
     window.addEventListener('storage', handler);

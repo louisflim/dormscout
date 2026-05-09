@@ -254,19 +254,24 @@ export const bookingsAPI = {
         }
     },
 
-    deleteBooking: async (id) => {
+    deleteBooking: async (id, moveOutDate) => {
         try {
-            const response = await api.delete(`/bookings/${id}`);
+            const response = await api.delete(`/bookings/${id}`, {
+                params: moveOutDate ? { moveOutDate } : {},
+            });
             return response.data;
         } catch (error) {
             console.error('❌ API: deleteBooking error:', error);
-            return { success: false, message: error.response?.data?.message || 'Failed to delete booking' };
+            return {
+                success: false,
+                message: error.response?.data?.message || error.response?.data?.error || 'Failed to delete booking',
+            };
         }
     },
 
     // Backward-compatible alias used in BookingContext/BookingPage
-    delete: async (id) => {
-        const data = await bookingsAPI.deleteBooking(id);
+    delete: async (id, moveOutDate) => {
+        const data = await bookingsAPI.deleteBooking(id, moveOutDate);
         return { ok: Boolean(data?.success), success: Boolean(data?.success), data, message: data?.message };
     },
 };

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { bookingsAPI } from '../utils/api';
+import { bookingsAPI, activitiesAPI, listingsAPI } from '../utils/api';
 
 const BookingContext = createContext();
 
@@ -183,25 +183,53 @@ export function BookingProvider({ children }) {
   }, []);
 
   // ── Cancel Booking (Tenant) ─────────────────────────────
-  const cancelBooking = useCallback(async (bookingId) => {
+  const cancelBooking = useCallback(async (bookingId, bookingSnapshot, moveOutDate) => {
     setLoading(true);
     try {
-      const response = await bookingsAPI.delete(bookingId);
+      const booking = bookings.find(b => Number(b.id) === Number(bookingId)) || bookingSnapshot;
+      const response = await bookingsAPI.delete(bookingId, moveOutDate);
 
-      if (response.ok && response.data.success) {
-        setBookings(prev => prev.filter(b => b.id !== bookingId));
-        setTenants(prev => prev.filter(t => t.bookingId !== bookingId));
+      if (response.ok && response.data?.success) {
+        setBookings(prev => prev.filter(b => Number(b.id) !== Number(bookingId)));
+        setTenants(prev => prev.filter(t => Number(t.bookingId) !== Number(bookingId)));
 
-        addNotification({
-          type:    'booking_cancelled',
-          title:   'Booking Cancelled',
-          message: `You cancelled your booking.`,
-          forRole: 'landlord',
-        });
+        let landlordId = booking?.listing?.landlordId ?? booking?.listing?.landlord?.id ?? booking?.landlordId;
+        let listingTitle = booking?.listing?.title || booking?.listingTitle || 'a listing';
+        if ((landlordId == null || !listingTitle) && booking?.listingId != null) {
+          try {
+            const listingRes = await listingsAPI.getListingById(booking.listingId);
+            const L = listingRes?.data ?? listingRes;
+            landlordId = L?.landlordId ?? L?.landlord?.id ?? landlordId;
+            if (L?.title) listingTitle = L.title;
+          } catch {
+            /* ignore */
+          }
+        }
+        if (landlordId != null) {
+          const tn = booking?.tenant;
+          const tenantName = tn
+            ? `${tn.firstName || ''} ${tn.lastName || ''}`.trim() || tn.email || 'A tenant'
+            : 'A tenant';
+          try {
+            await activitiesAPI.createActivity(
+              Number(landlordId),
+              'booking_cancelled',
+              `${tenantName} cancelled their booking for "${listingTitle}".`,
+              'Just now',
+              'listing'
+            );
+            window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
+          } catch (err) {
+            console.error('Failed to notify landlord of cancellation:', err);
+          }
+        }
 
         return { success: true };
       } else {
-        return { success: false, message: 'Failed to cancel booking' };
+        return {
+          success: false,
+          message: response.message || response.data?.message || 'Failed to cancel booking',
+        };
       }
     } catch (error) {
       console.error('Cancel booking error:', error);
@@ -209,28 +237,42 @@ export function BookingProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [bookings]);
 
   // ── Remove Tenant (Landlord) ────────────────────────────
-  const removeTenant = useCallback(async (tenantRecordId) => {
+  const removeTenant = useCallback(async (tenantRecordId, removalReason, moveOutDate) => {
     setLoading(true);
     try {
       const tenant = tenants.find(t => t.id === tenantRecordId);
       if (!tenant) return { success: false, message: 'Tenant not found' };
 
       if (tenant.bookingId) {
-        await bookingsAPI.delete(tenant.bookingId);
+        const del = await bookingsAPI.delete(tenant.bookingId, moveOutDate);
+        if (!del.ok || !del.data?.success) {
+          return {
+            success: false,
+            message: del.message || del.data?.message || 'Failed to remove tenant (booking delete)',
+          };
+        }
       }
 
       setTenants(prev => prev.filter(t => t.id !== tenantRecordId));
-      setBookings(prev => prev.filter(b => b.id !== tenant.bookingId));
+      setBookings(prev => prev.filter(b => Number(b.id) !== Number(tenant.bookingId)));
 
-      addNotification({
-        type:    'tenant_removed',
-        title:   'Tenant Removed',
-        message: `You have been removed from the listing.`,
-        forRole: 'tenant',
-      });
+      if (tenant.tenantId != null) {
+        try {
+          await activitiesAPI.createActivity(
+            Number(tenant.tenantId),
+            'tenant_removed',
+            `You have been removed from the property.${removalReason ? ` Reason: ${removalReason}` : ''}`,
+            'Just now',
+            'booking'
+          );
+          window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
+        } catch (err) {
+          console.error('Failed to notify tenant of removal:', err);
+        }
+      }
 
       return { success: true };
     } catch (error) {
@@ -240,6 +282,25 @@ export function BookingProvider({ children }) {
       setLoading(false);
     }
   }, [tenants]);
+
+  // ── Dismiss rejected booking from landlord view ─────────
+  const deleteRejectedBooking = useCallback(async (bookingId) => {
+    setLoading(true);
+    try {
+      const response = await bookingsAPI.delete(bookingId);
+      if (response.ok && response.data?.success) {
+        setBookings(prev => prev.filter(b => Number(b.id) !== Number(bookingId)));
+        notifyBookingChange();
+        return { success: true };
+      }
+      return { success: false, message: response?.data?.message || 'Failed to dismiss booking' };
+    } catch (error) {
+      console.error('Delete rejected booking error:', error);
+      return { success: false, message: 'Failed to dismiss booking' };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // ── Add Notification ────────────────────────────────────
   function addNotification(notif) {
@@ -336,6 +397,7 @@ export function BookingProvider({ children }) {
       rejectBooking,
       cancelBooking,
       removeTenant,
+      deleteRejectedBooking,
       addNotification,
       markNotificationRead,
       deleteNotification,

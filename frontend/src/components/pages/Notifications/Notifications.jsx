@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { activitiesAPI } from '../../../utils/api';
+import { normalizeActivitiesResponse } from '../../../utils/activities';
 import './Notifications.css';
 
 import{
@@ -52,14 +53,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
     }
     activitiesAPI.getActivitiesByUser(user.id)
       .then(response => {
-        let acts = [];
-        if (Array.isArray(response?.data?.data)) {
-          acts = response.data.data;
-        } else if (Array.isArray(response?.data)) {
-          acts = response.data;
-        } else if (Array.isArray(response)) {
-          acts = response;
-        }
+        const acts = normalizeActivitiesResponse(response);
 
         setNotifications(acts.map((a) => ({
           id: a.id,
@@ -90,16 +84,19 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
   const markAsRead = async (id) => {
     await activitiesAPI.markAsRead(id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
   };
 
   const deleteNotif = async (id) => {
     await activitiesAPI.deleteActivity(id);
     setNotifications(prev => prev.filter(n => n.id !== id));
+    window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
   };
 
   const clearAll = async () => {
     await Promise.all(notifications.map(n => activitiesAPI.deleteActivity(n.id)));
     setNotifications([]);
+    window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
   };
 
   const formatTime = (iso) => {

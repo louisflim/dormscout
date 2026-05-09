@@ -12,6 +12,7 @@ import { useBooking } from '../../../context/BookingContext';
 import { useAuth } from '../../../context/AuthContext';
 import './Dashboard.css';
 import { listingsAPI, bookingsAPI, activitiesAPI } from '../../../utils/api';
+import { normalizeActivitiesResponse, countUnreadActivities } from '../../../utils/activities';
 
 import {
   LayoutDashboard,
@@ -1119,8 +1120,8 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { getUnreadCount } = useBooking();
   const { user, logout, userType: authUserType } = useAuth();
+  const [activityUnreadCount, setActivityUnreadCount] = useState(0);
 
   const normalizedUserType = authUserType?.toLowerCase() || 'tenant';
   const isLandlord = normalizedUserType === 'landlord';
@@ -1161,7 +1162,29 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   };
 
   const navItems = normalizedUserType === 'landlord' ? NAV_ITEMS.landlord : NAV_ITEMS.tenant;
-  const unreadCount = getUnreadCount ? getUnreadCount(normalizedUserType) : 0;
+
+  useEffect(() => {
+    const inAppOn = user?.settings?.inAppNotifications !== false;
+    if (!user?.id || !inAppOn) {
+      setActivityUnreadCount(0);
+      return undefined;
+    }
+    const refresh = () => {
+      activitiesAPI.getActivitiesByUser(user.id)
+        .then((res) => {
+          const acts = normalizeActivitiesResponse(res);
+          setActivityUnreadCount(countUnreadActivities(acts));
+        })
+        .catch(() => setActivityUnreadCount(0));
+    };
+    refresh();
+    const interval = setInterval(refresh, 10000);
+    window.addEventListener('dormscout:notificationsUpdated', refresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('dormscout:notificationsUpdated', refresh);
+    };
+  }, [user?.id, user?.settings?.inAppNotifications]);
 
   const userInitials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -1198,8 +1221,8 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
                     {NAV_ICON[item.id] ? NAV_ICON[item.id](iconColor) : <LayoutDashboard size={18} color={iconColor} />}
                   </span>
                   <span className="sidebar-nav-label">{item.label}</span>
-                  {item.id === 'notifications' && unreadCount > 0 && (
-                    <span className="sidebar-badge">{unreadCount}</span>
+                  {item.id === 'notifications' && activityUnreadCount > 0 && (
+                    <span className="sidebar-badge">{activityUnreadCount}</span>
                   )}
                 </button>
               );
