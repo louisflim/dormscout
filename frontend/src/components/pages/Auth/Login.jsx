@@ -6,7 +6,7 @@ import AuthLayout from './AuthLayout';
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
 
-export default function Login() {
+export default function Login({ darkMode = false, setDarkMode }) {
     const navigate = useNavigate();
     const { login } = useAuth();  
 
@@ -58,7 +58,7 @@ export default function Login() {
     const buttonColor = isLandlord ? SECONDARY : PRIMARY;
 
     return (
-        <AuthLayout>
+        <AuthLayout darkMode={darkMode} setDarkMode={setDarkMode}>
             <h2 className="auth-card-title">
                 Welcome back to{' '}
                 <span style={{ color: PRIMARY }}>Dorm</span>

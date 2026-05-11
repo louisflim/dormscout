@@ -60,10 +60,10 @@ function App() {
 
     return (
       <Routes>
-        <Route path="/" element={<Homepage key={location.key} />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/" element={<Homepage key={location.key} darkMode={darkMode} setDarkMode={setDarkMode} />} />
+        <Route path="/login" element={<Login darkMode={darkMode} setDarkMode={setDarkMode} />} />
+        <Route path="/register" element={<Register darkMode={darkMode} setDarkMode={setDarkMode} />} />
+        <Route path="/forgot-password" element={<ForgotPassword darkMode={darkMode} setDarkMode={setDarkMode} />} />
 
         {/* Protected Routes */}
         <Route path="/overview" element={

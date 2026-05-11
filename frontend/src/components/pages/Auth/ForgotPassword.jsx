@@ -6,7 +6,7 @@ import AuthLayout from './AuthLayout';
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
 
-export default function ForgotPassword() {
+export default function ForgotPassword({ darkMode = false, setDarkMode }) {
     const [email, setEmail] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const navigate = useNavigate();
@@ -18,7 +18,7 @@ export default function ForgotPassword() {
     };
 
     return (
-        <AuthLayout>
+        <AuthLayout darkMode={darkMode} setDarkMode={setDarkMode}>
             <h2 className="auth-card-title">
                 <span style={{ color: PRIMARY }}>Forgot</span>{' '}
                 <span style={{ color: SECONDARY }}>Password?</span>

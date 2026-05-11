@@ -21,11 +21,11 @@ const FEATURE_ICON = {
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
 
-export default function Homepage() {
+export default function Homepage({ darkMode = false, setDarkMode }) {
     const navigate = useNavigate();
 
     return (
-        <AuthLayout>
+        <AuthLayout darkMode={darkMode} setDarkMode={setDarkMode}>
             <h2 className="auth-card-title">
                 Find your dorm near{' '}
                 <span style={{ color: PRIMARY }}>campus</span>

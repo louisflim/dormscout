@@ -8,7 +8,7 @@ import { validatePasswordStrength } from '../../../utils/passwordValidation';
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
 
-export default function Register({ setUserType }) {
+export default function Register({ setUserType, darkMode = false, setDarkMode }) {
     const [searchParams] = useSearchParams();
     const userType = searchParams.get('type') || 'tenant';  
 
@@ -99,7 +99,7 @@ export default function Register({ setUserType }) {
     const buttonIcon = isLandlord ? '🏢' : '🏠';
 
     return (
-        <AuthLayout>
+        <AuthLayout darkMode={darkMode} setDarkMode={setDarkMode}>
             <h2 className="auth-card-title">
                 {buttonIcon}{' '}
                 <span style={{ color: buttonColor }}>
