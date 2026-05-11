@@ -52,7 +52,7 @@ function fullName(user) {
 
 function withLandlordBadge(name, isLandlord, isVerified) {
   if (!isLandlord) return name;
-  return isVerified ? `${name} ✓` : `${name} ⚠`;
+  return isVerified ? `${name} ✓` : name;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -194,6 +194,10 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     const id = setInterval(load, 5000);
     return () => { cancelled = true; clearInterval(id); };
   }, [user?.id]);
+
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -862,7 +866,10 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                   const convId = contextMenuOpen;
                   setContextMenuOpen(null);
                   const convData = apiConversations.find(c => c.conversationId === String(convId));
-                  navigate(`/profile/${convData?.partnerId || convId}`);
+                  const pid = convData?.partnerId;
+                  if (pid != null && String(pid).trim() !== '' && Number.isFinite(Number(pid))) {
+                    navigate(`/profile/${pid}`);
+                  }
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '10px',

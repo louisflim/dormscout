@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { userAPI } from '../../../utils/api';
+import { validatePasswordStrength } from '../../../utils/passwordValidation';
 import { UNIVERSITY_NAMES } from '../../../constants/universities';
 import './Settings.css';
 
@@ -553,10 +554,11 @@ export default function Settings({ userType: propUserType, darkMode = false, set
 
     if (!newPassword) {
       errors.newPassword = 'New password is required';
-    } else if (newPassword.length < 8) {
-      errors.newPassword = 'Password must be at least 8 characters';
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
-      errors.newPassword = 'Password must contain uppercase, lowercase, and number';
+    } else {
+      const strengthErr = validatePasswordStrength(newPassword);
+      if (strengthErr && strengthErr !== 'Password is required') {
+        errors.newPassword = strengthErr;
+      }
     }
 
     if (!confirmPassword) {

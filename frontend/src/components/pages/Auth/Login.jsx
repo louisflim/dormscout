@@ -92,7 +92,7 @@ export default function Login() {
                 <input
                     name="email"
                     type="email"
-                    placeholder="University email"
+                    placeholder={isLandlord ? 'Email' : 'University email'}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required

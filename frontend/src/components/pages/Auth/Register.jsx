@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITY_NAMES } from '../../../constants/universities';
 import AuthLayout from './AuthLayout';
+import { validatePasswordStrength } from '../../../utils/passwordValidation';
 
 const PRIMARY = '#E8622E';
 const SECONDARY = '#5BADA8';
@@ -41,8 +42,9 @@ export default function Register({ setUserType }) {
             setError('Please enter your first and last name');
             return;
         }
-        if (formData.password.length < 6) {
-            setError('Password must be at least 6 characters');
+        const passwordError = validatePasswordStrength(formData.password);
+        if (passwordError) {
+            setError(passwordError);
             return;
         }
         if (userType === 'tenant' && !school) {
@@ -148,7 +150,7 @@ export default function Register({ setUserType }) {
                 <input
                     name="password"
                     type="password"
-                    placeholder="Password (min. 6 characters)"
+                    placeholder="Password (8+ chars, upper, lower, number)"
                     value={formData.password}
                     onChange={handleChange}
                     required

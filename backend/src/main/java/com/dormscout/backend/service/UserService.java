@@ -65,6 +65,7 @@ public class UserService {
         if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
             throw new RuntimeException("Password is required");
         }
+        validatePasswordPolicy(request.getPassword());
 
         // Create new user from request
         User user = new User();
@@ -152,6 +153,7 @@ public class UserService {
                 user.setProfileImage(updates.getProfileImage());
             }
             if (updates.getPassword() != null && !updates.getPassword().trim().isEmpty()) {
+                validatePasswordPolicy(updates.getPassword());
                 user.setPassword(passwordEncoder.encode(updates.getPassword()));
             }
             if (updates.getBusinessName() != null) {
@@ -182,6 +184,18 @@ public class UserService {
         }
 
         throw new RuntimeException("User not found");
+    }
+
+    private void validatePasswordPolicy(String password) {
+        if (password.length() < 8) {
+            throw new RuntimeException("Password must be at least 8 characters");
+        }
+        boolean hasLower = password.chars().anyMatch(Character::isLowerCase);
+        boolean hasUpper = password.chars().anyMatch(Character::isUpperCase);
+        boolean hasDigit = password.chars().anyMatch(Character::isDigit);
+        if (!hasLower || !hasUpper || !hasDigit) {
+            throw new RuntimeException("Password must contain uppercase, lowercase, and number");
+        }
     }
 
     public List<User> getAllUsers() {

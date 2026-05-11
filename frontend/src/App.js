@@ -109,6 +109,11 @@ function App() {
             </ProtectedRoute>
         } />
 
+        <Route path="/profile/:viewUserId" element={
+          <ProtectedRoute>
+            <ProfilePage userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />
+          </ProtectedRoute>
+        } />
         <Route path="/profile" element={
           <ProtectedRoute>
             <ProfilePage userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />

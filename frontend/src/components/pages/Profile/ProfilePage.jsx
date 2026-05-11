@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import './ProfilePage.css';
-import { User, HelpCircle, Info, Moon, Sun, LogOut } from 'lucide-react';
+import { User, HelpCircle, Info, Moon, Sun, LogOut, BadgeCheck } from 'lucide-react';
+import { userAPI, listingsAPI, bookingsAPI, reviewsAPI } from '../../../utils/api';
 
 const COLORS = {
   light: {
@@ -23,30 +24,71 @@ const COLORS = {
   },
 };
 
-export default function ProfilePage({ role, darkMode, setDarkMode }) {
+function normalizeUserType(ut) {
+  const s = String(ut || '').toLowerCase();
+  if (s === 'landlord') return 'landlord';
+  return 'tenant';
+}
+
+function isCurrentBooking(b) {
+  const s = String(b?.status || '').toLowerCase();
+  return ['pending', 'accepted', 'approved', 'confirmed', 'active'].includes(s);
+}
+
+function displayNameFromUser(u) {
+  if (!u) return 'Guest User';
+  if (u.name) return u.name;
+  const joined = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+  return joined || 'Guest User';
+}
+
+export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
   const navigate = useNavigate();
+  const { viewUserId } = useParams();
   const { user, logout } = useAuth();
 
   const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
 
+  const [remoteProfile, setRemoteProfile] = useState(null);
+  const [remoteLoadState, setRemoteLoadState] = useState('idle');
+  const [landlordListings, setLandlordListings] = useState([]);
+  const [tenantBookings, setTenantBookings] = useState([]);
+
   const isDark = typeof setDarkMode === 'function' ? Boolean(darkMode) : localDarkMode;
 
-  const userRole   = role || user?.userType || 'tenant';
-  const colors     = isDark ? COLORS.dark : COLORS.light;
-  const isLandlord = userRole === 'landlord';
+  const isOwnProfile = !viewUserId || String(viewUserId) === String(user?.id);
+  const profileData = isOwnProfile ? user : remoteProfile;
 
-  // Real user data from AuthContext
-  const displayName  = user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Guest User';
-  const userEmail    = user?.email || '';
-  const userSchool   = user?.school || user?.university || '';
-  const profileImage = user?.profileImage || null;
-  const isVerifiedLandlord = isLandlord && Boolean(user?.verified || user?.isVerified || user?.verificationStatus === 'approved');
+  const profileRole = profileData
+    ? normalizeUserType(profileData.userType)
+    : normalizeUserType(role || userType || user?.userType);
+  const isLandlord = profileRole === 'landlord';
 
-  // Real stats from user data
-  const listingsCount = user?.listings?.length || 0;
-  const bookingsCount  = user?.bookings?.length || 0;
+  const colors = isDark ? COLORS.dark : COLORS.light;
+
+  const isVerifiedLandlord = isLandlord && Boolean(
+    profileData?.verified
+    || profileData?.isVerified
+    || String(profileData?.verificationStatus || '').toLowerCase() === 'approved'
+  );
+
+  const userSchool = profileData?.school || profileData?.university || '';
+  const profileImage = profileData?.profileImage || null;
+
+  const displayName = displayNameFromUser(profileData);
+
+  const currentBookings = useMemo(
+    () => (Array.isArray(tenantBookings) ? tenantBookings : []).filter(isCurrentBooking),
+    [tenantBookings]
+  );
+
+  const listingsCount = isLandlord ? landlordListings.length : 0;
+  const totalReviewsCount = useMemo(
+    () => landlordListings.reduce((n, l) => n + (Array.isArray(l.reviews) ? l.reviews.length : 0), 0),
+    [landlordListings]
+  );
 
   useEffect(() => {
     setLocalDarkMode(Boolean(darkMode));
@@ -64,6 +106,58 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDropdown]);
 
+  useEffect(() => {
+    if (!viewUserId || String(viewUserId) === String(user?.id)) {
+      setRemoteProfile(null);
+      setRemoteLoadState('idle');
+      return;
+    }
+    let cancelled = false;
+    setRemoteLoadState('loading');
+    (async () => {
+      const data = await userAPI.getUserById(viewUserId);
+      if (cancelled) return;
+      setRemoteProfile(data);
+      setRemoteLoadState(data ? 'done' : 'error');
+    })();
+    return () => { cancelled = true; };
+  }, [viewUserId, user?.id]);
+
+  useEffect(() => {
+    if (!profileData?.id) return;
+    if (!isLandlord) {
+      setLandlordListings([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const listings = await listingsAPI.getListingsByLandlord(profileData.id);
+      const base = Array.isArray(listings) ? listings : [];
+      const withReviews = await Promise.all(
+        base.map(async (listing) => {
+          const revs = await reviewsAPI.getByListing(listing.id);
+          return { ...listing, reviews: Array.isArray(revs) ? revs : [] };
+        })
+      );
+      if (!cancelled) setLandlordListings(withReviews);
+    })();
+    return () => { cancelled = true; };
+  }, [profileData?.id, isLandlord]);
+
+  useEffect(() => {
+    if (!profileData?.id || isLandlord || !isOwnProfile) {
+      setTenantBookings([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const raw = await bookingsAPI.getBookingsByTenant(profileData.id);
+      const arr = Array.isArray(raw) ? raw : [];
+      if (!cancelled) setTenantBookings(arr);
+    })();
+    return () => { cancelled = true; };
+  }, [profileData?.id, isLandlord, isOwnProfile]);
+
   const handleLogout = () => {
     logout();
     localStorage.removeItem('userType');
@@ -78,7 +172,7 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
       setLocalDarkMode(nextMode);
       try {
         localStorage.setItem('darkMode', nextMode ? 'true' : 'false');
-      } catch (_) {}
+      } catch (_) { /* ignore */ }
     }
     setShowDropdown(false);
   };
@@ -87,10 +181,43 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
     ? 'Providing quality accommodation for students.'
     : 'Looking for the perfect place to stay near campus.';
 
+  const verificationCaption = () => {
+    if (!isLandlord || !isOwnProfile) return null;
+    if (isVerifiedLandlord) return 'Verified landlord';
+    const st = String(profileData?.verificationStatus || '').toLowerCase();
+    if (st === 'pending') return 'Verification pending';
+    if (st === 'rejected') return 'Verification not approved';
+    return null;
+  };
+
+  const vCap = verificationCaption();
+
+  if (!isOwnProfile && remoteLoadState === 'loading') {
+    return (
+      <div className="profile-page" style={{ background: colors.bg, minHeight: '100vh', paddingTop: 80, textAlign: 'center', color: colors.text }}>
+        <p>Loading profile…</p>
+      </div>
+    );
+  }
+
+  if (!isOwnProfile && (remoteLoadState === 'error' || !profileData)) {
+    return (
+      <div className="profile-page" style={{ background: colors.bg, minHeight: '100vh', paddingTop: 80, textAlign: 'center', color: colors.text }}>
+        <p style={{ marginBottom: 16 }}>User not found.</p>
+        <button type="button" className="btn btn--primary" style={{ background: '#E8622E', color: '#fff' }} onClick={() => navigate('/messages')}>
+          Back to Messages
+        </button>
+      </div>
+    );
+  }
+
+  if (isOwnProfile && !user) {
+    return null;
+  }
+
   return (
     <div className="profile-page" style={{ background: colors.bg }}>
 
-      {/* ── Navbar - Matching Dashboard Styles ── */}
       <nav
         className="dashboard-nav"
         style={{
@@ -120,7 +247,6 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
           DormScout
         </button>
 
-        {/* Dropdown wrapper - pushed to right */}
         <div ref={dropdownRef} className="dashboard-dropdown-wrap">
           <div
             className="dashboard-avatar"
@@ -185,20 +311,30 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
         </div>
       </nav>
 
-      {/* ── Main Content ── */}
       <div className="profile-content">
 
-        {/* ── Profile Card ── */}
+        {!isOwnProfile && (
+          <div style={{ marginBottom: 20, textAlign: 'left' }}>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              onClick={() => navigate(-1)}
+              style={{ border: `1px solid ${colors.border}`, background: colors.cardBg, color: colors.text }}
+            >
+              ← Back
+            </button>
+          </div>
+        )}
+
         <div
           className="profile-card"
           style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}
         >
-          {/* Profile Avatar */}
           <div
             className="avatar-btn avatar-btn--profile"
-            onClick={() => navigate('/settings')}
-            title="Click to change profile picture in Settings"
-            style={{ cursor: 'pointer' }}
+            onClick={() => isOwnProfile && navigate('/settings')}
+            title={isOwnProfile ? 'Change profile picture in Settings' : ''}
+            style={{ cursor: isOwnProfile ? 'pointer' : 'default' }}
           >
             {profileImage ? (
               <img
@@ -216,32 +352,31 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
             )}
           </div>
 
-          {/* Name */}
-          <h1 className="profile-card__name" style={{ color: isDark ? '#fff' : '#000' }}>
-            {displayName} {isLandlord ? (isVerifiedLandlord ? '✓' : '⚠') : ''}
+          <h1 className="profile-card__name" style={{ color: isDark ? '#fff' : '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span>{displayName}</span>
+            {isLandlord && isVerifiedLandlord && (
+              <BadgeCheck size={32} color="#16a34a" aria-label="Verified landlord" style={{ flexShrink: 0 }} />
+            )}
           </h1>
 
-          {isLandlord && (
+          {vCap && (
             <p style={{ color: colors.secondaryText, fontSize: '13px', marginBottom: '8px' }}>
-              {isVerifiedLandlord ? 'Verified business' : 'Admin not verified'}
+              {vCap}
             </p>
           )}
 
-          {/* Email */}
-          {userEmail && (
+          {isLandlord && profileData?.businessName && (
             <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '8px' }}>
-              {userEmail}
+              {profileData.businessName}
             </p>
           )}
 
-          {/* School/University */}
-          {userSchool && (
+          {!isLandlord && userSchool && (
             <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '8px' }}>
               🎓 {userSchool}
             </p>
           )}
 
-          {/* Role Badge */}
           <p style={{
             color: '#fff',
             fontSize: '12px',
@@ -252,55 +387,171 @@ export default function ProfilePage({ role, darkMode, setDarkMode }) {
             display: 'inline-block',
             marginBottom: '12px',
           }}>
-            {isLandlord ? '🏠 Landlord' : '🎓 Student'}
+            {isLandlord ? '🏢 Landlord' : '🎓 Student'}
           </p>
 
-          {/* Bio */}
           <p className="profile-card__bio" style={{ color: colors.secondaryText }}>
             {bioText}
           </p>
 
-          {/* Stats */}
           <div className="profile-stats">
-            <div className="profile-stats__item">
-              <p className="profile-stats__value">
-                {isLandlord ? listingsCount : bookingsCount}
-              </p>
-              <p className="profile-stats__label" style={{ color: colors.secondaryText }}>
-                {isLandlord ? 'Listings' : 'Bookings'}
-              </p>
-            </div>
-            <div className="profile-stats__item">
-              <p className="profile-stats__value">{user?.yearLevel || '-'}</p>
-              <p className="profile-stats__label" style={{ color: colors.secondaryText }}>
-                Year Level
-              </p>
-            </div>
-            <div className="profile-stats__item">
-              <p className="profile-stats__value">{user?.gender || '-'}</p>
-              <p className="profile-stats__label" style={{ color: colors.secondaryText }}>
-                Gender
-              </p>
-            </div>
+            {isLandlord ? (
+              <>
+                <div className="profile-stats__item">
+                  <p className="profile-stats__value">{listingsCount}</p>
+                  <p className="profile-stats__label" style={{ color: colors.secondaryText }}>Listings</p>
+                </div>
+                <div className="profile-stats__item">
+                  <p className="profile-stats__value">{totalReviewsCount}</p>
+                  <p className="profile-stats__label" style={{ color: colors.secondaryText }}>Reviews</p>
+                </div>
+                <div className="profile-stats__item">
+                  <p className="profile-stats__value">{profileData?.gender || '-'}</p>
+                  <p className="profile-stats__label" style={{ color: colors.secondaryText }}>Gender</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="profile-stats__item">
+                  <p className="profile-stats__value">{currentBookings.length}</p>
+                  <p className="profile-stats__label" style={{ color: colors.secondaryText }}>Current bookings</p>
+                </div>
+                <div className="profile-stats__item">
+                  <p className="profile-stats__value">{profileData?.yearLevel || '-'}</p>
+                  <p className="profile-stats__label" style={{ color: colors.secondaryText }}>Year Level</p>
+                </div>
+                <div className="profile-stats__item">
+                  <p className="profile-stats__value">{profileData?.gender || '-'}</p>
+                  <p className="profile-stats__label" style={{ color: colors.secondaryText }}>Gender</p>
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="profile-actions">
-            <button
-              className="btn btn--primary"
-              style={{ background: '#E8622E', color: '#fff' }}
-              onClick={() => navigate('/settings')}
-            >
-              Edit Profile
-            </button>
-            <button
-              className="btn btn--secondary"
-              onClick={() => navigate(isLandlord ? '/listing' : '/booking')}
-            >
-              {isLandlord ? 'Manage Listings' : 'My Bookings'}
-            </button>
-          </div>
+          {isOwnProfile && (
+            <div className="profile-actions">
+              <button
+                className="btn btn--primary"
+                style={{ background: '#E8622E', color: '#fff' }}
+                onClick={() => navigate('/settings')}
+              >
+                Edit Profile
+              </button>
+              {isLandlord && (
+                <button
+                  className="btn btn--secondary"
+                  onClick={() => navigate('/listing')}
+                >
+                  Manage Listings
+                </button>
+              )}
+            </div>
+          )}
         </div>
+
+        {!isLandlord && isOwnProfile && (
+          <section style={{ marginTop: 32, textAlign: 'left' }}>
+            <h2 className="listings-section__title" style={{ color: colors.text }}>
+              Current <span className="listings-section__title-accent">bookings</span>
+            </h2>
+            {currentBookings.length === 0 ? (
+              <div className="profile-empty" style={{ background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 16 }}>
+                <p className="profile-empty__text" style={{ color: colors.secondaryText }}>No active or pending bookings.</p>
+              </div>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {currentBookings.map((b) => (
+                  <li
+                    key={b.id}
+                    style={{
+                      background: colors.cardBg,
+                      border: `1px solid ${colors.border}`,
+                      borderRadius: 12,
+                      padding: 16,
+                      color: colors.text,
+                    }}
+                  >
+                    <strong>{b.listing?.title || 'Listing'}</strong>
+                    <div style={{ color: colors.secondaryText, fontSize: 14, marginTop: 6 }}>
+                      Status: {b.status}
+                      {(b.checkInDate || b.moveInDate) && (
+                        <span> · Move-in: {b.checkInDate || b.moveInDate}</span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {isLandlord && (
+          <section style={{ marginTop: 32, textAlign: 'left' }}>
+            <h2 className="listings-section__title" style={{ color: colors.text }}>
+              <span className="listings-section__title-accent">Listings</span> & reviews
+            </h2>
+            {landlordListings.length === 0 ? (
+              <div className="profile-empty" style={{ background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 16 }}>
+                <p className="profile-empty__text" style={{ color: colors.secondaryText }}>No listings yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {landlordListings.map((listing) => (
+                  <article
+                    key={listing.id}
+                    style={{
+                      background: colors.cardBg,
+                      border: `1px solid ${colors.border}`,
+                      borderRadius: 16,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, padding: 20 }}>
+                      <div
+                        style={{
+                          width: 120,
+                          height: 90,
+                          borderRadius: 8,
+                          background: '#e8e8e8',
+                          flexShrink: 0,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {listing.images?.[0] ? (
+                          <img src={listing.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🏠</div>
+                        )}
+                      </div>
+                      <div style={{ flex: '1 1 200px' }}>
+                        <h3 style={{ margin: '0 0 6px 0', color: colors.text, fontSize: 18 }}>{listing.title}</h3>
+                        <p style={{ margin: 0, color: colors.secondaryText, fontSize: 14 }}>{listing.address}</p>
+                        {listing.price != null && (
+                          <p style={{ margin: '8px 0 0 0', color: '#E8622E', fontWeight: 700 }}>₱{Number(listing.price).toLocaleString()}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ borderTop: `1px solid ${colors.border}`, padding: '12px 20px 20px' }}>
+                      <h4 style={{ margin: '0 0 10px 0', fontSize: 14, color: colors.secondaryText }}>Reviews</h4>
+                      {!listing.reviews?.length ? (
+                        <p style={{ margin: 0, color: colors.secondaryText, fontSize: 14 }}>No reviews yet.</p>
+                      ) : (
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {listing.reviews.map((r) => (
+                            <li key={r.id} style={{ fontSize: 14, color: colors.text }}>
+                              <span style={{ color: '#E8622E', fontWeight: 600 }}>{'★'.repeat(Math.min(5, Math.max(0, r.rating || 0)))}</span>
+                              {r.body && <span style={{ marginLeft: 8 }}>{r.body}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );
