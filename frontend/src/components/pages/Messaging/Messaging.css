@@ -425,3 +425,16 @@
   text-align: center;
   font-size: 14px;
 }
+
+/* ===== Theme consistency overrides ===== */
+.messaging-wrapper {
+  background: var(--surface-bg);
+}
+
+.notification-toggle:hover {
+  background: color-mix(in srgb, var(--text-main) 10%, transparent);
+}
+
+.status-indicator--delivered {
+  color: var(--text-muted);
+}

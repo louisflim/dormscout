@@ -4,6 +4,28 @@
   --bg-start: #f6dfc9;
   --bg-mid: #e8d8c8;
   --bg-end: #d7ebe9;
+  --surface-bg: #ffffff;
+  --surface-bg-soft: #f9f9f9;
+  --text-main: #333333;
+  --text-strong: #222222;
+  --text-muted: #666666;
+  --border-soft: rgba(0, 0, 0, 0.12);
+  --header-bg: rgba(255, 255, 255, 0.84);
+  --header-border: rgba(0, 0, 0, 0.06);
+}
+
+html[data-theme='dark'] {
+  --bg-start: #0f172a;
+  --bg-mid: #111827;
+  --bg-end: #1f2937;
+  --surface-bg: #16213e;
+  --surface-bg-soft: #0f3460;
+  --text-main: #e5e7eb;
+  --text-strong: #f3f4f6;
+  --text-muted: #9ca3af;
+  --border-soft: rgba(255, 255, 255, 0.14);
+  --header-bg: rgba(15, 23, 42, 0.84);
+  --header-border: rgba(255, 255, 255, 0.12);
 }
 
 * {
@@ -16,7 +38,7 @@ html,
   min-height: 100%;
   margin: 0;
   font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-  color: #333;
+  color: var(--text-main);
 }
 
 .app-shell {
@@ -31,16 +53,16 @@ html,
   padding: 18px 40px;
   position: sticky;
   top: 0;
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--header-bg);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--header-border);
   z-index: 10;
 }
 
 .logo {
   font-size: 26px;
   font-weight: 700;
-  color: #222;
+  color: var(--text-strong);
 }
 
 .links {
@@ -65,7 +87,7 @@ html,
 }
 
 .nav-link.active {
-  color: #222;
+  color: var(--text-strong);
   background-color: rgba(232, 100, 62, 0.22);
 }
 
@@ -86,7 +108,7 @@ html,
   font-size: 46px;
   line-height: 1.2;
   font-weight: 800;
-  color: #333;
+  color: var(--text-main);
 }
 
 .search-wrap {
@@ -99,10 +121,12 @@ html,
 .search-input {
   min-width: 340px;
   max-width: 540px;
-  border: 1px solid rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border-soft);
   border-radius: 10px;
   padding: 11px 14px;
   font-size: 16px;
+  background: var(--surface-bg);
+  color: var(--text-main);
 }
 
 .primary-btn {
@@ -126,7 +150,7 @@ html,
   margin-bottom: 28px;
   font-size: 28px;
   font-weight: 700;
-  color: #333;
+  color: var(--text-main);
 }
 
 .feature-grid {
@@ -142,8 +166,8 @@ html,
   gap: 12px;
   padding: 16px;
   border-radius: 16px;
-  background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(0,0,0,0.06);
+  background: color-mix(in srgb, var(--surface-bg) 88%, transparent);
+  border: 1px solid var(--border-soft);
 }
 
 .feature-card .icon {
@@ -161,7 +185,7 @@ html,
   margin: 0;
   font-weight: 600;
   font-size: 14px;
-  color: #333;
+  color: var(--text-main);
 }
 
 .auth-screen {
@@ -173,7 +197,7 @@ html,
 
 .auth-card {
   width: min(560px, 100%);
-  background: #fff;
+  background: var(--surface-bg);
   border-radius: 28px;
   box-shadow: 0 12px 30px rgba(50, 50, 93, 0.09);
   padding: 28px 28px 32px;
@@ -204,9 +228,11 @@ html,
 .auth-form input {
   height: 46px;
   border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-soft);
   padding: 0 12px;
   font-size: 15px;
+  background: var(--surface-bg);
+  color: var(--text-main);
 }
 
 .auth-form input:focus {

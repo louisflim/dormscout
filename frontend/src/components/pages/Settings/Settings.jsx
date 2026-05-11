@@ -329,6 +329,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   const [course,          setCourse]          = useState(user?.course || '');
   const [yearLevel,       setYearLevel]       = useState(user?.yearLevel || '');
   const [studentId,       setStudentId]       = useState(user?.studentId || '');
+  const [bio,             setBio]             = useState(user?.bio || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword,     setNewPassword]     = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -360,6 +361,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
         setCourse(saved.course || '');
         setYearLevel(saved.yearLevel || '');
         setStudentId(saved.studentId || '');
+        setBio(saved.bio || '');
         setBusinessName(saved.businessName || '');
         setBusinessPermit(saved.businessPermit || '');
         setIsVerified(Boolean(saved.verified || saved.isVerified));
@@ -377,6 +379,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       setCourse(user.course || '');
       setYearLevel(user.yearLevel || '');
       setStudentId(user.studentId || '');
+      setBio(user.bio || '');
       setBusinessName(user.businessName || '');
       setBusinessPermit(user.businessPermit || '');
       setIsVerified(Boolean(user.verified || user.isVerified));
@@ -486,6 +489,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
           phone: phoneNumber,
           phoneNumber,
           gender,
+          bio,
           profileImage,
         });
 
@@ -803,6 +807,16 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                   <option value="Prefer not to say">Prefer not to say</option>
                 </select>
               </div>
+            </div>
+
+            <div className="settings-grid-2 settings-grid-2--mb">
+              <InputField
+                label="Bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder={isLandlord ? 'Tell students about your property and hosting style' : 'Tell landlords a bit about yourself'}
+                colors={colors}
+              />
             </div>
 
             {/* ✅ Save Button - Calls savePersonalInfo() ONLY */}

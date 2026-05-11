@@ -177,9 +177,11 @@ export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
     setShowDropdown(false);
   };
 
-  const bioText = isLandlord
-    ? 'Providing quality accommodation for students.'
-    : 'Looking for the perfect place to stay near campus.';
+  const bioText = (profileData?.bio || '').trim() || (
+    isLandlord
+      ? 'Providing quality accommodation for students.'
+      : 'Looking for the perfect place to stay near campus.'
+  );
 
   const verificationCaption = () => {
     if (!isLandlord || !isOwnProfile) return null;

@@ -31,6 +31,11 @@ export default function Register({ setUserType }) {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const isValidPhone = (phone) => {
+        const phoneRegex = /^(\+63|0)?[0-9]{10}$/;
+        return phoneRegex.test(phone.replace(/\s/g, ''));
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -53,6 +58,10 @@ export default function Register({ setUserType }) {
         }
         if (!gender) {
             setError('Please select your gender');
+            return;
+        }
+        if (!isValidPhone(formData.phone)) {
+            setError('Please enter a valid phone number');
             return;
         }
 

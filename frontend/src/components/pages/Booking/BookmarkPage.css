@@ -172,3 +172,20 @@
 .bookmark-btn-remove:hover {
   background: rgba(220, 53, 69, 0.08);
 }
+
+/* ===== Theme consistency overrides ===== */
+.bookmark-wrapper .bookmark-empty,
+.bookmark-wrapper .bookmark-card {
+  background: var(--surface-bg);
+  border-color: var(--border-soft);
+}
+
+.bookmark-wrapper .bookmark-card-title,
+.bookmark-wrapper .bookmark-map-placeholder {
+  color: var(--text-main);
+}
+
+.bookmark-wrapper .bookmark-empty,
+.bookmark-wrapper .bookmark-card-address {
+  color: var(--text-muted);
+}

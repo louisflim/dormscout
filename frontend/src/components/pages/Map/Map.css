@@ -470,3 +470,43 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* ===== Theme consistency overrides ===== */
+.map-wrapper .map-search-input,
+.map-wrapper .map-box,
+.map-wrapper .map-empty-state,
+.map-wrapper .map-modal,
+.map-wrapper .map-listing-card,
+.map-wrapper .map-uni-card,
+.map-wrapper .map-date-input,
+.map-wrapper .map-booking-box {
+  background: var(--surface-bg);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+}
+
+.map-wrapper .map-legend {
+  background: color-mix(in srgb, var(--surface-bg) 92%, transparent);
+  color: var(--text-main);
+  border: 1px solid var(--border-soft);
+}
+
+.map-wrapper .map-listing-card-title,
+.map-wrapper .map-modal-title,
+.map-wrapper .map-modal-detail-value,
+.map-wrapper .map-modal-desc-text,
+.map-wrapper .map-confirming-title,
+.map-wrapper .map-success-meta {
+  color: var(--text-main);
+}
+
+.map-wrapper .map-listing-card-address,
+.map-wrapper .map-modal-address,
+.map-wrapper .map-modal-detail-label,
+.map-wrapper .map-modal-desc-label,
+.map-wrapper .map-confirming-subtitle,
+.map-wrapper .map-success-subtitle,
+.map-wrapper .map-btn-back,
+.map-wrapper .map-modal-close {
+  color: var(--text-muted);
+}

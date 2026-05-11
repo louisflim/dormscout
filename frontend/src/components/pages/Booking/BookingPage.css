@@ -431,3 +431,45 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* ===== Theme consistency overrides ===== */
+.booking-wrapper .booking-title,
+.booking-wrapper .booking-card-title,
+.booking-wrapper .detail-modal-title,
+.booking-wrapper .listing-detail-value,
+.booking-wrapper .booking-details-row,
+.booking-wrapper .cancel-modal-title {
+  color: var(--text-main);
+}
+
+.booking-wrapper .booking-empty,
+.booking-wrapper .booking-card-address,
+.booking-wrapper .detail-modal-address,
+.booking-wrapper .listing-detail-label,
+.booking-wrapper .detail-description-label,
+.booking-wrapper .detail-description-text,
+.booking-wrapper .cancel-modal-subtitle,
+.booking-wrapper .cancel-label {
+  color: var(--text-muted);
+}
+
+.booking-wrapper .booking-empty,
+.booking-wrapper .booking-card,
+.booking-wrapper .booking-modal {
+  background: var(--surface-bg);
+  border-color: var(--border-soft);
+}
+
+.booking-wrapper .booking-map-placeholder,
+.booking-wrapper .booking-details-box,
+.booking-wrapper .cancel-input,
+.booking-wrapper .cancel-textarea,
+.booking-wrapper .btn-keep-booking {
+  background: var(--surface-bg-soft);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+}
+
+.booking-wrapper .booking-modal-close {
+  color: var(--text-muted);
+}

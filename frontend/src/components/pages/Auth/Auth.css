@@ -2,7 +2,7 @@
     min-height: 100vh;
     display: flex;
     flex-direction: row;
-    background: linear-gradient(135deg, #f5d5c0 0%, #d4ece8 100%);
+    background: linear-gradient(120deg, var(--bg-start) 0%, var(--bg-mid) 55%, var(--bg-end) 100%);
 }
 
 /* ── Left Panel ──────────────────────────────────────────── */
@@ -73,14 +73,14 @@
 .auth-tagline {
     font-size: 26px;
     font-weight: 500;
-    color: #222;
+    color: var(--text-strong);
     line-height: 1.4;
     margin: 0;
 }
 
 .auth-tagline-sub {
     font-size: 14px;
-    color: #555;
+    color: var(--text-muted);
     margin: 0;
     line-height: 1.6;
 }
@@ -99,12 +99,13 @@
 
 
 .auth-card {
-    background: #fff;
+    background: var(--surface-bg);
     border-radius: 12px;
     padding: 32px 28px;
     width: 100%;
     max-width: 420px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.09), 0 0 1px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--border-soft);
 }
 
 /* ── Shared Card Typography ──────────────────────────────── */
@@ -112,14 +113,14 @@
 .auth-card-title {
     font-size: 20px;
     font-weight: 700;
-    color: #1c1e21;
+    color: var(--text-strong);
     text-align: center;
     margin: 0 0 6px 0;
 }
 
 .auth-card-subtitle {
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
     text-align: center;
     margin: 0 0 20px 0;
 }
@@ -139,9 +140,9 @@
     cursor: pointer;
     font-weight: 600;
     font-size: 13px;
-    border: 1.5px solid #ddd;
-    background: #fff;
-    color: #555;
+    border: 1.5px solid var(--border-soft);
+    background: var(--surface-bg);
+    color: var(--text-muted);
     transition: all 0.2s ease;
     font-family: inherit;
 }
@@ -180,15 +181,15 @@
 .auth-input {
     width: 100%;
     padding: 13px 14px;
-    border: 1.5px solid #e0e0e0;
+    border: 1.5px solid var(--border-soft);
     border-radius: 8px;
     font-size: 15px;
     font-family: inherit;
     box-sizing: border-box;
-    color: #222;
+    color: var(--text-main);
     transition: border-color 0.2s;
     outline: none;
-    background: #fff;
+    background: var(--surface-bg);
 }
 
 .auth-input:focus {
@@ -199,13 +200,13 @@
 .auth-select {
     width: 100%;
     padding: 13px 14px;
-    border: 1.5px solid #e0e0e0;
+    border: 1.5px solid var(--border-soft);
     border-radius: 8px;
     font-size: 15px;
     font-family: inherit;
     box-sizing: border-box;
-    color: #222;
-    background: #fff;
+    color: var(--text-main);
+    background: var(--surface-bg);
     outline: none;
     transition: border-color 0.2s;
     appearance: none;           
@@ -218,7 +219,7 @@
 
 .auth-gender-label {
     font-size: 13px;
-    color: #555;
+    color: var(--text-muted);
     font-weight: 600;
     margin-bottom: 6px;
     display: block;
@@ -247,7 +248,7 @@
 
 .auth-divider {
     border: none;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--border-soft);
     margin: 18px 0;
 }
 
@@ -274,7 +275,7 @@
 
 .auth-footer-text {
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
 }
 
 /* ── Success State (ForgotPassword) ──────────────────────── */
@@ -282,9 +283,19 @@
 .auth-success-message {
     text-align: center;
     font-size: 14px;
-    color: #555;
+    color: var(--text-muted);
     margin-bottom: 20px;
     line-height: 1.6;
+}
+
+html[data-theme='dark'] .auth-photo {
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme='dark'] .auth-error {
+    background: rgba(239, 68, 68, 0.14);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.45);
 }
 
 /* ── Responsive ──────────────────────────────────────────── */

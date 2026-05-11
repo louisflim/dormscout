@@ -43,7 +43,10 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
     try {
-      return localStorage.getItem('darkMode') === 'true';
+      const savedTheme = localStorage.getItem('darkMode');
+      if (savedTheme === 'true') return true;
+      if (savedTheme === 'false') return false;
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     } catch (_) {
       return false;
     }

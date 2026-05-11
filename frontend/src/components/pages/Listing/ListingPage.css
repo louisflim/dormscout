@@ -455,3 +455,42 @@
 input[type="file"] {
   accent-color: #E8622E;
 }
+
+/* ===== Theme consistency overrides ===== */
+.listing-wrapper .listing-section-title,
+.listing-wrapper .listing-card-title,
+.listing-wrapper .listing-tips-title {
+  color: var(--text-main);
+}
+
+.listing-wrapper .listing-section-subtitle,
+.listing-wrapper .listing-card-address,
+.listing-wrapper .listing-map-hint-text,
+.listing-wrapper .listing-upload-label,
+.listing-wrapper .listing-tips-list {
+  color: var(--text-muted);
+}
+
+.listing-wrapper .listing-empty,
+.listing-wrapper .listing-card,
+.listing-wrapper .listing-tenant-box,
+.listing-wrapper .listing-tips-card {
+  background: var(--surface-bg);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+}
+
+.listing-wrapper .listing-card-placeholder,
+.listing-wrapper .listing-tag,
+.listing-wrapper .listing-input,
+.listing-wrapper .listing-select,
+.listing-wrapper .listing-textarea,
+.listing-wrapper .listing-price-wrap {
+  background: var(--surface-bg-soft);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+}
+
+.listing-wrapper .listing-price-symbol {
+  border-right-color: var(--border-soft);
+}
