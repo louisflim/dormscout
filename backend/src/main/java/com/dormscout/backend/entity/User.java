@@ -44,6 +44,10 @@ public class User {
     private String studentId;
     @Column(columnDefinition = "TEXT")
     private String profileImage;
+
+    @Column(columnDefinition = "TEXT")
+    private String bio;
+
     private String businessName;
     private String businessPermit;
     private boolean isVerified;

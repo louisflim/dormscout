@@ -1,0 +1,9 @@
+# Copy this file to application-local.properties (same folder) and set your real MySQL password.
+# application-local.properties is gitignored.
+#
+#   PowerShell: copy src\main\resources\application-local.properties.example src\main\resources\application-local.properties
+#
+spring.datasource.password=YOUR_MYSQL_ROOT_PASSWORD_HERE
+
+# Uncomment if your MySQL user is not root:
+# spring.datasource.username=myuser

@@ -33,6 +33,8 @@ target
 # Spring Boot
 application*.properties.local
 application*.yml.local
+# Local DB credentials (copy from application-local.properties.example)
+src/main/resources/application-local.properties
 
 # Environment
 .env

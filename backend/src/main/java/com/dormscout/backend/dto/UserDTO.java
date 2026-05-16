@@ -25,6 +25,7 @@ public class UserDTO {
     private String yearLevel;
     private String studentId;
     private String profileImage;
+    private String bio;
     private String businessName;
     private String businessPermit;
     private boolean verified;

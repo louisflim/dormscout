@@ -479,8 +479,11 @@ const handleDeleteUser = async (userId) => {
   }, [supportMessages, selectedSupportId, selectedDirectUser]);
 
   const handleMessageUser = (userRecord) => {
+    const numericId = userRecord?.id != null ? Number(userRecord.id) : NaN;
     const directTarget = {
       id: `direct-user-${userRecord?.id || Date.now()}`,
+      otherUserId: Number.isFinite(numericId) ? numericId : undefined,
+      userId: Number.isFinite(numericId) ? numericId : undefined,
       name:
         userRecord?.name ||
         (userRecord?.firstName && userRecord?.lastName
@@ -547,19 +550,40 @@ const handleDeleteUser = async (userId) => {
     }
 
     const adminId = adminUser?.id;
-    const recipientId = selectedSupportMessage.otherUserId || selectedSupportMessage.userId || selectedSupportMessage.id;
+    const rawRecipient =
+      selectedSupportMessage.otherUserId ??
+      selectedSupportMessage.userId ??
+      (selectedSupportMessage.isDirectUser ? null : selectedSupportMessage.id);
+    const recipientId = rawRecipient != null && rawRecipient !== '' ? Number(rawRecipient) : NaN;
+
     if (!adminId) {
       showInlineNotice('Admin session missing. Please log in again.', 'is-bad');
+      return;
+    }
+    if (!Number.isFinite(recipientId) || recipientId <= 0) {
+      showInlineNotice('Invalid recipient; open this user from Users and use Message again.', 'is-bad');
       return;
     }
 
     try {
       const convId = buildConversationId(adminId, recipientId);
-      await fetch(`http://localhost:8080/api/messages?senderId=${adminId}&receiverId=${recipientId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: directReply.trim(), conversationId: convId }),
-      });
+      const res = await fetch(
+        `http://localhost:8080/api/messages?senderId=${adminId}&receiverId=${recipientId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: directReply.trim(), conversationId: convId }),
+        }
+      );
+      if (!res.ok) {
+        let errMsg = `Server error (${res.status})`;
+        try {
+          const body = await res.json();
+          errMsg = body?.message || errMsg;
+        } catch (_) { /* ignore */ }
+        showInlineNotice(errMsg, 'is-bad');
+        return;
+      }
       setSupportMessages(prev =>
         prev.map(item =>
           item.id === selectedSupportMessage.id
@@ -567,6 +591,13 @@ const handleDeleteUser = async (userId) => {
             : item
         )
       );
+      if (selectedSupportMessage.isDirectUser) {
+        setSelectedDirectUser((prev) =>
+          prev && prev.id === selectedSupportMessage.id
+            ? { ...prev, replied: true, repliedAt: new Date().toISOString(), latestReply: directReply.trim() }
+            : prev
+        );
+      }
       setDirectReply('');
       showInlineNotice(`Reply sent to ${selectedSupportMessage.name || selectedSupportMessage.email}.`, 'is-good');
     } catch (err) {
@@ -1189,9 +1220,28 @@ const handleDeleteUser = async (userId) => {
                   <h3>Support Inbox</h3>
                   <p>Pick a concern to reply directly to the sender.</p>
                   <div className="admin-support-list">
-                    {supportMessages.length === 0 ? (
+                    {supportMessages.length === 0 && !selectedDirectUser ? (
                       <p className="admin-empty">No support concerns yet.</p>
-                    ) : supportMessages.map((item) => {
+                    ) : null}
+                    {selectedDirectUser ? (
+                      <div
+                        key={selectedDirectUser.id}
+                        className={`admin-support-item ${!selectedSupportId ? 'active' : ''}`}
+                        onClick={() => {
+                          setSelectedSupportId(null);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <div className="admin-support-item-top">
+                          <strong>{selectedDirectUser.name || 'User'}</strong>
+                          <span className="admin-badge is-pending">Direct</span>
+                        </div>
+                        <p>Message from Users table — {selectedDirectUser.subject || 'Direct message'}</p>
+                        <small>{selectedDirectUser.email || 'No email'} · {toDisplayDate(selectedDirectUser.createdAt)}</small>
+                      </div>
+                    ) : null}
+                    {supportMessages.map((item) => {
                       const isActive = selectedSupportId === item.id;
                       return (
                         <div

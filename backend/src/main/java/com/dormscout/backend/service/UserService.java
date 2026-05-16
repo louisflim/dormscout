@@ -152,6 +152,9 @@ public class UserService {
             if (updates.getProfileImage() != null) {
                 user.setProfileImage(updates.getProfileImage());
             }
+            if (updates.getBio() != null) {
+                user.setBio(updates.getBio());
+            }
             if (updates.getPassword() != null && !updates.getPassword().trim().isEmpty()) {
                 validatePasswordPolicy(updates.getPassword());
                 user.setPassword(passwordEncoder.encode(updates.getPassword()));
@@ -243,6 +246,7 @@ public class UserService {
             dto.setYearLevel(user.getYearLevel());
             dto.setStudentId(user.getStudentId());
             dto.setProfileImage(user.getProfileImage());
+            dto.setBio(user.getBio());
         dto.setBusinessName(user.getBusinessName());
         dto.setBusinessPermit(user.getBusinessPermit());
         dto.setVerified(user.isVerified());
