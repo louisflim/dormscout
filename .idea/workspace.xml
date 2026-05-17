@@ -5,20 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="388b320f-60eb-47da-829b-907b7b342485" name="Changes" comment="majorBugFixes(Dynamic Pins and Filters)">
-      <change afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/discord.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/dormscout/backend/controller/ActivityController.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/dormscout/backend/entity/Activity.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/dormscout/backend/repository/ActivityRepository.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/dormscout/backend/service/ActivityService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/copilotDiffState.xml" beforeDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/dormscout/backend/controller/ChatController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/Chatbot/GroqChatbot.css" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/Chatbot/GroqChatbot.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/dormscout/backend/service/ListingService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/dormscout/backend/service/ListingService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Booking/BookingPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Booking/BookingPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Dashboard/Dashboard.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Dashboard/Dashboard.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Listing/ListingPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Listing/ListingPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/pages/Map/Map.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/pages/Map/Map.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/utils/api.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/api.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/dormscout/backend/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/dormscout/backend/config/SecurityConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application-local.properties.example" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application-local.properties.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

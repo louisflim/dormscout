@@ -13,6 +13,7 @@ import AboutUs from './components/pages/About/AboutUs.jsx';
 import ProfilePage from './components/pages/Profile/ProfilePage.jsx';
 import Report from './components/pages/Report/Report.jsx';
 import AdminPage from './components/pages/Admin/AdminPage.jsx';
+import GroqChatbot from './components/Chatbot/GroqChatbot';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -149,10 +150,10 @@ function App() {
       <BookingProvider>
         <div className="app-shell">
           <AppRoutes />
+          <GroqChatbot />  { }
         </div>
       </BookingProvider>
     </AuthProvider>
-
   );
 }
 
