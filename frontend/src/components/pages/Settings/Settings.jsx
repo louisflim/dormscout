@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { userAPI } from '../../../utils/api';
 import { validatePasswordStrength } from '../../../utils/passwordValidation';
+import { prepareProfileImageDataUrl, profileImageCacheKey } from '../../../utils/profileImage';
 import { UNIVERSITY_NAMES } from '../../../constants/universities';
 import './Settings.css';
 
@@ -91,27 +92,38 @@ const InputField = ({
 /* ─────────────────────────── FileUpload ─────────────────────── */
 const FileUpload = ({
   onFileSelect,
-  accept = "image/*",
+  accept = 'image/jpeg,image/png,image/webp,image/gif',
   currentImage,
-  colors
+  colors,
+  disabled = false,
 }) => {
   const [preview, setPreview] = useState(currentImage || null);
+  const [previewKey, setPreviewKey] = useState(() => profileImageCacheKey(currentImage));
   const fileInputRef = useRef(null);
   const [fileError, setFileError] = useState('');
+  const [processing, setProcessing] = useState(false);
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setFileError('File size must be less than 5MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result);
-        onFileSelect(file, reader.result);
-      };
-      reader.readAsDataURL(file);
+  useEffect(() => {
+    setPreview(currentImage || null);
+    setPreviewKey(profileImageCacheKey(currentImage));
+  }, [currentImage]);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileError('');
+    setProcessing(true);
+    try {
+      const dataUrl = await prepareProfileImageDataUrl(file);
+      setPreview(dataUrl);
+      setPreviewKey(profileImageCacheKey(dataUrl));
+      onFileSelect(file, dataUrl);
+    } catch (err) {
+      setFileError(err.message || 'Could not process image');
+    } finally {
+      setProcessing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -121,22 +133,25 @@ const FileUpload = ({
         ref={fileInputRef}
         type="file"
         accept={accept}
+        disabled={disabled || processing}
         onChange={handleFileChange}
         style={{ display: 'none' }}
       />
       <div
         className="file-upload__preview"
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !disabled && !processing && fileInputRef.current?.click()}
         style={{
           border: `2px dashed ${colors.border}`,
           borderRadius: '12px',
           padding: '20px',
           textAlign: 'center',
-          cursor: 'pointer'
+          cursor: disabled || processing ? 'wait' : 'pointer',
+          opacity: disabled || processing ? 0.7 : 1,
         }}
       >
         {preview ? (
           <img
+            key={previewKey}
             src={preview}
             alt="Preview"
             style={{
@@ -149,12 +164,12 @@ const FileUpload = ({
         ) : (
           <div style={{ color: colors.secondaryText }}>
             <span style={{ fontSize: '2rem' }}>📷</span>
-            <p>Click to upload</p>
+            <p>{processing ? 'Processing…' : 'Click to upload'}</p>
           </div>
         )}
       </div>
       <p style={{ color: colors.secondaryText, fontSize: '0.8rem', marginTop: '8px' }}>
-        Supported: JPG, PNG (Max 5MB)
+        JPG, PNG, or WebP (max 5MB). Click Save Changes below to apply.
       </p>
 
       {fileError && (
@@ -293,6 +308,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   const dk = darkMode;
   const [isLoading, setIsLoading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const profileImageDirty = useRef(false);
   const [passwordErrors, setPasswordErrors] = useState({});
 
   // Section-specific messages
@@ -314,7 +330,23 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   const userTypeFromContext = user?.userType;
   const isLandlord = userTypeFromContext === 'landlord' || propUserType === 'landlord';
 
-  const [activeSettingTab, setActiveSettingTab] = useState('profile');
+  const [activeSettingTab, setActiveSettingTab] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('dormscout_settings_tab');
+      return saved === 'application' ? 'application' : 'profile';
+    } catch {
+      return 'profile';
+    }
+  });
+
+  const selectSettingTab = (tab) => {
+    setActiveSettingTab(tab);
+    try {
+      sessionStorage.setItem('dormscout_settings_tab', tab);
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Load saved profile from context on mount
   const savedProfileRef = useRef(() => ({}));
@@ -392,6 +424,13 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     }
   }, [user?.id, user]);
 
+  useEffect(() => {
+    if (profileImageDirty.current) return;
+    if (user?.profileImage !== undefined) {
+      setProfileImage(user.profileImage || null);
+    }
+  }, [user?.profileImage]);
+
   // Auto-clear messages after 3 seconds
   useEffect(() => {
     if (profileMessage.text) {
@@ -434,10 +473,13 @@ export default function Settings({ userType: propUserType, darkMode = false, set
     color:      activeSettingTab === tab ? '#fff'  : colors.text,
   });
 
-  // Handle profile image upload
-  const handleProfileImageUpload = useCallback((file, dataUrl) => {
+  const handleProfileImageUpload = useCallback((_file, dataUrl) => {
+    profileImageDirty.current = true;
     setProfileImage(dataUrl);
-    setProfileMessage({ text: 'Profile picture updated! Click Save Changes to apply.', type: 'success' });
+    setProfileMessage({
+      text: 'Photo selected. Click Save Changes to apply.',
+      type: 'success',
+    });
   }, []);
 
   // Validate email format
@@ -479,7 +521,8 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       const normalizedLastName = lastName.trim();
       const fullName = `${normalizedFirstName} ${normalizedLastName}`.trim();
 
-      // Save to AuthContext - PERSONAL INFO ONLY
+      let savedProfileImage = profileImage;
+
       if (user) {
         const result = await updateUser({
           firstName: normalizedFirstName,
@@ -497,10 +540,16 @@ export default function Settings({ userType: propUserType, darkMode = false, set
           setProfileMessage({ text: result?.message || 'Failed to update profile. Please try again.', type: 'error' });
           return;
         }
+
+        if (result.user?.profileImage !== undefined) {
+          savedProfileImage = result.user.profileImage || null;
+          setProfileImage(savedProfileImage);
+        }
+        profileImageDirty.current = false;
       }
 
       window.dispatchEvent(new CustomEvent('dormscout:profileUpdated', {
-        detail: { profileImage }
+        detail: { profileImage: savedProfileImage },
       }));
 
       setProfileMessage({ text: 'Personal information saved! ✓', type: 'success' });
@@ -709,11 +758,35 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   }
 
   /* ── Render ── */
+  const saving = isLoading;
+
   return (
     <div
       className="settings-wrapper"
-      style={{ background: colors.cardBg, border: `1px solid ${colors.border}` }}
+      style={{
+        background: colors.cardBg,
+        border: `1px solid ${colors.border}`,
+        position: 'relative',
+      }}
     >
+      {saving && (
+        <div
+          className="settings-saving-overlay"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.12)',
+            borderRadius: 'inherit',
+          }}
+        >
+          <LoadingSpinner text="Saving..." />
+        </div>
+      )}
+
       {/* ── Tabs ── */}
       <div className="settings-tabs">
         {[
@@ -724,17 +797,15 @@ export default function Settings({ userType: propUserType, darkMode = false, set
             key={key}
             className="settings-tab-btn"
             style={tabStyle(key)}
-            onClick={() => setActiveSettingTab(key)}
+            onClick={() => selectSettingTab(key)}
           >
             {label}
           </button>
         ))}
       </div>
 
-      {isLoading && <LoadingSpinner text="Saving..." />}
-
       {/* ══════════════ PROFILE TAB ══════════════ */}
-      {activeSettingTab === 'profile' && !isLoading && (
+      {activeSettingTab === 'profile' && (
         <>
           {/* Profile Picture */}
           <SettingSection title="Profile Picture" colors={colors}>
@@ -743,6 +814,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                 onFileSelect={handleProfileImageUpload}
                 currentImage={profileImage}
                 colors={colors}
+                disabled={saving}
               />
             </div>
           </SettingSection>
@@ -1096,7 +1168,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       )}
 
       {/* ══════════════ APPLICATION TAB ══════════════ */}
-      {activeSettingTab === 'application' && !isLoading && (
+      {activeSettingTab === 'application' && (
         <>
           <SettingSection title="Appearance" colors={colors}>
             <SettingRow

@@ -42,7 +42,7 @@ public class User {
     private String course;
     private String yearLevel;
     private String studentId;
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "LONGTEXT")
     private String profileImage;
 
     @Column(columnDefinition = "TEXT")

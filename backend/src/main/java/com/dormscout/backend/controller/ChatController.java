@@ -19,6 +19,11 @@ public class ChatController {
 
     @PostMapping("/completions")
     public ResponseEntity<String> chat(@RequestBody Map<String, Object> body) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"error\":\"GROQ_API_KEY is not configured. Add it to application-local.properties.\"}");
+        }
         try {
             RestTemplate rt = new RestTemplate();
             HttpHeaders headers = new HttpHeaders();

@@ -36,7 +36,7 @@ public class Listing {
 
     private Integer availableRooms;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "LONGTEXT")
     private String description;
 
     private String status; // "Active", "Inactive"
@@ -46,7 +46,7 @@ public class Listing {
     private List<String> tags;
 
     @Convert(converter = StringListConverter.class)
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "LONGTEXT")
     private List<String> images;
 
     private String rooms;   // "Single Room", "Double Room", etc.

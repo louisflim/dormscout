@@ -66,7 +66,11 @@ export const userAPI = {
             return response.data;
         } catch (error) {
             console.error('❌ API: updateUser error:', error);
-            return null;
+            const status = error.response?.status;
+            const message = error.response?.data?.message
+                || (status === 413 ? 'Image is too large for the server. Try a smaller photo.' : null)
+                || 'Failed to update profile';
+            return { success: false, message };
         }
     },
 

@@ -105,19 +105,34 @@ export function AuthProvider({ children }) {
             const result = await userAPI.updateUser(user.id, userData);
             console.log('📦 AuthContext: updateUser result:', result);
 
-            if (result && result.success !== false) {
-                const updatedUser = { ...user, ...result };
-                console.log('✅ AuthContext: User update successful');
-                console.log('📦 updatedUser:', updatedUser);
-
-                setUser(updatedUser);
-                sessionStorage.setItem('authUser', JSON.stringify(updatedUser));
-                localStorage.setItem('userType', updatedUser.userType || userType || '');
-
-                return { success: true, user: updatedUser };
-            } else {
-                return { success: false, message: 'Update failed' };
+            if (!result || result.success === false) {
+                return {
+                    success: false,
+                    message: result?.message || 'Update failed',
+                };
             }
+
+            const updatedUser = {
+                ...user,
+                ...result,
+                profileImage:
+                    result.profileImage !== undefined && result.profileImage !== null
+                        ? result.profileImage
+                        : userData.profileImage !== undefined
+                            ? userData.profileImage
+                            : user.profileImage,
+                phone: result.phone ?? userData.phone ?? userData.phoneNumber ?? user.phone,
+                phoneNumber: result.phone ?? userData.phoneNumber ?? userData.phone ?? user.phoneNumber,
+                school: result.school ?? userData.school ?? userData.university ?? user.school,
+                university: result.school ?? userData.university ?? userData.school ?? user.university,
+                settings: result.settings ?? userData.settings ?? user.settings,
+            };
+
+            setUser(updatedUser);
+            sessionStorage.setItem('authUser', JSON.stringify(updatedUser));
+            localStorage.setItem('userType', updatedUser.userType || userType || '');
+
+            return { success: true, user: updatedUser };
         } catch (error) {
             console.error('❌ AuthContext: updateUser error:', error);
             return { success: false, message: 'Connection error. Please try again.' };

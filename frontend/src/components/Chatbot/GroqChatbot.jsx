@@ -1,11 +1,33 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import dormBotAvatar from '../../assets/images/DormBot.png';
 import './GroqChatbot.css';
+
+const BOT_NAME = 'DormBot';
+
+/** Dev: CRA proxy. Production (`serve -s build`): must hit backend directly. */
+const CHAT_API_URL =
+  process.env.REACT_APP_CHAT_API_URL ||
+  (process.env.NODE_ENV === 'production'
+    ? 'http://localhost:8080/api/chat/completions'
+    : '/api/chat/completions');
+
+function welcomeMessage(firstName) {
+  return `Hi${firstName ? ` ${firstName}` : ''}! 👋 I'm ${BOT_NAME}, your DormScout guide. Ask me anything about navigating the app.`;
+}
+
+function BotAvatar({ variant = 'msg' }) {
+  return (
+    <div className={`chatbot-avatar chatbot-avatar--${variant}`} aria-hidden="true">
+      <img src={dormBotAvatar} alt="" />
+    </div>
+  );
+}
 
 // ── Page navigation knowledge base ──────────────────────────────────────────
 const NAVIGATION_CONTEXT = `
-You are Scout, DormScout's friendly in-app navigation assistant. DormScout is a dorm-finding platform in Cebu, Philippines that connects students (tenants) with landlords.
+You are DormBot, DormScout's friendly in-app navigation assistant. DormScout is a dorm-finding platform in Cebu, Philippines that connects students (tenants) with landlords.
 
 ═══ APP PAGES & ROUTES ═══
 
@@ -122,7 +144,7 @@ export default function GrokChatbot() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: `Hi${user?.firstName ? ` ${user.firstName}` : ''}! 👋 I'm your DormScout guide. Ask me anything about navigating the app.`,
+      content: welcomeMessage(user?.firstName),
     },
   ]);
   const [input, setInput] = useState('');
@@ -193,7 +215,7 @@ export default function GrokChatbot() {
     setShowSuggestions(false);
 
     try {
-      const response = await fetch('/api/chat/completions', {
+      const response = await fetch(CHAT_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -256,7 +278,7 @@ export default function GrokChatbot() {
     setMessages([
       {
         role: 'assistant',
-        content: `Hi${user?.firstName ? ` ${user.firstName}` : ''}! 👋 I'm your DormScout guide. Ask me anything about navigating the app.`,
+        content: welcomeMessage(user?.firstName),
       },
     ]);
     setShowSuggestions(true);
@@ -267,21 +289,16 @@ export default function GrokChatbot() {
     <>
       {/* ── Floating toggle button ── */}
       <button
-        className={`chatbot-fab ${open ? 'chatbot-fab--open' : ''}`}
+        className={`chatbot-fab ${open ? 'chatbot-fab--open' : 'chatbot-fab--brand'}`}
         onClick={() => setOpen(o => !o)}
-        aria-label="Toggle navigation assistant"
+        aria-label={`Toggle ${BOT_NAME}`}
       >
         {open ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
           </svg>
         ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="9" cy="10" r="1" fill="currentColor" />
-            <circle cx="12" cy="10" r="1" fill="currentColor" />
-            <circle cx="15" cy="10" r="1" fill="currentColor" />
-          </svg>
+          <img src={dormBotAvatar} alt="" className="chatbot-fab-img" />
         )}
         {!open && <span className="chatbot-fab-pulse" />}
       </button>
@@ -290,16 +307,9 @@ export default function GrokChatbot() {
       <div className={`chatbot-window ${open ? 'chatbot-window--open' : ''}`}>
         {/* Header */}
         <div className="chatbot-header">
-          <div className="chatbot-header-avatar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
-              <path d="M8 14s1.5 2 4 2 4-2 4-2" strokeLinecap="round" />
-              <line x1="9" y1="9" x2="9.01" y2="9" strokeLinecap="round" strokeWidth="2.5" />
-              <line x1="15" y1="9" x2="15.01" y2="9" strokeLinecap="round" strokeWidth="2.5" />
-            </svg>
-          </div>
+          <BotAvatar variant="header" />
           <div className="chatbot-header-info">
-            <span className="chatbot-header-name">Scout</span>
+            <span className="chatbot-header-name">{BOT_NAME}</span>
             <span className="chatbot-header-status">
               <span className="chatbot-status-dot" />
               Navigation Assistant
@@ -317,9 +327,7 @@ export default function GrokChatbot() {
         <div className="chatbot-messages">
           {messages.map((msg, i) => (
             <div key={i} className={`chatbot-msg chatbot-msg--${msg.role}`}>
-              {msg.role === 'assistant' && (
-                <div className="chatbot-msg-avatar">S</div>
-              )}
+              {msg.role === 'assistant' && <BotAvatar />}
               <div className="chatbot-msg-bubble">
                 {msg.role === 'assistant'
                   ? parseContent(msg.content)
@@ -346,7 +354,7 @@ export default function GrokChatbot() {
           {/* Typing indicator */}
           {loading && (
             <div className="chatbot-msg chatbot-msg--assistant">
-              <div className="chatbot-msg-avatar">S</div>
+              <BotAvatar />
               <div className="chatbot-msg-bubble chatbot-typing">
                 <span /><span /><span />
               </div>
@@ -381,7 +389,7 @@ export default function GrokChatbot() {
           </button>
         </div>
 
-        <p className="chatbot-footer">Powered by Grok · DormScout Navigator</p>
+        <p className="chatbot-footer">Powered by Grok · {BOT_NAME}</p>
       </div>
     </>
   );

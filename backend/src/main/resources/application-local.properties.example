@@ -1,9 +1,16 @@
-# Copy this file to application-local.properties (same folder) and set your real MySQL password.
-# application-local.properties is gitignored.
+# Copy to application-local.properties (same folder). That file is gitignored.
 #
-#   PowerShell: copy src\main\resources\application-local.properties.example src\main\resources\application-local.properties
+#   PowerShell (from backend folder):
+#   copy src\main\resources\application-local.properties.example src\main\resources\application-local.properties
 #
-spring.datasource.password=YOUR_MYSQL_ROOT_PASSWORD_HERE
+# Use either format below — both work with application.properties placeholders.
+
+MYSQL_PASSWORD=YOUR_MYSQL_ROOT_PASSWORD_HERE
+GROQ_API_KEY=gsk_yourGroqKeyHere
+
+# Or set Spring properties directly:
+# spring.datasource.password=YOUR_MYSQL_ROOT_PASSWORD_HERE
+# groq.api.key=gsk_yourGroqKeyHere
 
 # Uncomment if your MySQL user is not root:
 # spring.datasource.username=myuser

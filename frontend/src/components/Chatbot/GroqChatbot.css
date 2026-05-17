@@ -5,7 +5,7 @@
   position: fixed;
   bottom: 28px;
   right: 28px;
-  z-index: 1000;
+  z-index: 10100;
   width: 54px;
   height: 54px;
   border-radius: 14px;
@@ -37,6 +37,21 @@
   border-radius: 12px;
 }
 
+.chatbot-fab--brand {
+  background: #fff;
+  border: 2px solid #E8622E;
+  padding: 3px;
+  box-shadow: 0 4px 16px rgba(232, 98, 46, 0.35);
+}
+
+.chatbot-fab-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 10px;
+}
+
 /* Pulse ring */
 .chatbot-fab-pulse {
   position: absolute;
@@ -59,7 +74,7 @@
   position: fixed;
   bottom: 96px;
   right: 28px;
-  z-index: 999;
+  z-index: 10100;
   width: 356px;
   max-height: 540px;
   border-radius: 16px;
@@ -104,21 +119,42 @@
   flex-shrink: 0;
 }
 
-.chatbot-header-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.2);
+/* DormBot avatar (header + message bubbles) */
+.chatbot-avatar {
+  flex-shrink: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
 }
 
-.chatbot-header-avatar svg {
-  width: 20px;
-  height: 20px;
-  stroke: #fff;
+.chatbot-avatar--header {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  padding: 2px;
+}
+
+.chatbot-avatar--msg {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  padding: 2px;
+  margin-bottom: 2px;
+}
+
+.chatbot-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+[data-theme="dark"] .chatbot-avatar {
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
 }
 
 .chatbot-header-info {
@@ -218,21 +254,6 @@
 
 .chatbot-msg--user {
   flex-direction: row-reverse;
-}
-
-.chatbot-msg-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: #E8622E;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-bottom: 2px;
 }
 
 .chatbot-msg-bubble {

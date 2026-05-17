@@ -185,9 +185,12 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         zoom: 13,
         scrollWheelZoom: true,
         preferCanvas: true,
+        attributionControl: false,
       });
 
       mapInstance.current = map;
+
+      L.control.attribution({ position: 'bottomleft' }).addTo(map);
 
       // Add tile layer
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
