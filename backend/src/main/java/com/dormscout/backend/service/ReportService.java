@@ -4,6 +4,7 @@ import com.dormscout.backend.entity.Report;
 import com.dormscout.backend.repository.ReportRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,10 +17,12 @@ public class ReportService {
         return reportRepository.save(report);
     }
 
+    @Transactional(readOnly = true)
     public List<Report> getAllReports() {
         return reportRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<Report> getReportsByStatus(String status) {
         return reportRepository.findByStatus(status);
     }

@@ -458,12 +458,33 @@ export const reviewsAPI = {
 export const reportsAPI = {
     /** File a report */
     fileReport: async (reporterId, reportData) => {
+        if (!reporterId) {
+            return { success: false, message: 'You must be logged in to submit a report.' };
+        }
         try {
             const response = await api.post('/reports', reportData, { params: { reporterId } });
-            return response.data;
+            const body = response.data;
+            if (body?.success === false) {
+                return { success: false, message: body.message || 'Failed to submit report.' };
+            }
+            return { success: true, data: body?.data ?? body };
         } catch (error) {
             console.error('❌ API: fileReport error:', error);
-            return null;
+            const message =
+                error.response?.data?.message ||
+                (typeof error.response?.data === 'string' ? error.response.data : null) ||
+                'Failed to submit report. Try a smaller photo or try again later.';
+            return { success: false, message };
+        }
+    },
+
+    getAll: async () => {
+        try {
+            const response = await api.get('/reports');
+            return Array.isArray(response.data) ? response.data : [];
+        } catch (error) {
+            console.error('❌ API: getReports error:', error);
+            return [];
         }
     },
 };

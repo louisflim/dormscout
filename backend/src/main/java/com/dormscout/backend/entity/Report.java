@@ -27,10 +27,11 @@ public class Report {
     @Column(nullable = false)
     private String reason;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "LONGTEXT")
     private String description;
 
-    @Column(columnDefinition = "TEXT")
+    /** Base64 evidence images exceed MySQL TEXT (64KB); use LONGTEXT. */
+    @Column(columnDefinition = "LONGTEXT")
     private String evidence;
 
     private String status = "pending";

@@ -14,6 +14,32 @@ const REASONS_MAP = {
   Tenant:   ['Property Damage', 'Non-Payment / Late Payment', 'Harassment or Threats', 'Violation of House Rules', 'Other'],
 };
 
+/** Resize/compress evidence photos so they fit DB limits and upload reliably. */
+function compressImageFile(file, maxWidth = 1280, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not process image'));
+    };
+    img.src = url;
+  });
+}
+
 const COLORS = {
   light: {
     bg:            'linear-gradient(120deg, #d7ebe9 0%, #e8d8c8 55%, #f6dfc9 100%)',
@@ -68,6 +94,8 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
   const [imagePreview,  setImagePreview]  = useState(null);
   const [errors,        setErrors]        = useState({});
   const [submitted,     setSubmitted]     = useState(false);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [submitError,   setSubmitError]   = useState('');
   const [showDropdown,  setShowDropdown]  = useState(false);
 
   const fileInputRef    = useRef(null);
@@ -121,21 +149,32 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
+    if (!user?.id) {
+      setSubmitError('You must be logged in to submit a report.');
+      return;
+    }
 
-    // Convert image to data URL then submit to backend
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const reportData = {
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const evidence = await compressImageFile(imageFile);
+      const result = await reportsAPI.fileReport(user.id, {
         reportType,
         subject:     subject.trim(),
         reason,
         description: description.trim(),
-        evidence:    reader.result,
-      };
-      await reportsAPI.fileReport(user?.id, reportData);
-      setSubmitted(true);
-    };
-    reader.readAsDataURL(imageFile);
+        evidence,
+      });
+      if (result?.success) {
+        setSubmitted(true);
+      } else {
+        setSubmitError(result?.message || 'Failed to submit report. Please try again.');
+      }
+    } catch {
+      setSubmitError('Could not process the image. Please try a different photo.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function handleNewReport() {
@@ -145,6 +184,7 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
     removeImage();
     setErrors({});
     setSubmitted(false);
+    setSubmitError('');
     setReportType(availableTypes[0]);
   }
 
@@ -425,9 +465,15 @@ export default function Report({ userType = 'tenant', darkMode = false, setDarkM
             </p>
           </div>
 
+          {submitError && <p className="report-error">{submitError}</p>}
+
           {/* Submit */}
-          <button type="submit" className="report-btn-primary report-submit-btn">
-            🚩 Submit Report
+          <button
+            type="submit"
+            className="report-btn-primary report-submit-btn"
+            disabled={submitting}
+          >
+            {submitting ? 'Submitting…' : '🚩 Submit Report'}
           </button>
         </form>
       </div>

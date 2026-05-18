@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { reportsAPI } from '../../../utils/api';
 import './AdminPage.css';
 import {
   LayoutDashboard,
@@ -230,9 +231,22 @@ export default function AdminPage() {
     }
   }, [loadAdminDerivedData]);
 
+  const reloadReports = useCallback(async () => {
+    try {
+      const list = await reportsAPI.getAll();
+      setReports(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Failed to reload reports:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (isLoggedIn) loadAdminData();
-  }, [isLoggedIn, activeSection, loadAdminData]);
+  }, [isLoggedIn, loadAdminData]);
+
+  useEffect(() => {
+    if (isLoggedIn && activeSection === 'reports') reloadReports();
+  }, [isLoggedIn, activeSection, reloadReports]);
 
   useEffect(() => {
     localStorage.setItem(ADMIN_DARKMODE_KEY, darkMode ? 'true' : 'false');
@@ -1083,6 +1097,9 @@ const handleDeleteUser = async (userId) => {
                       {tab[0].toUpperCase() + tab.slice(1)}
                     </button>
                   ))}
+                  <button type="button" className="admin-tab" onClick={reloadReports}>
+                    Refresh
+                  </button>
                 </div>
               </div>
 
@@ -1096,6 +1113,7 @@ const handleDeleteUser = async (userId) => {
                         <h4>{r.reportType || r.type || 'Report'}</h4>
                         <span className={`admin-badge ${getStatusClass(status)}`}>{status}</span>
                       </div>
+                      <p><strong>Reporter:</strong> {r.reporterName || 'N/A'}</p>
                       <p><strong>Subject:</strong> {r.subject || 'N/A'}</p>
                       <p><strong>Reason:</strong> {r.reason || 'N/A'}</p>
                       <p><strong>Description:</strong> {r.description || 'N/A'}</p>
