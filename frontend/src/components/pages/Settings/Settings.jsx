@@ -382,7 +382,6 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   const [profileImage,    setProfileImage]    = useState(user?.profileImage || null);
 
   // App settings
-  const [emailNotifications, setEmailNotifications] = useState(user?.settings?.emailNotifications !== false);
   const [inAppNotifications, setInAppNotifications]  = useState(user?.settings?.inAppNotifications !== false);
   const [messageAlerts,     setMessageAlerts]       = useState(user?.settings?.messageAlerts !== false);
 
@@ -427,7 +426,6 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       setIsVerified(Boolean(user.verified || user.isVerified));
       setVerificationStatus(user.verificationStatus || '');
       setProfileImage(user.profileImage || null);
-      setEmailNotifications(user.settings?.emailNotifications !== false);
       setInAppNotifications(user.settings?.inAppNotifications !== false);
       setMessageAlerts(user.settings?.messageAlerts !== false);
       initialSyncDone.current = true;
@@ -754,7 +752,6 @@ export default function Settings({ userType: propUserType, darkMode = false, set
         const result = await updateUser({
           settings: {
             ...(user.settings || {}),
-            emailNotifications,
             inAppNotifications,
             messageAlerts,
             darkMode,
@@ -1350,11 +1347,6 @@ export default function Settings({ userType: propUserType, darkMode = false, set
           </SettingSection>
 
           <SettingSection title="Notifications" colors={colors}>
-            <SettingRow
-              label="Email Notifications"
-              control={<Toggle checked={emailNotifications} onChange={setEmailNotifications} />}
-              colors={colors}
-            />
             <SettingRow
               label="In-App Notifications"
               control={<Toggle checked={inAppNotifications} onChange={setInAppNotifications} />}
