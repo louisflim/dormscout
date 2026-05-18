@@ -41,6 +41,12 @@ public class ReviewController {
                 ));
             }
 
+            if (reviewService.hasReviewed(tenantOpt.get(), listingOpt.get())) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                        "success", false, "message", "You have already reviewed this listing"
+                ));
+            }
+
             review.setTenant(tenantOpt.get());
             review.setListing(listingOpt.get());
 
@@ -53,6 +59,20 @@ public class ReviewController {
                 "success", false, "message", e.getMessage()
             ));
         }
+    }
+
+    @GetMapping("/check")
+    public ResponseEntity<?> checkReviewed(@RequestParam Long tenantId,
+                                           @RequestParam Long listingId) {
+        Optional<User> tenantOpt     = userService.findById(tenantId);
+        Optional<Listing> listingOpt = listingService.getListingById(listingId);
+
+        if (!tenantOpt.isPresent() || !listingOpt.isPresent()) {
+            return ResponseEntity.ok(Map.of("hasReviewed", false));
+        }
+
+        boolean hasReviewed = reviewService.hasReviewed(tenantOpt.get(), listingOpt.get());
+        return ResponseEntity.ok(Map.of("hasReviewed", hasReviewed));
     }
 
     @GetMapping

@@ -37,4 +37,6 @@ public class ReviewService {
     public void deleteReview(Long id) {
         reviewRepository.deleteById(id);
     }
+
+    public boolean hasReviewed(User tenant, Listing listing) { return reviewRepository.findByTenantAndListing(tenant, listing).isPresent(); }
 }

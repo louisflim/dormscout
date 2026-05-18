@@ -297,6 +297,7 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
   const [filterRating, setFilterRating] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [approvedListingIds, setApprovedListingIds] = useState(new Set());
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -359,8 +360,19 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
     return () => { cancelled = true; };
   }, [selectedDorm, availableDorms]);
 
+  useEffect(() => {
+    if (!user?.id || !selectedDorm || userType !== 'tenant') {
+      setAlreadyReviewed(false);
+      return;
+    }
+    reviewsAPI.checkReviewed(user.id, selectedDorm)
+      .then(data => setAlreadyReviewed(data?.hasReviewed || false))
+      .catch(() => setAlreadyReviewed(false));
+  }, [user?.id, selectedDorm, userType]);
+
   const canWriteReview = () => {
     if (userType !== 'tenant' || !user?.id || !selectedDorm) return false;
+    if (alreadyReviewed) return false;
     return approvedListingIds.has(Number(selectedDorm));
   };
 
@@ -400,32 +412,33 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
   };
 
   const handleSubmitReview = async ({ rating, body, tags, anonymous: postAnonymous }) => {
-    const newReview = {
-      id: `new_${Date.now()}`,
-      dormId: Number(selectedDorm),
-      author: postAnonymous ? 'Anonymous' : (user?.name || 'You'),
-      avatar: postAnonymous ? 'AN' : (user?.name || 'YO').slice(0, 2).toUpperCase(),
-      anonymous: Boolean(postAnonymous),
-      rating,
-      body,
-      tags,
-      helpful: 0,
-      userMarkedHelpful: false,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-    };
-    setReviews(prev => [newReview, ...prev]);
-
     try {
-      await reviewsAPI.createReview(user.id, selectedDorm, {
+      // ── Call backend FIRST before updating UI ──
+      const result = await reviewsAPI.createReview(user.id, selectedDorm, {
         rating,
         body,
         tags,
         anonymous: Boolean(postAnonymous),
       });
+
+      // Check if backend rejected it (duplicate or error)
+      if (!result || result.success === false) {
+        alert(result?.message || 'Could not submit review. You may have already reviewed this listing.');
+        return;
+      }
+
+      // ── Only update UI if backend accepted it ──
       const data = await reviewsAPI.getByListing(selectedDorm);
-      if (Array.isArray(data) && data.length > 0) setReviews(data);
-    } catch {
-      /* optimistic UI already updated */
+      if (Array.isArray(data) && data.length > 0) {
+        setReviews(data);
+      }
+
+      // Mark as already reviewed so button disappears
+      setAlreadyReviewed(true);
+
+    } catch (err) {
+      console.error('Review submit error:', err);
+      alert('Failed to submit review. Please try again.');
     }
   };
 
@@ -521,7 +534,7 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
                     ✏️ Write a<br />Review
                   </button>
                   <p style={{ color: colors.secondaryText, fontSize: 11, marginTop: 6 }}>
-                    Book this dorm first
+                    {alreadyReviewed ? 'Already reviewed' : 'Book this dorm first'}
                   </p>
                 </div>
               )

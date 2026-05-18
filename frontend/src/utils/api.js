@@ -440,7 +440,11 @@ export const reviewsAPI = {
             return response.data;
         } catch (error) {
             console.error('❌ API: createReview error:', error);
-            return null;
+            // ← return the backend error message so frontend can show it
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to submit review'
+            };
         }
     },
 
@@ -452,6 +456,19 @@ export const reviewsAPI = {
         } catch (error) {
             console.error('❌ API: deleteReview error:', error);
             return false;
+        }
+    },
+
+    /** Check if tenant already reviewed a listing */
+    checkReviewed: async (tenantId, listingId) => {
+        try {
+            const response = await api.get('/reviews/check', {
+                params: { tenantId, listingId }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: checkReviewed error:', error);
+            return { hasReviewed: false };
         }
     },
 };
