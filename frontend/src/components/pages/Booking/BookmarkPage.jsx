@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import './BookmarkPage.css';
 import { useAuth } from '../../../context/AuthContext';
 import { bookmarksAPI } from '../../../utils/api';
+import ImageCarousel from '../Listing/ImageCarousel';
 
 const defaultIcon = L.icon({
   iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -82,14 +83,10 @@ export default function BookmarkPage({ darkMode = false }) {
               style={{ background: cardBg, border: `1px solid ${borderColor}` }}
             >
               {b.listingImages && b.listingImages.length > 0 ? (
-                <div className="bookmark-map-preview" style={{ background: inputBg, overflow: 'hidden', height: '180px' }}>
-                  <img
-                    src={b.listingImages[0]}
-                    alt={b.listingTitle}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                </div>
-              ) : b.lat && b.lng ? (
+                 <div className="bookmark-map-preview" style={{ background: inputBg, overflow: 'hidden' }}>
+                   <ImageCarousel images={b.listingImages} title={b.listingTitle} />
+                 </div>
+               ) : b.lat && b.lng ? (
                 <div className="bookmark-map-preview">
                   <SmallMap lat={b.lat} lng={b.lng} />
                 </div>

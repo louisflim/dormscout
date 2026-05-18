@@ -53,12 +53,12 @@
 
 /* Map preview */
 .booking-map-preview {
-  height: 150px;
+  height: 180px;
   width: 100%;
 }
 
 .booking-map-placeholder {
-  height: 150px;
+  height: 180px;
   background: #eee;
   display: flex;
   align-items: center;

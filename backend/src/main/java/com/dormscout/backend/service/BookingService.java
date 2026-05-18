@@ -120,20 +120,25 @@ public class BookingService {
     public Booking createBooking(Booking booking) {
         Listing listing = booking.getListing();
         User tenant = booking.getTenant();
+
         if (listing == null) {
             throw new RuntimeException("Listing is required");
         }
-
         if (tenant == null) {
             throw new RuntimeException("Tenant is required");
         }
 
-        // Check if tenant already has an active booking (pending or accepted)
+        // ── Only block duplicate booking for the SAME listing ──
         List<Booking> existingBookings = bookingRepository.findByTenant(tenant);
         for (Booking existing : existingBookings) {
             String status = existing.getStatus() != null ? existing.getStatus().toLowerCase() : "";
-            if ("pending".equals(status) || "accepted".equals(status) || "approved".equals(status) || "confirmed".equals(status) || "active".equals(status)) {
-                throw new RuntimeException("You already have an active booking. A tenant can only have one active booking at a time.");
+            boolean sameL = existing.getListing() != null &&
+                    existing.getListing().getId().equals(listing.getId());
+            boolean isActive = "pending".equals(status) || "accepted".equals(status) ||
+                    "approved".equals(status) || "confirmed".equals(status) ||
+                    "active".equals(status);
+            if (sameL && isActive) {
+                throw new RuntimeException("You already have an active booking for this listing.");
             }
         }
 

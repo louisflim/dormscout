@@ -12,6 +12,7 @@ import {
     prepareListingImagesFromFiles,
     validateListingImageFileAsync,
 } from '../../../utils/listingImage';
+import ImageCarousel from './ImageCarousel';
 import './ListingPage.css';
 import {
     Pencil, Home, GraduationCap, MapPin, AlertTriangle,
@@ -663,10 +664,10 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                                 </button>
  
                                                 <div onClick={() => setSelectedId(selected ? null : l.id)}>
-                                                    {/* Card media — unchanged logic */}
+                                                    {/* Card media with image carousel */}
                                                     {l.images?.length > 0 ? (
                                                         <div className="listing-card-media">
-                                                            <img src={l.images[0]} alt={l.title} />
+                                                            <ImageCarousel images={l.images} title={l.title} />
                                                         </div>
                                                     ) : l.lat && l.lng ? (
                                                         <div className="listing-card-media">

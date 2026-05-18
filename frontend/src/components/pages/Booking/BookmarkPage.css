@@ -59,12 +59,12 @@
 
 /* Map/Image preview */
 .bookmark-map-preview {
-  height: 150px;
+  height: 180px;
   width: 100%;
 }
 
 .bookmark-map-placeholder {
-  height: 150px;
+  height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;

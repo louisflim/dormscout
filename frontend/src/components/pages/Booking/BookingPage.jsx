@@ -6,6 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useBooking } from '../../../context/BookingContext';
 import { bookingsAPI, listingsAPI } from '../../../utils/api';
 import { getMinSchedulableDateYmd, isAtLeastDaysFromToday } from '../../../utils/bookingPolicy';
+import ImageCarousel from '../Listing/ImageCarousel';
 import './BookingPage.css';
 
 const defaultIcon = L.icon({
@@ -229,10 +230,10 @@ export default function BookingPage({ darkMode = false }) {
                 onClick={() => setSelectedBooking(b)}
               >
                 {b.listingImages && b.listingImages.length > 0 ? (
-                  <div className="booking-map-preview" style={{ background: inputBg, overflow: 'hidden', height: '180px' }}>
-                    <img src={b.listingImages[0]} alt={b.listingName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  </div>
-                ) : b.lat && b.lng ? (
+                   <div className="booking-map-preview" style={{ background: inputBg, overflow: 'hidden' }}>
+                     <ImageCarousel images={b.listingImages} title={b.listingName} />
+                   </div>
+                 ) : b.lat && b.lng ? (
                   <div className="booking-map-preview">
                     <SmallMap lat={b.lat} lng={b.lng} />
                   </div>
