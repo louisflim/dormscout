@@ -129,12 +129,6 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
         <>
       {/* ── Header ── */}
       <div className="notif-header">
-        <h3 className="notif-header__title" style={{ color: c.text }}>
-          Notifications
-          {unreadCount > 0 && (
-            <span className="notif-header__badge">{unreadCount} new</span>
-          )}
-        </h3>
 
         {notifications.length > 0 && (
           <button
