@@ -97,7 +97,12 @@ public class ListingController {
                     ApiResponse.success("Listing updated successfully", updatedListing)
             );
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+            if ("Listing not found".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ApiResponse.error(e.getMessage())
+                );
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ApiResponse.error(e.getMessage())
             );
         }

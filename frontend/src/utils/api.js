@@ -143,14 +143,11 @@ export const listingsAPI = {
                 return response.data;  // Clean JSON - no parsing needed now
             } catch (error) {
                 console.error('❌ API: createListing error:', error);
-                let errorMessage = error.message;
-                if (error.response?.data?.message) {
-                    errorMessage = error.response.data.message;
-                }
-                return {
-                    success: false,
-                    message: errorMessage
-                };
+                const status = error.response?.status;
+                const message = error.response?.data?.message
+                    || (status === 413 ? 'Images are too large for the server. Try fewer or smaller photos.' : null)
+                    || error.message;
+                return { success: false, message };
             }
         },
 
@@ -160,7 +157,11 @@ export const listingsAPI = {
             return response.data;
         } catch (error) {
             console.error('❌ API: updateListing error:', error);
-            return { success: false, message: error.message };
+            const status = error.response?.status;
+            const message = error.response?.data?.message
+                || (status === 413 ? 'Images are too large for the server. Try fewer or smaller photos.' : null)
+                || error.message;
+            return { success: false, message };
         }
     },
 

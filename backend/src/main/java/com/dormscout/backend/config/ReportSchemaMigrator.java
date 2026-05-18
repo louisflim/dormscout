@@ -8,7 +8,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Ensures report text columns can store base64 evidence photos (MySQL TEXT caps at ~64KB).
+ * Ensures text columns can store base64 photos (MySQL TEXT caps at ~64KB).
+ * Hibernate ddl-auto=update does not always widen existing columns.
  */
 @Component
 public class ReportSchemaMigrator implements ApplicationRunner {
@@ -23,12 +24,19 @@ public class ReportSchemaMigrator implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        migrate("reports", "evidence", "ALTER TABLE reports MODIFY COLUMN evidence LONGTEXT");
+        migrate("reports", "description", "ALTER TABLE reports MODIFY COLUMN description LONGTEXT");
+        migrate("listings", "images", "ALTER TABLE listings MODIFY COLUMN images LONGTEXT");
+        migrate("listings", "description", "ALTER TABLE listings MODIFY COLUMN description LONGTEXT");
+        migrate("users", "profile_image", "ALTER TABLE users MODIFY COLUMN profile_image LONGTEXT");
+    }
+
+    private void migrate(String table, String column, String sql) {
         try {
-            jdbcTemplate.execute("ALTER TABLE reports MODIFY COLUMN evidence LONGTEXT");
-            jdbcTemplate.execute("ALTER TABLE reports MODIFY COLUMN description LONGTEXT");
-            log.debug("Reports table columns verified (LONGTEXT for evidence/description)");
+            jdbcTemplate.execute(sql);
+            log.debug("{} table column {} verified (LONGTEXT)", table, column);
         } catch (Exception e) {
-            log.warn("Could not migrate reports table columns: {}", e.getMessage());
+            log.warn("Could not migrate {}.{}: {}", table, column, e.getMessage());
         }
     }
 }

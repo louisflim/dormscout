@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useBooking } from '../../../context/BookingContext';
@@ -6,6 +6,12 @@ import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITIES } from '../../../constants/universities';
 import TenantManagement from './TenantManagement';
 import { listingsAPI, activitiesAPI } from '../../../utils/api';
+import {
+    MAX_LISTING_IMAGES,
+    normalizeListingImages,
+    prepareListingImagesFromFiles,
+    validateListingImageFileAsync,
+} from '../../../utils/listingImage';
 import './ListingPage.css';
 import {
     Pencil, Home, GraduationCap, MapPin, AlertTriangle,
@@ -86,16 +92,6 @@ function SmallMap({ lat, lng }) {
     return <div ref={mapRef} style={{ width: '100%', height: '100%', borderRadius: '8px' }} />;
 }
 
-const filesToDataUrls = (files) =>
-    Promise.all(Array.from(files).map((file) =>
-        new Promise((res, rej) => {
-            const fr = new FileReader();
-            fr.onload = () => res(fr.result);
-            fr.onerror = rej;
-            fr.readAsDataURL(file);
-        })
-    ));
-
 const EMPTY_FORM = {
     title: '', address: '', price: '', rooms: '', availableRooms: '',
     description: '', tags: '', images: [], latitude: null, longitude: null, university: '', genderPolicy: '',
@@ -147,10 +143,6 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     const setField = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
     useEffect(() => { setViewMode(mode); }, [mode]);
-
-    useEffect(() => {
-        if (editListingData) { startEdit(editListingData); if (onEditHandled) onEditHandled(); }
-    }, [editListingData, onEditHandled]);
 
     // Load listings from backend API
     useEffect(() => {
@@ -284,6 +276,44 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         setLocationError('');
     }
 
+    const startEdit = useCallback((listing) => {
+        setPreviewUrls((urls) => {
+            urls.forEach((u) => URL.revokeObjectURL(u));
+            return [];
+        });
+        setImageFiles([]);
+        setEditingId(listing.id);
+        setForm({
+            title: listing.title || '',
+            address: listing.address || '',
+            price: listing.price || '',
+            rooms: listing.rooms || '',
+            availableRooms: listing.availableRooms || '',
+            description: listing.description || '',
+            tags: (Array.isArray(listing.tags) ? listing.tags : []).join(', '),
+            images: normalizeListingImages(listing.images),
+            lat: listing.latitude ?? listing.lat ?? null,
+            lng: listing.longitude ?? listing.lng ?? null,
+            university: listing.university || '',
+            genderPolicy: listing.genderPolicy || '',
+        });
+
+        if (mapInstanceRef.current) {
+            mapInstanceRef.current.remove();
+            mapInstanceRef.current = null;
+            markerRef.current = null;
+        }
+
+        setViewMode('manage');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, []);
+
+    useEffect(() => {
+        if (!editListingData) return;
+        startEdit(editListingData);
+        if (onEditHandled) onEditHandled();
+    }, [editListingData, onEditHandled, startEdit]);
+
     function validateForm() {
         const next = {};
         if (!form.title?.trim()) next.title = 'Title is required.';
@@ -295,30 +325,76 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         if (!form.availableRooms) next.availableRooms = 'Select available rooms.';
         if (!form.genderPolicy) next.genderPolicy = 'Select a gender policy.';
         if (!form.description?.trim()) next.description = 'Description is required.';
-        const totalImages = (form.images?.length || 0) + imageFiles.length;
+        const savedImages = normalizeListingImages(form.images);
+        const totalImages = savedImages.length + imageFiles.length;
         if (totalImages === 0) next.images = 'At least one photo is required.';
+        else if (totalImages > MAX_LISTING_IMAGES) {
+            next.images = `You can upload up to ${MAX_LISTING_IMAGES} photos per listing.`;
+        }
         setErrors(next);
         return Object.keys(next).length === 0;
     }
 
-    function handleFileChange(e) {
-        const files = e.target.files; if (!files) return;
-        previewUrls.forEach((u) => URL.revokeObjectURL(u));
-        const allowed = Array.from(files).slice(0, 3);
-        setImageFiles(allowed);
-        setPreviewUrls(allowed.map((f) => URL.createObjectURL(f)));
+    async function handleFileChange(e) {
+        const picked = Array.from(e.target.files || []);
+        if (!picked.length) return;
+        e.target.value = '';
+
+        const savedImages = normalizeListingImages(form.images);
+        const slotsLeft = MAX_LISTING_IMAGES - savedImages.length - imageFiles.length;
+        if (slotsLeft <= 0) {
+            setErrors((prev) => ({
+                ...prev,
+                images: `You can upload up to ${MAX_LISTING_IMAGES} photos per listing.`,
+            }));
+            return;
+        }
+
+        const accepted = [];
+        const rejections = [];
+        for (const file of picked) {
+            if (accepted.length >= slotsLeft) break;
+            const err = await validateListingImageFileAsync(file);
+            const label = file.name || 'Image';
+            if (err) rejections.push(`${label}: ${err}`);
+            else accepted.push(file);
+        }
+
+        if (!accepted.length) {
+            setErrors((prev) => ({
+                ...prev,
+                images: rejections.length
+                    ? rejections.join(' ')
+                    : 'Could not add photos. Use JPEG or PNG files (10MB max each).',
+            }));
+            return;
+        }
+
+        setErrors((prev) => {
+            const next = { ...prev };
+            if (rejections.length) {
+                next.images = `Added ${accepted.length} photo(s). Skipped: ${rejections.join(' ')}`;
+            } else {
+                delete next.images;
+            }
+            return next;
+        });
+
+        setImageFiles((prev) => [...prev, ...accepted]);
+        setPreviewUrls((prev) => [
+            ...prev,
+            ...accepted.map((f) => URL.createObjectURL(f)),
+        ]);
     }
 
     function removeSelectedImage(index) {
-        const newFiles = [...imageFiles];
-        newFiles.splice(index, 1);
-        previewUrls.forEach((u) => URL.revokeObjectURL(u));
-        setImageFiles(newFiles);
-        setPreviewUrls(newFiles.map((f) => URL.createObjectURL(f)));
+        if (previewUrls[index]) URL.revokeObjectURL(previewUrls[index]);
+        setImageFiles((prev) => prev.filter((_, i) => i !== index));
+        setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
     }
 
     function removeExistingImage(index) {
-        const imgs = [...(form.images || [])];
+        const imgs = normalizeListingImages(form.images);
         imgs.splice(index, 1);
         setForm((f) => ({ ...f, images: imgs }));
     }
@@ -334,10 +410,10 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         setSuccessMessage('');
 
         try {
-            let finalImages = form.images || [];
+            let finalImages = normalizeListingImages(form.images);
             if (imageFiles.length > 0) {
-                const dataUrls = await filesToDataUrls(imageFiles);
-                finalImages = [...finalImages, ...dataUrls].slice(0, 3);
+                const dataUrls = await prepareListingImagesFromFiles(imageFiles);
+                finalImages = [...finalImages, ...dataUrls].slice(0, MAX_LISTING_IMAGES);
             }
             const tagsArray = form.tags
                 ? form.tags.split(',').map((t) => t.trim()).filter(Boolean)
@@ -386,7 +462,9 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
             }
         } catch (err) {
             console.error('Create listing error:', err);
-            setErrors({ general: 'Failed to create listing: ' + err.message });
+            const msg = err?.message || 'Unknown error';
+            const imageErr = /image|photo|jpeg|png|10mb/i.test(msg);
+            setErrors(imageErr ? { images: msg } : { general: `Failed to create listing: ${msg}` });
         } finally {
             setLoading(false);
             setIsSubmitting(false);
@@ -404,10 +482,10 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         setSuccessMessage('');
 
         try {
-            let finalImages = form.images || [];
+            let finalImages = normalizeListingImages(form.images);
             if (imageFiles.length > 0) {
-                const dataUrls = await filesToDataUrls(imageFiles);
-                finalImages = [...finalImages, ...dataUrls].slice(0, 3);
+                const dataUrls = await prepareListingImagesFromFiles(imageFiles);
+                finalImages = [...finalImages, ...dataUrls].slice(0, MAX_LISTING_IMAGES);
             }
             const tagsArray = form.tags
                 ? form.tags.split(',').map((t) => t.trim()).filter(Boolean)
@@ -456,7 +534,9 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
             }
         } catch (err) {
             console.error('Update listing error:', err);
-            setErrors({ general: 'Failed to update listing: ' + err.message });
+            const msg = err?.message || 'Unknown error';
+            const imageErr = /image|photo|jpeg|png|10mb/i.test(msg);
+            setErrors(imageErr ? { images: msg } : { general: `Failed to update listing: ${msg}` });
         } finally {
             setLoading(false);
             setIsSubmitting(false);
@@ -482,33 +562,6 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         } finally {
             setLoading(false);
         }
-    }
-
-    function startEdit(listing) {
-        setEditingId(listing.id);
-        setForm({
-            title: listing.title || '',
-            address: listing.address || '',
-            price: listing.price || '',
-            rooms: listing.rooms || '',
-            availableRooms: listing.availableRooms || '',
-            description: listing.description || '',
-            tags: (listing.tags || []).join(', '),
-            images: listing.images || [],
-            latitude: listing.latitude || listing.lat || null,
-            longitude: listing.longitude || listing.lng || null,
-            university: listing.university || '',
-            genderPolicy: listing.genderPolicy || '',
-        });
-
-        if (mapInstanceRef.current) {
-            mapInstanceRef.current.remove();
-            mapInstanceRef.current = null;
-            markerRef.current = null;
-        }
-
-        setViewMode('manage');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function createNewListing() {
@@ -848,10 +901,24 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
  
                                 <div className="form-mt">
                                     <label className="listing-upload-label">
-                                        Upload images (max 3) <span style={{ color: '#e53e3e' }}>*</span>
+                                        Upload images (max {MAX_LISTING_IMAGES}, JPEG/PNG, 10MB each){' '}
+                                        <span style={{ color: '#e53e3e' }}>*</span>
                                     </label>
                                     <input className="listing-input" value={form.tags} onChange={setField('tags')} placeholder="Tags (comma separated)" style={{ marginBottom: 12 }} />
-                                    <input type="file" accept="image/*" multiple onChange={handleFileChange} />
+                                    <input
+                                        id="listing-photo-input"
+                                        className="listing-file-input"
+                                        type="file"
+                                        accept=".jpg,.jpeg,.png,image/jpeg,image/jpg,image/png"
+                                        multiple
+                                        onChange={handleFileChange}
+                                    />
+                                    <label htmlFor="listing-photo-input" className="listing-file-picker">
+                                        Choose JPEG or PNG photos
+                                    </label>
+                                    <p className="listing-upload-hint">
+                                        {normalizeListingImages(form.images).length + imageFiles.length} / {MAX_LISTING_IMAGES} photos selected
+                                    </p>
                                     {errors.images && <div className="form-error" style={{ marginTop: 6 }}>{errors.images}</div>}
                                     <div className="listing-image-previews">
                                         {previewUrls.map((url, idx) => (
@@ -860,7 +927,7 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                                 <button type="button" className="listing-image-remove" onClick={() => removeSelectedImage(idx)}>×</button>
                                             </div>
                                         ))}
-                                        {(form.images || []).map((src, idx) => (
+                                        {normalizeListingImages(form.images).map((src, idx) => (
                                             <div key={`existing-${idx}`} className="listing-image-thumb">
                                                 <img src={src} alt="existing" />
                                                 <button type="button" className="listing-image-remove" onClick={() => removeExistingImage(idx)}>×</button>
