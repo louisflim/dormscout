@@ -57,13 +57,16 @@ public class MessageController {
             String preview = message.getContent() != null && message.getContent().length() > 50
                 ? message.getContent().substring(0, 50) + "…"
                 : message.getContent();
-            activityService.createActivity(
-                receiver.getId(),
-                "message",
-                senderName + ": " + preview,
-                "just now",
-                "messages"
-            );
+            boolean messageAlertsOn = receiver.getMessageAlerts() == null || Boolean.TRUE.equals(receiver.getMessageAlerts());
+            if (messageAlertsOn) {
+                activityService.createActivity(
+                    receiver.getId(),
+                    "new_message",
+                    senderName + ": " + preview,
+                    "just now",
+                    "messages"
+                );
+            }
 
             return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "success", true, "message", "Message sent", "data", sent

@@ -188,7 +188,10 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
 
     const load = async () => {
       const data = await messagesAPI.getConversations(user.id);
-      if (!cancelled) setApiConversations(Array.isArray(data) ? data : []);
+      if (!cancelled) {
+        setApiConversations(Array.isArray(data) ? data : []);
+        window.dispatchEvent(new Event('dormscout:messagesUpdated'));
+      }
     };
     load();
     const id = setInterval(load, 5000);
@@ -232,7 +235,11 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       if (!cancelled) setConversationMessages(Array.isArray(data) ? data : []);
     };
     load();
-    if (user?.id) messagesAPI.markConversationRead(selectedConvId, user.id);
+    if (user?.id) {
+      messagesAPI.markConversationRead(selectedConvId, user.id).then(() => {
+        window.dispatchEvent(new Event('dormscout:messagesUpdated'));
+      });
+    }
     const id = setInterval(load, 3000);
     return () => { cancelled = true; clearInterval(id); };
   }, [selectedConvId, user?.id]);
@@ -337,13 +344,13 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
         online: false,
         lastMessage: conv.lastMessage || 'Start a conversation',
         timestamp: conv.lastMessageTime,
-        unread: conv.unreadCount || 0,
+        unread: notificationEnabled ? (conv.unreadCount || 0) : 0,
         landlordId: role === 'tenant' ? conv.partnerId : null,
         tenantId:   role === 'landlord' ? conv.partnerId : null,
       };
     });
     return map;
-  }, [apiConversations, role, userDirectory]);
+  }, [apiConversations, role, userDirectory, notificationEnabled]);
 
   const pendingContactConversation = useMemo(() => {
     if (!user?.id) return null;
@@ -535,6 +542,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     ]);
     setConversationMessages(Array.isArray(msgs)  ? msgs  : []);
     setApiConversations(Array.isArray(convs) ? convs : []);
+    window.dispatchEvent(new Event('dormscout:messagesUpdated'));
 
   }, [messageInput, selectedConvId, mergedConversations, apiConversations, user?.id, user?.profileImage, isAdminConversationSelected]);
 
@@ -587,6 +595,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
         },
       });
     }
+    window.dispatchEvent(new Event('dormscout:messagesUpdated'));
   };
   const c = {
     mainBg:          darkMode ? '#1a1a2e' : '#ffffff',
@@ -624,7 +633,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
             <button
               className="notification-toggle"
               onClick={toggleNotifications}
-              title={notificationEnabled ? 'Disable notifications' : 'Enable notifications'}
+              title={notificationEnabled ? 'Disable message alerts (hide unread badges)' : 'Enable message alerts'}
               style={{ color: notificationEnabled ? PRIMARY : c.secondaryText }}
             >
               {notificationEnabled ? '🔔' : '🔕'}
@@ -674,7 +683,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
 
                   <div className="conv-item__body">
                     <div className="conv-item__top">
-                      <span className="conv-item__name" style={{ fontWeight: conv.unread > 0 ? '700' : '600', color: isActive ? c.activeConvText : c.text }}>
+                      <span className="conv-item__name" style={{ fontWeight: notificationEnabled && conv.unread > 0 ? '700' : '600', color: isActive ? c.activeConvText : c.text }}>
                         {conv.displayName || conv.name}
                       </span>
                       <span className="conv-item__time" style={{ color: isActive ? 'rgba(255,255,255,0.8)' : c.secondaryText }}>
@@ -683,10 +692,10 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                     </div>
 
                     <div className="conv-item__bottom">
-                      <p className="conv-item__preview" style={{ color: isActive ? 'rgba(255,255,255,0.8)' : c.secondaryText, fontWeight: conv.unread > 0 ? '600' : '400' }}>
+                      <p className="conv-item__preview" style={{ color: isActive ? 'rgba(255,255,255,0.8)' : c.secondaryText, fontWeight: notificationEnabled && conv.unread > 0 ? '600' : '400' }}>
                         {conv.lastMessage}
                       </p>
-                      {conv.unread > 0 && (
+                      {notificationEnabled && conv.unread > 0 && (
                         <span className="conv-item__unread-badge" style={{ background: c.unreadDot || PRIMARY }}>
                           {conv.unread}
                         </span>

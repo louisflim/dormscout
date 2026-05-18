@@ -33,6 +33,9 @@ public class Review {
     @Column(columnDefinition = "TEXT")
     private List<String> tags;
 
+    @Column(nullable = false)
+    private boolean anonymous = false;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -64,8 +67,14 @@ public class Review {
     @JsonProperty("listingTitle")
     public String getListingTitle() { return listing != null ? listing.getTitle() : null; }
 
+    @JsonProperty("anonymous")
+    public boolean isAnonymous() {
+        return anonymous;
+    }
+
     @JsonProperty("author")
     public String getAuthor() {
+        if (anonymous) return "Anonymous";
         if (tenant == null) return "Anonymous";
         String fn = tenant.getFirstName(), ln = tenant.getLastName();
         if (fn != null && !fn.isBlank()) {
@@ -76,6 +85,7 @@ public class Review {
 
     @JsonProperty("avatar")
     public String getAvatar() {
+        if (anonymous) return "AN";
         if (tenant == null) return "?";
         String fn = tenant.getFirstName(), ln = tenant.getLastName();
         if (fn != null && !fn.isBlank()) {

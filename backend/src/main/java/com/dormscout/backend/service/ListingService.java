@@ -36,15 +36,17 @@ public class ListingService {
     }
 
     public List<Listing> getAllListings() {
-        return listingRepository.findAll();
+        return listingRepository.findAllWithLandlord();
     }
 
     public List<Listing> getActiveListings() {
-        return listingRepository.findByStatus("Active");
+        return listingRepository.findAllWithLandlord().stream()
+                .filter(l -> "Active".equalsIgnoreCase(l.getStatus()))
+                .toList();
     }
 
     public Optional<Listing> getListingById(Long id) {
-        return listingRepository.findById(id);
+        return listingRepository.findByIdWithLandlord(id);
     }
 
     public Listing updateListing(Long id, Listing updates) {

@@ -50,6 +50,7 @@ public class User {
 
     private String businessName;
     private String businessPermit;
+    @JsonProperty("verified")
     private boolean isVerified;
     private String verificationStatus; // pending, approved, rejected
     private String rejectionReason;

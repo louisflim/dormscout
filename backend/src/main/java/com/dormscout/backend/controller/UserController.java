@@ -2,6 +2,7 @@ package com.dormscout.backend.controller;
 
 import com.dormscout.backend.entity.User;
 import com.dormscout.backend.service.UserService;
+import com.dormscout.backend.service.ActivityService;
 import com.dormscout.backend.dto.LoginRequest;
 import com.dormscout.backend.dto.RegisterRequest;
 import com.dormscout.backend.dto.UserDTO;
@@ -24,6 +25,9 @@ public class UserController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private ActivityService activityService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
@@ -105,7 +109,17 @@ public class UserController {
     @PutMapping("/{id}")
     public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody User updates) {
         try {
+            boolean submittingVerification = updates.getBusinessName() != null || updates.getBusinessPermit() != null;
             User updatedUser = userService.updateUser(id, updates);
+            if (submittingVerification && "pending".equalsIgnoreCase(updatedUser.getVerificationStatus())) {
+                activityService.createActivity(
+                        id,
+                        "verification_pending",
+                        "Your business verification request was submitted and is pending admin review.",
+                        "just now",
+                        "settings"
+                );
+            }
             UserDTO userDTO = userService.convertToDTO(updatedUser);
             return ResponseEntity.ok(userDTO);
         } catch (RuntimeException e) {
@@ -248,6 +262,13 @@ public class UserController {
                     "message", "User not found"
             ));
         }
+        activityService.createActivity(
+                id,
+                "verification_approved",
+                "Your business verification was approved. You are now a verified landlord.",
+                "just now",
+                "settings"
+        );
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Landlord verification approved",
@@ -265,6 +286,13 @@ public class UserController {
                     "message", "User not found"
             ));
         }
+        activityService.createActivity(
+                id,
+                "verification_rejected",
+                "Your business verification was rejected. Reason: " + reason,
+                "just now",
+                "settings"
+        );
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Landlord verification rejected",

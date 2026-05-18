@@ -725,6 +725,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       setVerificationStatus(nextStatus);
 
       setVerifyMessage({ text: 'Submitted for admin review. You will be notified once approved.', type: 'success' });
+      window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
     } finally {
       setIsLoading(false);
     }

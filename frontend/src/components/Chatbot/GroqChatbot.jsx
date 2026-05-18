@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import dormBotAvatar from '../../assets/images/DormBot.png';
 import './GroqChatbot.css';
@@ -139,6 +139,7 @@ const SUGGESTIONS = [
 export default function GroqChatbot() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -153,18 +154,22 @@ export default function GroqChatbot() {
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Auto-scroll to latest message
+  // Auto-scroll only when chat is open (avoids layout loops with hidden panel)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+    if (!open) return undefined;
+    const id = requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [messages, loading, open]);
 
   // Focus input when opened
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 150);
   }, [open]);
 
-  // Don't render if not logged in
-  if (!user) return null;
+  // Don't render if not logged in or on Messages (FAB blocks send button)
+  if (!user || location.pathname === '/messages') return null;
 
   // ── Parse bold markdown and clickable routes ──────────────────────────────
   function parseContent(text) {

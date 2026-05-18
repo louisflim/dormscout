@@ -11,6 +11,8 @@ import{
   XCircle,
   MessageCircle,
   UserX,
+  BadgeCheck,
+  Clock,
 } from 'lucide-react';
 const PRIMARY = '#E8622E';
 
@@ -21,6 +23,9 @@ const NOTIF_ICONS = {
   booking_cancelled: <XCircle size={20} className="icon-muted" />,
   new_message:       <MessageCircle size={20} className="icon-info" />,
   tenant_removed:    <UserX size={20} className="icon-warning" />,
+  verification_approved: <BadgeCheck size={20} className="icon-success" />,
+  verification_rejected: <XCircle size={20} className="icon-danger" />,
+  verification_pending:  <Clock size={20} className="icon-warning" />,
 };
 
 const TYPE_TITLES = {
@@ -30,6 +35,9 @@ const TYPE_TITLES = {
   booking_cancelled: 'Booking Cancelled',
   new_message:       'New Message',
   tenant_removed:    'Tenant Removed',
+  verification_approved: 'Verification Approved',
+  verification_rejected: 'Verification Rejected',
+  verification_pending:  'Verification Submitted',
 };
 
 export default function Notifications({ darkMode = false, userType = 'tenant' }) {
@@ -37,6 +45,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
   const [notifications, setNotifications] = useState([]);
   const dk = darkMode;
   const inAppNotificationsEnabled = user?.settings?.inAppNotifications !== false;
+  const messageAlertsEnabled = user?.settings?.messageAlerts !== false;
 
   const c = {
     text:          dk ? '#eaeaea'           : '#333',
@@ -55,7 +64,13 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
       .then(response => {
         const acts = normalizeActivitiesResponse(response);
 
-        setNotifications(acts.map((a) => ({
+        setNotifications(acts
+          .filter((a) => {
+            const type = a.type || 'general';
+            if (!messageAlertsEnabled && (type === 'new_message' || type === 'message')) return false;
+            return true;
+          })
+          .map((a) => ({
           id: a.id,
           type: a.type || 'general',
           title: TYPE_TITLES[a.type] || a.title || 'Notification',
@@ -68,7 +83,7 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
         // Avoid stale cards when request fails.
         setNotifications([]);
       });
-  }, [user?.id, inAppNotificationsEnabled]);
+  }, [user?.id, inAppNotificationsEnabled, messageAlertsEnabled]);
 
   useEffect(() => {
     if (!inAppNotificationsEnabled) {
@@ -78,7 +93,14 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
 
     loadNotifications();
     const interval = setInterval(loadNotifications, 10000);
-    return () => clearInterval(interval);
+    const onRefresh = () => loadNotifications();
+    window.addEventListener('dormscout:verificationUpdated', onRefresh);
+    window.addEventListener('dormscout:notificationsUpdated', onRefresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('dormscout:verificationUpdated', onRefresh);
+      window.removeEventListener('dormscout:notificationsUpdated', onRefresh);
+    };
   }, [loadNotifications, inAppNotificationsEnabled]);
 
   const markAsRead = async (id) => {

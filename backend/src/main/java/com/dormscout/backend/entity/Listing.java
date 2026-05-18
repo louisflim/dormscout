@@ -72,6 +72,18 @@ public class Listing {
         return landlord != null ? landlord.getId() : null;
     }
 
+    @JsonProperty("landlordVerified")
+    public boolean isLandlordVerified() {
+        if (landlord == null) {
+            return false;
+        }
+        if (landlord.isVerified()) {
+            return true;
+        }
+        String status = landlord.getVerificationStatus();
+        return status != null && "approved".equalsIgnoreCase(status.trim());
+    }
+
     @JsonProperty("landlordName")
     public String getLandlordName() {
         if (landlord == null) {

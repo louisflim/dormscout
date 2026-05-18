@@ -60,6 +60,16 @@ export const userAPI = {
         }
     },
 
+    getAllUsers: async () => {
+        try {
+            const response = await api.get('/users');
+            return Array.isArray(response.data) ? response.data : [];
+        } catch (error) {
+            console.error('❌ API: getAllUsers error:', error);
+            return [];
+        }
+    },
+
     updateUser: async (id, userData) => {
         try {
             const response = await api.put(`/users/${id}`, userData);

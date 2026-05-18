@@ -138,6 +138,7 @@ function WriteReviewModal({ onClose, onSubmit, dormName, darkMode = false }) {
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
+  const [anonymous, setAnonymous] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const colors = {
@@ -160,7 +161,7 @@ function WriteReviewModal({ onClose, onSubmit, dormName, darkMode = false }) {
     if (!isValid) return;
     setSubmitted(true);
     setTimeout(() => {
-      onSubmit({ rating, body, tags: selectedTags });
+      onSubmit({ rating, body, tags: selectedTags, anonymous });
       onClose();
     }, 1500);
   };
@@ -218,6 +219,27 @@ function WriteReviewModal({ onClose, onSubmit, dormName, darkMode = false }) {
                 ))}
               </div>
             </div>
+
+            <label
+              className="review-anonymous-toggle"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                cursor: 'pointer',
+                color: colors.text,
+                fontSize: 14,
+                fontWeight: 500,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={anonymous}
+                onChange={(e) => setAnonymous(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: '#E8622E' }}
+              />
+              Post review anonymously (your name won&apos;t be shown)
+            </label>
 
             <div>
               <label className="modal-field-label" style={{ color: colors.text }}>
@@ -377,12 +399,13 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
     );
   };
 
-  const handleSubmitReview = async ({ rating, body, tags }) => {
+  const handleSubmitReview = async ({ rating, body, tags, anonymous: postAnonymous }) => {
     const newReview = {
       id: `new_${Date.now()}`,
       dormId: Number(selectedDorm),
-      author: user?.name || 'You',
-      avatar: (user?.name || 'YO').slice(0, 2).toUpperCase(),
+      author: postAnonymous ? 'Anonymous' : (user?.name || 'You'),
+      avatar: postAnonymous ? 'AN' : (user?.name || 'YO').slice(0, 2).toUpperCase(),
+      anonymous: Boolean(postAnonymous),
       rating,
       body,
       tags,
@@ -393,7 +416,12 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
     setReviews(prev => [newReview, ...prev]);
 
     try {
-      await reviewsAPI.createReview(user.id, selectedDorm, { rating, body, tags });
+      await reviewsAPI.createReview(user.id, selectedDorm, {
+        rating,
+        body,
+        tags,
+        anonymous: Boolean(postAnonymous),
+      });
       const data = await reviewsAPI.getByListing(selectedDorm);
       if (Array.isArray(data) && data.length > 0) setReviews(data);
     } catch {

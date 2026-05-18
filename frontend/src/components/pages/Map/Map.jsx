@@ -1,11 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../context/AuthContext';
 import { UNIVERSITIES, findNearestUniversity, getDistanceFromUniversity } from '../../../constants/universities';
-import { listingsAPI, bookingsAPI, activitiesAPI, bookmarksAPI } from '../../../utils/api';
+import { listingsAPI, bookingsAPI, activitiesAPI, bookmarksAPI, userAPI } from '../../../utils/api';
 import { getMinSchedulableDateYmd, isAtLeastDaysFromToday } from '../../../utils/bookingPolicy';
+import { isLandlordVerified } from '../../../utils/landlordVerification';
 import './Map.css';
 
 const PRIMARY = '#E8622E';
@@ -131,38 +132,59 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     loadListings();
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch('http://localhost:8080/api/users')
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (cancelled) return;
-        const byId = (Array.isArray(data) ? data : []).reduce((acc, item) => {
-          const name = item?.name || `${item?.firstName || ''} ${item?.lastName || ''}`.trim() || item?.email || 'Admin';
-          acc[String(item.id)] = {
-            name,
-            verified: Boolean(item?.verified || item?.isVerified || item?.verificationStatus === 'approved'),
-          };
-          return acc;
-        }, {});
-        setLandlordMetaById(byId);
-      })
-      .catch(() => {
-        if (!cancelled) setLandlordMetaById({});
-      });
-
-    return () => { cancelled = true; };
+  const loadLandlordMeta = React.useCallback(async () => {
+    const data = await userAPI.getAllUsers();
+    const byId = data.reduce((acc, item) => {
+      const name = item?.name || `${item?.firstName || ''} ${item?.lastName || ''}`.trim() || item?.email || 'Landlord';
+      acc[String(item.id)] = {
+        name,
+        verified: isLandlordVerified(item),
+      };
+      return acc;
+    }, {});
+    setLandlordMetaById(byId);
   }, []);
+
+  useEffect(() => {
+    loadLandlordMeta();
+  }, [loadLandlordMeta]);
+
+  useEffect(() => {
+    const onFocus = () => loadLandlordMeta();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [loadLandlordMeta]);
 
   useEffect(() => {
     const handleUpdate = () => {
       listingsAPI.getAllListings().then(data => {
         setListings(Array.isArray(data) ? data : []);
       });
+      loadLandlordMeta();
     };
     window.addEventListener('dormscout:listingUpdated', handleUpdate);
-    return () => window.removeEventListener('dormscout:listingUpdated', handleUpdate);
-  }, []);
+    window.addEventListener('dormscout:verificationUpdated', handleUpdate);
+    return () => {
+      window.removeEventListener('dormscout:listingUpdated', handleUpdate);
+      window.removeEventListener('dormscout:verificationUpdated', handleUpdate);
+    };
+  }, [loadLandlordMeta]);
+
+  const openModal = useCallback(async (listing) => {
+    setSelectedListing(listing);
+    setBookingStep('info');
+    setMoveInDate('');
+    setBookingError('');
+    loadLandlordMeta();
+    if (listing?.id) {
+      try {
+        const fresh = await listingsAPI.getListingById(listing.id);
+        if (fresh) setSelectedListing(fresh);
+      } catch {
+        /* keep listing from map */
+      }
+    }
+  }, [loadLandlordMeta]);
 
   // ⬅️ FIXED: Map initialization - wait for mount
   useEffect(() => {
@@ -282,17 +304,10 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
       mapInstance.current.invalidateSize();
       console.log('✅ Total markers:', markersRef.current.length);
-  }, [listings, user, isLandlord, maxDistance, maxPrice, schoolFilter, genderPolicyFilter, search, mapReady]);
+  }, [listings, user, isLandlord, maxDistance, maxPrice, schoolFilter, genderPolicyFilter, search, mapReady, openModal]);
 
   const handleUniversityClick = (uni) => {
     if (mapInstance.current && uni.coords) mapInstance.current.setView(uni.coords, 15);
-  };
-
-  const openModal = (listing) => {
-    setSelectedListing(listing);
-    setBookingStep('info');
-    setMoveInDate('');
-    setBookingError('');
   };
 
   const closeModal = () => {
@@ -399,10 +414,21 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
   const getLandlordMeta = (listing) => {
     const fromUserList = landlordMetaById[String(listing?.landlordId)];
-    const fallbackName = listing?.landlordName || 'Admin';
+    const fallbackName = listing?.landlordName || 'Landlord';
+
+    // Prefer landlordVerified from listing API (DB). Fail closed if unknown.
+    let verified = false;
+    if (listing?.landlordVerified === true) {
+      verified = true;
+    } else if (listing?.landlordVerified === false) {
+      verified = false;
+    } else if (fromUserList) {
+      verified = fromUserList.verified;
+    }
+
     return {
       name: fromUserList?.name || fallbackName,
-      verified: fromUserList?.verified || false,
+      verified,
     };
   };
 
@@ -654,6 +680,11 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                   )}
                   {bookingStep === 'info' && (
                     <>
+                      {!landlord.verified && (
+                        <p style={{ color: darkMode ? '#f59e0b' : '#b45309', fontWeight: 600, margin: '8px 0', fontSize: '0.85rem' }}>
+                          ℹ️ This landlord is not yet verified by admin — you can still book.
+                        </p>
+                      )}
                       {Number(selectedListing.availableRooms) > 0 ? (
                         <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
                           📅 Book This Property

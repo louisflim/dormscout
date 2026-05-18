@@ -11,7 +11,7 @@ import Notifications from '../Notifications/Notifications';
 import { useBooking } from '../../../context/BookingContext';
 import { useAuth } from '../../../context/AuthContext';
 import './Dashboard.css';
-import { listingsAPI, bookingsAPI, activitiesAPI } from '../../../utils/api';
+import { listingsAPI, bookingsAPI, activitiesAPI, messagesAPI } from '../../../utils/api';
 import { normalizeActivitiesResponse, countUnreadActivities } from '../../../utils/activities';
 
 import {
@@ -1114,6 +1114,7 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   const location = useLocation();
   const { user, logout, userType: authUserType } = useAuth();
   const [activityUnreadCount, setActivityUnreadCount] = useState(0);
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0);
 
   const normalizedUserType = authUserType?.toLowerCase() || 'tenant';
   const isLandlord = normalizedUserType === 'landlord';
@@ -1170,6 +1171,30 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
     };
   }, [user?.id, user?.settings?.inAppNotifications]);
 
+  useEffect(() => {
+    const messageAlertsOn = user?.settings?.messageAlerts !== false;
+    if (!user?.id || !messageAlertsOn) {
+      setMessageUnreadCount(0);
+      return undefined;
+    }
+    const refresh = () => {
+      messagesAPI.getConversations(user.id)
+        .then((data) => {
+          const convs = Array.isArray(data) ? data : [];
+          const total = convs.reduce((sum, c) => sum + (Number(c.unreadCount) || 0), 0);
+          setMessageUnreadCount(total);
+        })
+        .catch(() => setMessageUnreadCount(0));
+    };
+    refresh();
+    const interval = setInterval(refresh, 10000);
+    window.addEventListener('dormscout:messagesUpdated', refresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('dormscout:messagesUpdated', refresh);
+    };
+  }, [user?.id, user?.settings?.messageAlerts]);
+
   const userInitials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'ME';
@@ -1207,6 +1232,9 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
                   <span className="sidebar-nav-label">{item.label}</span>
                   {item.id === 'notifications' && activityUnreadCount > 0 && (
                     <span className="sidebar-badge">{activityUnreadCount}</span>
+                  )}
+                  {item.id === 'messages' && messageUnreadCount > 0 && (
+                    <span className="sidebar-badge">{messageUnreadCount > 99 ? '99+' : messageUnreadCount}</span>
                   )}
                 </button>
               );

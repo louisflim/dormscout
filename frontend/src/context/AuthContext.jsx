@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { userAPI } from '../utils/api';
 
 const AuthContext = createContext(null);
@@ -163,6 +163,21 @@ export function AuthProvider({ children }) {
             console.error('❌ AuthContext: deleteAccount error:', error);
             return { success: false, message: 'Connection error. Please try again.' };
         }
+    }, [user?.id]);
+
+    useEffect(() => {
+        const refreshFromServer = async () => {
+            if (!user?.id) return;
+            const fresh = await userAPI.getUserById(user.id);
+            if (!fresh) return;
+            setUser((prev) => {
+                const merged = { ...prev, ...fresh };
+                sessionStorage.setItem('authUser', JSON.stringify(merged));
+                return merged;
+            });
+        };
+        window.addEventListener('dormscout:verificationUpdated', refreshFromServer);
+        return () => window.removeEventListener('dormscout:verificationUpdated', refreshFromServer);
     }, [user?.id]);
 
     return (

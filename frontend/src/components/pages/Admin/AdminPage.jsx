@@ -397,6 +397,8 @@ const handleDeleteUser = async (userId) => {
       const data = await response.json();
       if (data.success) {
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, verified: true, verificationStatus: 'approved' } : u));
+        window.dispatchEvent(new Event('dormscout:verificationUpdated'));
+        window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
         showInlineNotice('Landlord verification approved.', 'is-good');
       }
     } catch (err) {
@@ -428,6 +430,8 @@ const handleDeleteUser = async (userId) => {
         setShowRejectionModal(false);
         setSelectedLandlord(null);
         setRejectionReason('');
+        window.dispatchEvent(new Event('dormscout:verificationUpdated'));
+        window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
         showInlineNotice('Landlord verification rejected and reason sent.', 'is-good');
       }
     } catch (err) {
