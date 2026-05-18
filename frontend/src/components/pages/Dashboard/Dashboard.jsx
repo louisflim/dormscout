@@ -1139,7 +1139,6 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
 
   const isOverview = activeNav === 'overview';
   const pageMeta = PAGE_META[activeNav] ?? PAGE_META.overview;
-  const PageHeaderIcon = pageMeta.Icon;
 
   const handleLogout = () => {
     logout();

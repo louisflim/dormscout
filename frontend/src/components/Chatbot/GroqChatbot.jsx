@@ -136,7 +136,7 @@ const SUGGESTIONS = [
   { label: '🗺️ Map view', text: 'How do I view listings on a map?' },
 ];
 
-export default function GrokChatbot() {
+export default function GroqChatbot() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -202,7 +202,11 @@ export default function GrokChatbot() {
     });
   }
 
-  // ── Send message to Grok ─────────────────────────────────────────────────
+  function appendAssistantError(content) {
+    setMessages(prev => [...prev, { role: 'assistant', content }]);
+  }
+
+  // ── Send message to Groq (via backend proxy) ─────────────────────────────
   async function sendMessage(text) {
     const trimmed = (text || input).trim();
     if (!trimmed || loading) return;
@@ -217,9 +221,7 @@ export default function GrokChatbot() {
     try {
       const response = await fetch(CHAT_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'llama-3.1-8b-instant',
           messages: [
@@ -231,37 +233,31 @@ export default function GrokChatbot() {
         }),
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-      console.log('Content-Type:', response.headers.get('content-type'));
-
+      let data;
       try {
-        const data = await response.json();
-        console.log('Full data:', JSON.stringify(data));
-        console.log('Choices:', data?.choices);
-
-        const reply = data?.choices?.[0]?.message?.content;
-        console.log('Reply:', reply);
-
-        if (reply) {
-          setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-        } else {
-          setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, no response. Try again!" }]);
-        }
-      } catch (jsonError) {
-        console.error('JSON parse error:', jsonError);
-
-        // Fallback — read as text to see what actually came back
-        const text = await response.clone().text();
-        console.log('Raw text response:', text);
+        data = await response.json();
+      } catch {
+        appendAssistantError("Sorry, I couldn't read the server response. Please try again.");
+        return;
       }
 
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: "⚠️ Couldn't connect right now. Check your connection and try again." },
-      ]);
+      if (!response.ok) {
+        const errMsg =
+          data?.error?.message ||
+          (typeof data?.error === 'string' ? data.error : null) ||
+          `Something went wrong (${response.status}). Please try again.`;
+        appendAssistantError(`⚠️ ${errMsg}`);
+        return;
+      }
+
+      const reply = data?.choices?.[0]?.message?.content?.trim();
+      if (reply) {
+        setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      } else {
+        appendAssistantError("Sorry, I didn't get a reply. Please try again.");
+      }
+    } catch {
+      appendAssistantError("⚠️ Couldn't connect right now. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -389,7 +385,7 @@ export default function GrokChatbot() {
           </button>
         </div>
 
-        <p className="chatbot-footer">Powered by Grok · {BOT_NAME}</p>
+        <p className="chatbot-footer">Powered by Groq · {BOT_NAME}</p>
       </div>
     </>
   );

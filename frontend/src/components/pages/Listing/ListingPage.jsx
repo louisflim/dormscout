@@ -10,7 +10,7 @@ import './ListingPage.css';
 import {
     Pencil, Home, GraduationCap, MapPin, AlertTriangle,
     CheckCircle2, XCircle, Loader2, Plus, Trash2, ChevronLeft,
-    BedDouble, Users, Tag, Lightbulb
+    BedDouble, Lightbulb
 } from 'lucide-react';
 
 const BLUE = '#2563EB';

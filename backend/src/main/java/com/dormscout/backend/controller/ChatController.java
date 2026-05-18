@@ -46,9 +46,10 @@ public class ChatController {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(e.getResponseBodyAsString());
         } catch (Exception e) {
-            return ResponseEntity.status(500)
+            String msg = e.getMessage() != null ? e.getMessage().replace("\"", "'") : "Internal server error";
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body("{\"error\": \"" + e.getMessage() + "\"}");
+                    .body("{\"error\":\"" + msg + "\"}");
         }
     }
 }

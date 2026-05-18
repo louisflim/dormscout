@@ -109,8 +109,6 @@ export default function Notifications({ darkMode = false, userType = 'tenant' })
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
   return (
     <div>
       {!inAppNotificationsEnabled ? (
