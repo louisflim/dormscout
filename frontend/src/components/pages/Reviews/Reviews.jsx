@@ -67,7 +67,7 @@ function RatingBar({ label, count, total, darkMode = false }) {
   );
 }
 
-function ReviewCard({ review, onHelpful, darkMode = false, colors = {} }) {
+function ReviewCard({ review, onHelpful, onEdit, currentUserId, darkMode = false, colors = {} }) {
   const [animating, setAnimating] = useState(false);
 
   const handleHelpful = () => {
@@ -85,6 +85,7 @@ function ReviewCard({ review, onHelpful, darkMode = false, colors = {} }) {
   };
 
   const finalColors = { ...defaultColors, ...colors };
+  const isOwnReview = currentUserId != null && Number(review.tenantId) === Number(currentUserId);
 
   return (
     <div className="review-card" style={{ background: finalColors.cardBg, borderColor: finalColors.border }}>
@@ -93,7 +94,19 @@ function ReviewCard({ review, onHelpful, darkMode = false, colors = {} }) {
         <div className="review-card-meta">
           <div className="review-card-top">
             <span className="review-author" style={{ color: finalColors.text }}>{review.author}</span>
-            <span className="review-date" style={{ color: finalColors.secondaryText }}>{review.date}</span>
+            <div className="review-card-top-actions">
+              {isOwnReview && onEdit ? (
+                <button
+                  type="button"
+                  className="review-edit-btn"
+                  onClick={() => onEdit(review)}
+                  style={{ color: darkMode ? '#5bada8' : '#0f766e' }}
+                >
+                  ✏️ Edit
+                </button>
+              ) : null}
+              <span className="review-date" style={{ color: finalColors.secondaryText }}>{review.date}</span>
+            </div>
           </div>
           <div className="review-rating-row">
             <StarRating value={review.rating} size={18} readonly />
@@ -134,11 +147,12 @@ function ReviewCard({ review, onHelpful, darkMode = false, colors = {} }) {
   );
 }
 
-function WriteReviewModal({ onClose, onSubmit, dormName, darkMode = false }) {
-  const [rating, setRating] = useState(0);
-  const [body, setBody] = useState('');
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [anonymous, setAnonymous] = useState(false);
+function WriteReviewModal({ onClose, onSubmit, dormName, darkMode = false, initialReview = null, mode = 'create' }) {
+  const isEdit = mode === 'edit';
+  const [rating, setRating] = useState(initialReview?.rating || 0);
+  const [body, setBody] = useState(initialReview?.body || '');
+  const [selectedTags, setSelectedTags] = useState(initialReview?.tags || []);
+  const [anonymous, setAnonymous] = useState(Boolean(initialReview?.anonymous));
   const [submitted, setSubmitted] = useState(false);
 
   const colors = {
@@ -175,14 +189,16 @@ function WriteReviewModal({ onClose, onSubmit, dormName, darkMode = false }) {
       <div className="modal-card" style={{ background: colors.modalBg, color: colors.text }}>
         {submitted ? (
           <div className="modal-success">
-            <div className="modal-success-icon">🎉</div>
-            <h3 style={{ color: colors.text }}>Review Submitted!</h3>
-            <p style={{ color: colors.secondaryText }}>Thank you for helping fellow students.</p>
+            <div className="modal-success-icon">{isEdit ? '✓' : '🎉'}</div>
+            <h3 style={{ color: colors.text }}>{isEdit ? 'Review Updated!' : 'Review Submitted!'}</h3>
+            <p style={{ color: colors.secondaryText }}>
+              {isEdit ? 'Your changes have been saved.' : 'Thank you for helping fellow students.'}
+            </p>
           </div>
         ) : (
           <>
             <div>
-              <h3 className="modal-title" style={{ color: colors.text }}>Write a Review</h3>
+              <h3 className="modal-title" style={{ color: colors.text }}>{isEdit ? 'Edit Review' : 'Write a Review'}</h3>
               <p className="modal-dorm-name" style={{ color: colors.secondaryText }}>{dormName}</p>
             </div>
 
@@ -271,7 +287,7 @@ function WriteReviewModal({ onClose, onSubmit, dormName, darkMode = false }) {
                 onClick={handleSubmit}
                 disabled={!isValid}
               >
-                Submit Review
+                {isEdit ? 'Save Changes' : 'Submit Review'}
               </button>
             </div>
           </>
@@ -296,6 +312,7 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
   const [sortBy, setSortBy] = useState('newest');
   const [filterRating, setFilterRating] = useState(0);
   const [showModal, setShowModal] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
   const [approvedListingIds, setApprovedListingIds] = useState(new Set());
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
 
@@ -409,6 +426,36 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
     setReviews(prev =>
       prev.map(r => r.id === reviewId ? { ...r, helpful: (r.helpful || 0) + 1, userMarkedHelpful: true } : r)
     );
+  };
+
+  const handleEditReview = (review) => {
+    setEditingReview(review);
+  };
+
+  const handleUpdateReview = async ({ rating, body, tags, anonymous: postAnonymous }) => {
+    if (!editingReview?.id || !user?.id) return;
+    try {
+      const result = await reviewsAPI.updateReview(editingReview.id, user.id, {
+        rating,
+        body,
+        tags,
+        anonymous: Boolean(postAnonymous),
+      });
+
+      if (!result || result.success === false) {
+        alert(result?.message || 'Could not update review. Please try again.');
+        return;
+      }
+
+      const data = await reviewsAPI.getByListing(selectedDorm);
+      if (Array.isArray(data)) {
+        setReviews(data);
+      }
+      setEditingReview(null);
+    } catch (err) {
+      console.error('Review update error:', err);
+      alert('Failed to update review. Please try again.');
+    }
   };
 
   const handleSubmitReview = async ({ rating, body, tags, anonymous: postAnonymous }) => {
@@ -592,6 +639,8 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
                   key={review.id}
                   review={review}
                   onHelpful={handleHelpful}
+                  onEdit={userType === 'tenant' ? handleEditReview : undefined}
+                  currentUserId={user?.id}
                   darkMode={darkMode}
                   colors={{
                     cardBg: colors.cardBg,
@@ -629,6 +678,18 @@ export default function Reviews({ userType = 'tenant', darkMode = false }) {
           onClose={() => setShowModal(false)}
           onSubmit={handleSubmitReview}
           darkMode={darkMode}
+        />
+      )}
+
+      {editingReview && currentDorm && (
+        <WriteReviewModal
+          key={editingReview.id}
+          dormName={currentDorm.name}
+          onClose={() => setEditingReview(null)}
+          onSubmit={handleUpdateReview}
+          darkMode={darkMode}
+          mode="edit"
+          initialReview={editingReview}
         />
       )}
     </main>

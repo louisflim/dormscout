@@ -91,6 +91,29 @@ public class ReviewController {
         return ResponseEntity.ok(reviewService.getReviewsByListing(listingOpt.get()));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateReview(
+            @PathVariable Long id,
+            @RequestParam Long tenantId,
+            @RequestBody Review updates) {
+        try {
+            Review updated = reviewService.updateReview(id, tenantId, updates);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Review updated",
+                    "data", updated
+            ));
+        } catch (RuntimeException e) {
+            HttpStatus status = "Review not found".equalsIgnoreCase(e.getMessage())
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteReview(@PathVariable Long id) {
         try {

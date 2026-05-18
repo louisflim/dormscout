@@ -28,6 +28,10 @@ public class UserDTO {
     private String bio;
     private String businessName;
     private String businessPermit;
+    private String pendingBusinessName;
+    private String pendingBusinessPermit;
+    private String businessUpdateStatus;
+    private String businessUpdateRejectionReason;
     private boolean verified;
     private String verificationStatus; // pending, approved, rejected
     private String rejectionReason;

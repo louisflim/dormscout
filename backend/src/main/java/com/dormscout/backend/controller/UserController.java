@@ -127,7 +127,41 @@ public class UserController {
             UserDTO userDTO = userService.convertToDTO(updatedUser);
             return ResponseEntity.ok(userDTO);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+            HttpStatus status = "User not found".equalsIgnoreCase(e.getMessage())
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @PostMapping("/{id}/business-update-request")
+    public ResponseEntity<?> requestBusinessUpdate(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        String businessName = body != null ? body.get("businessName") : null;
+        String businessPermit = body != null ? body.get("businessPermit") : null;
+        try {
+            UserDTO updated = userService.submitBusinessUpdateRequest(id, businessName, businessPermit);
+            activityService.createActivity(
+                    id,
+                    "business_update_pending",
+                    "Your business detail update request was submitted and is pending admin review.",
+                    "just now",
+                    "notifications"
+            );
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Business update request submitted for admin review",
+                    "data", updated
+            ));
+        } catch (RuntimeException e) {
+            HttpStatus status = "User not found".equalsIgnoreCase(e.getMessage())
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status).body(Map.of(
                     "success", false,
                     "message", e.getMessage()
             ));
@@ -254,6 +288,69 @@ public class UserController {
             ));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @PostMapping("/admin/business-update/{id}/approve")
+    public ResponseEntity<?> approveBusinessUpdate(@PathVariable Long id) {
+        try {
+            UserDTO updated = userService.approveBusinessUpdate(id);
+            activityService.createActivity(
+                    id,
+                    "business_update_approved",
+                    "Your business detail update was approved and is now active.",
+                    "just now",
+                    "notifications"
+            );
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Business update approved",
+                    "data", updated
+            ));
+        } catch (RuntimeException e) {
+            HttpStatus status = "User not found".equalsIgnoreCase(e.getMessage())
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @PostMapping("/admin/business-update/{id}/reject")
+    public ResponseEntity<?> rejectBusinessUpdate(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        if (reason == null || reason.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "success", false,
+                    "message", "A rejection explanation is required."
+            ));
+        }
+        try {
+            UserDTO updated = userService.rejectBusinessUpdate(id, reason.trim());
+            activityService.createActivity(
+                    id,
+                    "business_update_rejected",
+                    "Your business detail update was rejected. Reason: " + reason.trim(),
+                    "just now",
+                    "notifications"
+            );
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Business update rejected",
+                    "data", updated
+            ));
+        } catch (RuntimeException e) {
+            HttpStatus status = "User not found".equalsIgnoreCase(e.getMessage())
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status).body(Map.of(
                     "success", false,
                     "message", e.getMessage()
             ));

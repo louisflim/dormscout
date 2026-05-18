@@ -8,6 +8,12 @@ import './Settings.css';
 
 const PRIMARY = '#E8622E';
 
+const normalizeGenderValue = (value) => {
+  const g = String(value || '').trim();
+  if (!g || g === 'Prefer not to say') return '';
+  return g;
+};
+
 /* ─────────────────────────── Toggle ─────────────────────────── */
 const Toggle = ({ checked, onChange }) => (
   <button
@@ -63,7 +69,8 @@ const InputField = ({
   placeholder,
   colors,
   error,
-  required = false
+  required = false,
+  disabled = false,
 }) => (
   <div className="input-field">
     <label className="input-field__label" style={{ color: colors.secondaryText }}>
@@ -74,11 +81,13 @@ const InputField = ({
       value={value}
       onChange={onChange}
       placeholder={placeholder}
+      disabled={disabled}
       className={`input-field__input ${error ? 'input-field__input--error' : ''}`}
       style={{
         border: error ? '1px solid #ef4444' : `1px solid ${colors.border}`,
         background: colors.inputBg,
         color: colors.text,
+        opacity: disabled ? 0.75 : 1,
       }}
     />
     {error && (
@@ -303,7 +312,7 @@ const SectionMessage = ({ message, type = 'success', onClose }) => {
 
 /* ─────────────────────────── Settings ───────────────────────── */
 export default function Settings({ userType: propUserType, darkMode = false, setDarkMode }) {
-  const { user, updateUser, deleteAccount, logout } = useAuth();
+  const { user, updateUser, refreshUser, deleteAccount, logout } = useAuth();
 
   const dk = darkMode;
   const [isLoading, setIsLoading] = useState(false);
@@ -357,7 +366,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   const [email,           setEmail]           = useState(user?.email || '');
   const [phoneNumber,     setPhoneNumber]     = useState(user?.phone || user?.phoneNumber || '');
   const [university,      setUniversity]      = useState(user?.university || user?.school || '');
-  const [gender,          setGender]          = useState(user?.gender || '');
+  const [gender,          setGender]          = useState(normalizeGenderValue(user?.gender));
   const [course,          setCourse]          = useState(user?.course || '');
   const [yearLevel,       setYearLevel]       = useState(user?.yearLevel || '');
   const [studentId,       setStudentId]       = useState(user?.studentId || '');
@@ -369,6 +378,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
   const [businessPermit,  setBusinessPermit]  = useState(user?.businessPermit || '');
   const [isVerified,      setIsVerified]      = useState(Boolean(user?.verified || user?.isVerified));
   const [verificationStatus, setVerificationStatus] = useState(user?.verificationStatus || '');
+  const [businessUpdateStatus, setBusinessUpdateStatus] = useState(user?.businessUpdateStatus || '');
   const [profileImage,    setProfileImage]    = useState(user?.profileImage || null);
 
   // App settings
@@ -389,7 +399,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
         setEmail(saved.email || '');
         setPhoneNumber(saved.phone || saved.phoneNumber || '');
         setUniversity(saved.university || saved.school || '');
-        setGender(saved.gender || '');
+        setGender(normalizeGenderValue(saved.gender));
         setCourse(saved.course || '');
         setYearLevel(saved.yearLevel || '');
         setStudentId(saved.studentId || '');
@@ -407,7 +417,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       setEmail(user.email || '');
       setPhoneNumber(user.phone || user.phoneNumber || '');
       setUniversity(user.university || user.school || '');
-      setGender(user.gender || '');
+      setGender(normalizeGenderValue(user.gender));
       setCourse(user.course || '');
       setYearLevel(user.yearLevel || '');
       setStudentId(user.studentId || '');
@@ -423,6 +433,58 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       initialSyncDone.current = true;
     }
   }, [user?.id, user]);
+
+  // Refetch profile when opening Settings (e.g. after admin updates business details)
+  useEffect(() => {
+    refreshUser?.();
+    const onFocus = () => { refreshUser?.(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refreshUser]);
+
+  // Keep business fields in sync with latest user from server
+  const userBusinessName = user?.businessName;
+  const userBusinessPermit = user?.businessPermit;
+  const userPendingBusinessName = user?.pendingBusinessName;
+  const userPendingBusinessPermit = user?.pendingBusinessPermit;
+  const userBusinessUpdateStatus = user?.businessUpdateStatus;
+  const userVerified = user?.verified;
+  const userIsVerified = user?.isVerified;
+  const userVerificationStatus = user?.verificationStatus;
+
+  useEffect(() => {
+    if (user?.id == null) return;
+    const buStatus = String(userBusinessUpdateStatus || '').toLowerCase();
+    setBusinessUpdateStatus(buStatus);
+    setIsVerified(Boolean(userVerified || userIsVerified));
+    setVerificationStatus(userVerificationStatus || '');
+    if (buStatus === 'pending') {
+      setBusinessName(userPendingBusinessName || userBusinessName || '');
+      setBusinessPermit(userPendingBusinessPermit || userBusinessPermit || '');
+    } else {
+      setBusinessName(userBusinessName || '');
+      setBusinessPermit(userBusinessPermit || '');
+    }
+  }, [
+    user?.id,
+    userBusinessName,
+    userBusinessPermit,
+    userPendingBusinessName,
+    userPendingBusinessPermit,
+    userBusinessUpdateStatus,
+    userVerified,
+    userIsVerified,
+    userVerificationStatus,
+  ]);
+
+  const approvedBusinessName = (user?.businessName || '').trim();
+  const approvedBusinessPermit = (user?.businessPermit || '').trim();
+  const hasBusinessUpdateChanges = isVerified
+    && businessUpdateStatus !== 'pending'
+    && (
+      businessName.trim() !== approvedBusinessName
+      || businessPermit.trim() !== approvedBusinessPermit
+    );
 
   useEffect(() => {
     if (profileImageDirty.current) return;
@@ -509,8 +571,16 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       setProfileMessage({ text: 'Please enter a valid email address', type: 'error' });
       return;
     }
-    if (phoneNumber && !isValidPhone(phoneNumber)) {
+    if (!phoneNumber.trim()) {
+      setProfileMessage({ text: 'Phone number is required', type: 'error' });
+      return;
+    }
+    if (!isValidPhone(phoneNumber)) {
       setProfileMessage({ text: 'Please enter a valid phone number', type: 'error' });
+      return;
+    }
+    if (!gender) {
+      setProfileMessage({ text: 'Please select your gender', type: 'error' });
       return;
     }
 
@@ -563,9 +633,20 @@ export default function Settings({ userType: propUserType, darkMode = false, set
 
   /* ── Save Student Information Only ── */
   async function saveStudentInfo() {
-    // Validation for student info only
     if (!isLandlord && !university) {
       setStudentMessage({ text: 'Please select your university', type: 'error' });
+      return;
+    }
+    if (!isLandlord && !course.trim()) {
+      setStudentMessage({ text: 'Course is required', type: 'error' });
+      return;
+    }
+    if (!isLandlord && !yearLevel) {
+      setStudentMessage({ text: 'Please select your year level', type: 'error' });
+      return;
+    }
+    if (!isLandlord && !studentId.trim()) {
+      setStudentMessage({ text: 'Student ID is required', type: 'error' });
       return;
     }
 
@@ -689,6 +770,39 @@ export default function Settings({ userType: propUserType, darkMode = false, set
       setApplicationMessage({ text: 'Notification settings saved! ✓', type: 'success' });
     } catch (error) {
       setApplicationMessage({ text: 'Failed to save settings', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleBusinessUpdateRequest() {
+    if (!businessName.trim() || !businessPermit.trim()) {
+      setVerifyMessage({ text: 'Please fill in both Business Name and Business Permit Number', type: 'error' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await userAPI.requestBusinessUpdate(user.id, {
+        businessName: businessName.trim(),
+        businessPermit: businessPermit.trim(),
+      });
+
+      if (!result || result.success === false) {
+        setVerifyMessage({
+          text: result?.message || 'Failed to submit business update request.',
+          type: 'error',
+        });
+        return;
+      }
+
+      await refreshUser?.();
+      setBusinessUpdateStatus('pending');
+      setVerifyMessage({
+        text: 'Update request submitted. You will be notified when an admin approves or rejects it.',
+        type: 'success',
+      });
+      window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
     } finally {
       setIsLoading(false);
     }
@@ -857,12 +971,13 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="+63 9XX XXX XXXX"
                 colors={colors}
+                required
               />
             </div>
             <div className="settings-grid-2 settings-grid-2--mb">
               <div className="input-field">
                 <label className="input-field__label" style={{ color: colors.secondaryText }}>
-                  Gender
+                  Gender <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <select
                   value={gender}
@@ -873,11 +988,11 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                     background: colors.inputBg,
                     color: colors.text,
                   }}
+                  required
                 >
                   <option value="">Select Gender</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
                 </select>
               </div>
             </div>
@@ -923,6 +1038,36 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                   <span style={{ color: '#16a34a', fontWeight: 700 }}>Verified Business</span>
                 </div>
               )}
+              {isVerified && businessUpdateStatus === 'pending' && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '12px',
+                  padding: '12px 16px',
+                  background: 'rgba(245,158,11,0.12)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(245,158,11,0.35)'
+                }}>
+                  <span style={{ fontSize: '1.2rem' }}>⏳</span>
+                  <span style={{ color: '#b45309', fontWeight: 700 }}>Business Update Pending Review</span>
+                </div>
+              )}
+              {isVerified && businessUpdateStatus === 'rejected' && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '12px',
+                  padding: '12px 16px',
+                  background: 'rgba(239,68,68,0.1)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(239,68,68,0.3)'
+                }}>
+                  <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                  <span style={{ color: '#dc2626', fontWeight: 700 }}>Business Update Rejected</span>
+                </div>
+              )}
               {!isVerified && verificationStatus === 'pending' && (
                 <div style={{
                   display: 'flex',
@@ -960,6 +1105,8 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                   onChange={(e) => setBusinessName(e.target.value)}
                   placeholder="Enter business name"
                   colors={colors}
+                  required
+                  disabled={isVerified && businessUpdateStatus === 'pending'}
                 />
                 <InputField
                   label="Business Permit Number"
@@ -967,12 +1114,18 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                   onChange={(e) => setBusinessPermit(e.target.value)}
                   placeholder="Enter permit number"
                   colors={colors}
+                  required
+                  disabled={isVerified && businessUpdateStatus === 'pending'}
                 />
               </div>
               <p style={{ color: colors.secondaryText, marginBottom: '12px' }}>
-                {isVerified
-                  ? 'Your business has been verified. To update details, please contact support.'
-                  : verificationStatus === 'pending'
+                {isVerified && businessUpdateStatus === 'pending'
+                  ? 'Your business update request is waiting for admin approval.'
+                  : isVerified && businessUpdateStatus === 'rejected'
+                    ? `Your business update was rejected${user?.businessUpdateRejectionReason ? `: ${user.businessUpdateRejectionReason}` : '.'} Your current details are shown below.`
+                    : isVerified
+                      ? 'Edit your business details below, then submit an update request for admin approval.'
+                      : verificationStatus === 'pending'
                     ? 'Your verification request has been submitted and is waiting for admin approval.'
                     : verificationStatus === 'rejected'
                       ? `Your previous verification request was rejected${user?.rejectionReason ? `: ${user.rejectionReason}` : '.'}`
@@ -980,7 +1133,18 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                 }
               </p>
 
-              {/* Verify Button and Message */}
+              {/* Verify / business update actions */}
+              {isVerified && hasBusinessUpdateChanges && (
+                <div>
+                  <button
+                    className="btn-primary btn-primary--mt"
+                    onClick={handleBusinessUpdateRequest}
+                    disabled={!businessName.trim() || !businessPermit.trim() || isLoading}
+                  >
+                    Submit Update Request
+                  </button>
+                </div>
+              )}
               {!isVerified && verificationStatus !== 'pending' && (
                 <div>
                   <button
@@ -990,13 +1154,13 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                   >
                     Submit for Verification
                   </button>
-                  <SectionMessage
-                    message={verifyMessage.text}
-                    type={verifyMessage.type}
-                    onClose={() => setVerifyMessage({ text: '', type: 'success' })}
-                  />
                 </div>
               )}
+              <SectionMessage
+                message={verifyMessage.text}
+                type={verifyMessage.type}
+                onClose={() => setVerifyMessage({ text: '', type: 'success' })}
+              />
             </SettingSection>
           )}
 
@@ -1031,13 +1195,14 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                   onChange={(e) => setCourse(e.target.value)}
                   placeholder="e.g., BS Computer Science"
                   colors={colors}
+                  required
                 />
               </div>
 
               <div className="settings-grid-2">
                 <div className="input-field">
                   <label className="input-field__label" style={{ color: colors.secondaryText }}>
-                    Year Level
+                    Year Level <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <select
                     value={yearLevel}
@@ -1048,6 +1213,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                       background: colors.inputBg,
                       color: colors.text,
                     }}
+                    required
                   >
                     <option value="">Select Year Level</option>
                     <option value="1st Year">1st Year</option>
@@ -1063,6 +1229,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                   onChange={(e) => setStudentId(e.target.value)}
                   placeholder="2024001234"
                   colors={colors}
+                  required
                 />
               </div>
 
@@ -1091,6 +1258,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                 placeholder="Enter your current password"
                 colors={colors}
                 error={passwordErrors.currentPassword}
+                required
               />
             </div>
             <div className="settings-password-field">
@@ -1102,6 +1270,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                 placeholder="Min. 8 characters"
                 colors={colors}
                 error={passwordErrors.newPassword}
+                required
               />
             </div>
             <div className="settings-password-field">
@@ -1113,6 +1282,7 @@ export default function Settings({ userType: propUserType, darkMode = false, set
                 placeholder="Re-enter new password"
                 colors={colors}
                 error={passwordErrors.confirmPassword}
+                required
               />
             </div>
             <div style={{

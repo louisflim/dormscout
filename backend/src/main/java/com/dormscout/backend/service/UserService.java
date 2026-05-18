@@ -159,11 +159,23 @@ public class UserService {
                 validatePasswordPolicy(updates.getPassword());
                 user.setPassword(passwordEncoder.encode(updates.getPassword()));
             }
-            if (updates.getBusinessName() != null) {
-                user.setBusinessName(updates.getBusinessName());
-            }
-            if (updates.getBusinessPermit() != null) {
-                user.setBusinessPermit(updates.getBusinessPermit());
+            boolean businessFieldsSent = updates.getBusinessName() != null || updates.getBusinessPermit() != null;
+            if (businessFieldsSent) {
+                boolean isApproved = user.isVerified()
+                        || "approved".equalsIgnoreCase(user.getVerificationStatus());
+                if (isApproved) {
+                    throw new RuntimeException(
+                            "Submit a business update request from Settings to change verified business details.");
+                }
+                if (updates.getBusinessName() != null) {
+                    user.setBusinessName(updates.getBusinessName());
+                }
+                if (updates.getBusinessPermit() != null) {
+                    user.setBusinessPermit(updates.getBusinessPermit());
+                }
+                user.setVerified(false);
+                user.setVerificationStatus("pending");
+                user.setRejectionReason(null);
             }
             if (updates.getEmailNotifications() != null) {
                 user.setEmailNotifications(updates.getEmailNotifications());
@@ -176,11 +188,6 @@ public class UserService {
             }
             if (updates.getDarkMode() != null) {
                 user.setDarkMode(updates.getDarkMode());
-            }
-            if (updates.getBusinessName() != null || updates.getBusinessPermit() != null) {
-                user.setVerified(false);
-                user.setVerificationStatus("pending");
-                user.setRejectionReason(null);
             }
 
             return userRepository.save(user);
@@ -249,6 +256,10 @@ public class UserService {
             dto.setBio(user.getBio());
         dto.setBusinessName(user.getBusinessName());
         dto.setBusinessPermit(user.getBusinessPermit());
+        dto.setPendingBusinessName(user.getPendingBusinessName());
+        dto.setPendingBusinessPermit(user.getPendingBusinessPermit());
+        dto.setBusinessUpdateStatus(user.getBusinessUpdateStatus());
+        dto.setBusinessUpdateRejectionReason(user.getBusinessUpdateRejectionReason());
         dto.setVerified(user.isVerified());
         dto.setVerificationStatus(user.getVerificationStatus());
         dto.setRejectionReason(user.getRejectionReason());
@@ -266,6 +277,77 @@ public class UserService {
         if (!approve && reason != null) {
             user.setRejectionReason(reason);
         }
+        userRepository.save(user);
+        return convertToDTO(user);
+    }
+
+    private boolean isVerifiedLandlord(User user) {
+        return "landlord".equalsIgnoreCase(user.getUserType())
+                && (user.isVerified() || "approved".equalsIgnoreCase(user.getVerificationStatus()));
+    }
+
+    public UserDTO submitBusinessUpdateRequest(Long userId, String businessName, String businessPermit) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!isVerifiedLandlord(user)) {
+            throw new RuntimeException("Only verified landlords can request business detail updates");
+        }
+        if ("pending".equalsIgnoreCase(user.getBusinessUpdateStatus())) {
+            throw new RuntimeException("You already have a business update request pending review");
+        }
+        if (businessName == null || businessName.isBlank()
+                || businessPermit == null || businessPermit.isBlank()) {
+            throw new RuntimeException("Business name and permit number are required");
+        }
+
+        String nextName = businessName.trim();
+        String nextPermit = businessPermit.trim();
+        String currentName = user.getBusinessName() != null ? user.getBusinessName().trim() : "";
+        String currentPermit = user.getBusinessPermit() != null ? user.getBusinessPermit().trim() : "";
+
+        if (nextName.equals(currentName) && nextPermit.equals(currentPermit)) {
+            throw new RuntimeException("New business details must be different from your current details");
+        }
+
+        user.setPendingBusinessName(nextName);
+        user.setPendingBusinessPermit(nextPermit);
+        user.setBusinessUpdateStatus("pending");
+        user.setBusinessUpdateRejectionReason(null);
+        userRepository.save(user);
+        return convertToDTO(user);
+    }
+
+    public UserDTO approveBusinessUpdate(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!"pending".equalsIgnoreCase(user.getBusinessUpdateStatus())) {
+            throw new RuntimeException("No pending business update request for this landlord");
+        }
+
+        user.setBusinessName(user.getPendingBusinessName());
+        user.setBusinessPermit(user.getPendingBusinessPermit());
+        user.setPendingBusinessName(null);
+        user.setPendingBusinessPermit(null);
+        user.setBusinessUpdateStatus(null);
+        user.setBusinessUpdateRejectionReason(null);
+        userRepository.save(user);
+        return convertToDTO(user);
+    }
+
+    public UserDTO rejectBusinessUpdate(Long userId, String reason) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!"pending".equalsIgnoreCase(user.getBusinessUpdateStatus())) {
+            throw new RuntimeException("No pending business update request for this landlord");
+        }
+
+        user.setPendingBusinessName(null);
+        user.setPendingBusinessPermit(null);
+        user.setBusinessUpdateStatus("rejected");
+        user.setBusinessUpdateRejectionReason(reason != null ? reason.trim() : null);
         userRepository.save(user);
         return convertToDTO(user);
     }

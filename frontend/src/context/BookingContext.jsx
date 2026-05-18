@@ -183,7 +183,7 @@ export function BookingProvider({ children }) {
   }, []);
 
   // ── Cancel Booking (Tenant) ─────────────────────────────
-  const cancelBooking = useCallback(async (bookingId, bookingSnapshot, moveOutDate) => {
+  const cancelBooking = useCallback(async (bookingId, bookingSnapshot, moveOutDate, cancellationReason) => {
     setLoading(true);
     try {
       const booking = bookings.find(b => Number(b.id) === Number(bookingId)) || bookingSnapshot;
@@ -214,7 +214,7 @@ export function BookingProvider({ children }) {
             await activitiesAPI.createActivity(
               Number(landlordId),
               'booking_cancelled',
-              `${tenantName} cancelled their booking for "${listingTitle}".`,
+              `${tenantName} cancelled their booking for "${listingTitle}".${cancellationReason ? ` Reason: ${cancellationReason}` : ''}`,
               'Just now',
               'listing'
             );

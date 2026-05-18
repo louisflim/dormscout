@@ -84,6 +84,22 @@ export const userAPI = {
         }
     },
 
+    requestBusinessUpdate: async (userId, { businessName, businessPermit }) => {
+        try {
+            const response = await api.post(`/users/${userId}/business-update-request`, {
+                businessName,
+                businessPermit,
+            });
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: requestBusinessUpdate error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to submit business update request',
+            };
+        }
+    },
+
     deleteUser: async (id) => {
         try {
             const response = await api.delete(`/users/${id}`);
@@ -451,6 +467,22 @@ export const reviewsAPI = {
             return {
                 success: false,
                 message: error.response?.data?.message || 'Failed to submit review'
+            };
+        }
+    },
+
+    /** Update own review */
+    updateReview: async (reviewId, tenantId, reviewData) => {
+        try {
+            const response = await api.put(`/reviews/${reviewId}`, reviewData, {
+                params: { tenantId },
+            });
+            return response.data;
+        } catch (error) {
+            console.error('❌ API: updateReview error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to update review',
             };
         }
     },

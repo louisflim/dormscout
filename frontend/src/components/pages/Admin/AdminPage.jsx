@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { messagesAPI, reportsAPI } from '../../../utils/api';
+import { activitiesAPI, messagesAPI, reportsAPI } from '../../../utils/api';
 import {
   buildConversationId,
   isBroadcastMessage,
@@ -17,6 +17,7 @@ import {
   readAdminSession,
   saveAdminSession,
 } from '../../../utils/adminAuth';
+import { countUnreadActivities } from '../../../utils/activities';
 import AdminMessaging from './AdminMessaging';
 import AdminSupportInbox from './AdminSupportInbox';
 import './AdminPage.css';
@@ -120,6 +121,40 @@ const formatStarRating = (rating) => {
   return '\u2605'.repeat(stars) + '\u2606'.repeat(5 - stars);
 };
 
+const displayOrDash = (value) => {
+  const text = String(value ?? '').trim();
+  return text || '—';
+};
+
+const renderLandlordBusinessCell = (u, field, businessUpdatePending, verificationPending) => {
+  const isLandlord = getRole(u) === 'landlord';
+  if (!isLandlord) return '—';
+
+  const current = field === 'name' ? u.businessName : u.businessPermit;
+  const pending = field === 'name' ? u.pendingBusinessName : u.pendingBusinessPermit;
+
+  if (businessUpdatePending) {
+    return (
+      <div className="admin-business-compare">
+        <div className="admin-business-requested">
+          <span className="admin-business-label">Requested</span>
+          {displayOrDash(pending)}
+        </div>
+        <div className="admin-business-current">
+          <span className="admin-business-label">Current</span>
+          {displayOrDash(current)}
+        </div>
+      </div>
+    );
+  }
+
+  if (verificationPending) {
+    return displayOrDash(current);
+  }
+
+  return displayOrDash(current);
+};
+
 export default function AdminPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -163,8 +198,9 @@ export default function AdminPage() {
   const [bookingQuery, setBookingQuery] = useState('');
   const [reportFilter, setReportFilter] = useState('all');
 
-  // Rejection modal state
+  // Rejection modal state (verification or business update)
   const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [rejectionMode, setRejectionMode] = useState('verification');
   const [selectedLandlord, setSelectedLandlord] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionModalError, setRejectionModalError] = useState('');
@@ -230,6 +266,7 @@ export default function AdminPage() {
             subject: extractedSubject,
             message: lastMessage,
             lastMessage,
+            unreadCount: Number(conv?.unreadCount) || 0,
             replied: false,
             createdAt: conv?.lastMessageTime ? new Date(conv.lastMessageTime).toISOString() : new Date().toISOString(),
           };
@@ -335,6 +372,41 @@ export default function AdminPage() {
     const timer = setInterval(refresh, 5000);
     return () => clearInterval(timer);
   }, [isLoggedIn, activeSection, users, adminUser, loadAdminDerivedData]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return undefined;
+    const refresh = () => loadAdminDerivedData(users, adminUser);
+    refresh();
+    const interval = setInterval(refresh, 10000);
+    window.addEventListener('dormscout:notificationsUpdated', refresh);
+    window.addEventListener('dormscout:messagesUpdated', refresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('dormscout:notificationsUpdated', refresh);
+      window.removeEventListener('dormscout:messagesUpdated', refresh);
+    };
+  }, [isLoggedIn, users, adminUser, loadAdminDerivedData]);
+
+  useEffect(() => {
+    if (!isLoggedIn || activeSection !== 'notifications') return undefined;
+
+    const unread = notifications.filter((n) => n?.id && !(n.read ?? n.isRead));
+    if (unread.length === 0) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      await Promise.all(
+        unread.map((n) => activitiesAPI.markAsRead(n.id).catch(() => null))
+      );
+      if (cancelled) return;
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, activeSection, notifications]);
 
   useEffect(() => {
     localStorage.setItem(ADMIN_DARKMODE_KEY, darkMode ? 'true' : 'false');
@@ -525,42 +597,106 @@ const handleDeleteUser = async (userId) => {
   };
 
   const handleRejectLandlord = (landlord) => {
+    setRejectionMode('verification');
     setSelectedLandlord(landlord);
     setRejectionReason('');
     setRejectionModalError('');
     setShowRejectionModal(true);
   };
 
+  const handleRejectBusinessUpdate = (landlord) => {
+    setRejectionMode('businessUpdate');
+    setSelectedLandlord(landlord);
+    setRejectionReason('');
+    setRejectionModalError('');
+    setShowRejectionModal(true);
+  };
+
+  const handleApproveBusinessUpdate = async (userId) => {
+    try {
+      const response = await adminFetch(
+        `http://localhost:8080/api/users/admin/business-update/${userId}/approve`,
+        { method: 'POST' }
+      );
+      const data = await response.json();
+      if (data.success) {
+        const updated = data.data || {};
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, ...updated, businessUpdateStatus: null } : u))
+        );
+        window.dispatchEvent(new Event('dormscout:profileUpdated'));
+        window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
+        showInlineNotice('Business update approved.', 'is-good');
+      } else {
+        showInlineNotice(data.message || 'Failed to approve business update.', 'is-bad');
+      }
+    } catch (err) {
+      console.error('Failed to approve business update:', err);
+      showInlineNotice('Failed to approve business update.', 'is-bad');
+    }
+  };
+
   const handleSubmitRejection = async () => {
     const reason = rejectionReason.trim();
     if (!reason) {
-      setRejectionModalError('An explanation is required before you can reject this verification.');
+      setRejectionModalError(
+        rejectionMode === 'businessUpdate'
+          ? 'An explanation is required before you can reject this business update.'
+          : 'An explanation is required before you can reject this verification.'
+      );
       return;
     }
     setRejectionModalError('');
     try {
-      const response = await adminFetch(`http://localhost:8080/api/users/admin/verify-landlord/${selectedLandlord.id}/reject`, {
+      const isBusinessUpdate = rejectionMode === 'businessUpdate';
+      const url = isBusinessUpdate
+        ? `http://localhost:8080/api/users/admin/business-update/${selectedLandlord.id}/reject`
+        : `http://localhost:8080/api/users/admin/verify-landlord/${selectedLandlord.id}/reject`;
+
+      const response = await adminFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
+        body: JSON.stringify({ reason }),
       });
       const data = await response.json();
       if (!response.ok || data.success === false) {
-        setRejectionModalError(data.message || 'Failed to reject landlord. Please try again.');
+        setRejectionModalError(data.message || 'Failed to submit rejection. Please try again.');
         return;
       }
       if (data.success) {
-        setUsers(prev => prev.map(u => u.id === selectedLandlord.id ? { ...u, verified: false, verificationStatus: 'rejected', rejectionReason } : u));
+        const updated = data.data || {};
+        setUsers((prev) =>
+          prev.map((u) => {
+            if (u.id !== selectedLandlord.id) return u;
+            if (isBusinessUpdate) {
+              return {
+                ...u,
+                ...updated,
+                businessUpdateStatus: 'rejected',
+                businessUpdateRejectionReason: reason,
+                pendingBusinessName: null,
+                pendingBusinessPermit: null,
+              };
+            }
+            return { ...u, verified: false, verificationStatus: 'rejected', rejectionReason };
+          })
+        );
         setShowRejectionModal(false);
         setSelectedLandlord(null);
         setRejectionReason('');
         window.dispatchEvent(new Event('dormscout:verificationUpdated'));
+        window.dispatchEvent(new Event('dormscout:profileUpdated'));
         window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
-        showInlineNotice('Landlord verification rejected and reason sent.', 'is-good');
+        showInlineNotice(
+          isBusinessUpdate
+            ? 'Business update rejected and landlord notified.'
+            : 'Landlord verification rejected and reason sent.',
+          'is-good'
+        );
       }
     } catch (err) {
-      console.error('Failed to reject landlord:', err);
-      showInlineNotice('Failed to reject landlord.', 'is-bad');
+      console.error('Failed to submit rejection:', err);
+      showInlineNotice('Failed to submit rejection.', 'is-bad');
     }
   };
 
@@ -637,6 +773,16 @@ const handleDeleteUser = async (userId) => {
         new Date(a.createdAt || a.lastMessageTime || 0).getTime()
     );
   }, [directConversations]);
+
+  const adminNotificationUnreadCount = useMemo(
+    () => countUnreadActivities(notifications),
+    [notifications]
+  );
+
+  const adminMessageUnreadCount = useMemo(
+    () => messageConversations.reduce((sum, c) => sum + (Number(c.unreadCount) || 0), 0),
+    [messageConversations]
+  );
 
   const handleMessageUser = (userRecord) => {
     const numericId = userRecord?.id != null ? Number(userRecord.id) : NaN;
@@ -921,6 +1067,14 @@ const handleDeleteUser = async (userId) => {
               >
                 <Icon size={18} />
                 <span className="admin-side-label">{item.label}</span>
+                {item.id === 'notifications' && adminNotificationUnreadCount > 0 ? (
+                  <span className="admin-side-badge">{adminNotificationUnreadCount}</span>
+                ) : null}
+                {item.id === 'messages' && adminMessageUnreadCount > 0 ? (
+                  <span className="admin-side-badge">
+                    {adminMessageUnreadCount > 99 ? '99+' : adminMessageUnreadCount}
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -977,6 +1131,8 @@ const handleDeleteUser = async (userId) => {
                       <th>Name</th>
                       <th>Email</th>
                       <th>Role</th>
+                      <th>Business Name</th>
+                      <th>Permit #</th>
                       <th>Verification</th>
                       <th>Created At</th>
                       <th>Action</th>
@@ -984,13 +1140,17 @@ const handleDeleteUser = async (userId) => {
                   </thead>
                   <tbody>
                     {filteredUsers.length === 0 ? (
-                      <tr><td colSpan={6} className="admin-empty">No users found.</td></tr>
+                      <tr><td colSpan={8} className="admin-empty">No users found.</td></tr>
                     ) : filteredUsers.map((u, idx) => {
                       const role = getRole(u);
                       const verStatus = String(u.verificationStatus || 'none').toLowerCase();
                       const isLandlordApproved =
                         u.verified === true || u.isVerified === true || verStatus === 'approved';
                       const isLandlord = role === 'landlord';
+                      const businessUpdatePending =
+                        String(u.businessUpdateStatus || '').toLowerCase() === 'pending';
+                      const verificationPending =
+                        isLandlord && verStatus === 'pending' && !isLandlordApproved;
                       return (
                         <tr key={u.id || u.email || `user-${idx}`}>
                           <td>{u.name || (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.firstName || u.lastName || 'N/A')}</td>
@@ -1000,9 +1160,17 @@ const handleDeleteUser = async (userId) => {
                               {role}
                             </span>
                           </td>
+                          <td className="admin-business-cell">
+                            {renderLandlordBusinessCell(u, 'name', businessUpdatePending, verificationPending)}
+                          </td>
+                          <td className="admin-business-cell">
+                            {renderLandlordBusinessCell(u, 'permit', businessUpdatePending, verificationPending)}
+                          </td>
                           <td>
                             {isLandlord && verStatus === 'pending' && !isLandlordApproved ? (
                               <span className="admin-badge is-pending">Pending</span>
+                            ) : isLandlord && isLandlordApproved && businessUpdatePending ? (
+                              <span className="admin-badge is-pending">Update Pending</span>
                             ) : isLandlord && isLandlordApproved ? (
                               <span className="admin-badge is-good">Verified</span>
                             ) : isLandlord && verStatus === 'rejected' ? (
@@ -1019,6 +1187,18 @@ const handleDeleteUser = async (userId) => {
                                   <CheckCircle2 size={15} /> Approve
                                 </button>
                                 <button className="admin-icon-btn danger" onClick={() => handleRejectLandlord(u)}>
+                                  <XCircle size={15} /> Reject
+                                </button>
+                                <button className="admin-icon-btn" onClick={() => handleMessageUser(u)}>
+                                  <MessageSquare size={15} /> Message
+                                </button>
+                              </div>
+                            ) : isLandlord && isLandlordApproved && businessUpdatePending ? (
+                              <div className="admin-action-group">
+                                <button className="admin-icon-btn success" onClick={() => handleApproveBusinessUpdate(u.id)}>
+                                  <CheckCircle2 size={15} /> Approve
+                                </button>
+                                <button className="admin-icon-btn danger" onClick={() => handleRejectBusinessUpdate(u)}>
                                   <XCircle size={15} /> Reject
                                 </button>
                                 <button className="admin-icon-btn" onClick={() => handleMessageUser(u)}>
@@ -1304,27 +1484,19 @@ const handleDeleteUser = async (userId) => {
                       <th>Title</th>
                       <th>Message</th>
                       <th>Type</th>
-                      <th>For Role</th>
                       <th>Created At</th>
-                      <th>Read</th>
                       <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {notifications.length === 0 ? (
-                      <tr><td colSpan={7} className="admin-empty">No notifications available.</td></tr>
+                      <tr><td colSpan={5} className="admin-empty">No notifications available.</td></tr>
                     ) : notifications.map((n, idx) => (
                       <tr key={n.id || `${n.title}-${n.createdAt}-${idx}`}>
                         <td>{n.title || n.type || 'N/A'}</td>
                         <td>{n.message || n.text || 'N/A'}</td>
                         <td>{n.type || n.nav || 'general'}</td>
-                        <td>{n.forRole || n.role || 'all'}</td>
                         <td>{toDisplayDate(n.createdAt)}</td>
-                        <td>
-                          <span className={`admin-badge ${n.read ? 'is-good' : 'is-pending'}`}>
-                            {n.read ? 'Read' : 'Unread'}
-                          </span>
-                        </td>
                         <td>
                           <button className="admin-icon-btn danger" onClick={() => deleteNotification(n)}>
                             <Trash2 size={15} /> Delete
@@ -1436,11 +1608,12 @@ const handleDeleteUser = async (userId) => {
         </div>
       ) : null}
 
+
       {showRejectionModal && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h2>Reject Landlord Verification</h2>
+              <h2>{rejectionMode === 'businessUpdate' ? 'Reject Business Update' : 'Reject Landlord Verification'}</h2>
               <button type="button" className="modal-close" onClick={() => setShowRejectionModal(false)} aria-label="Close">
                 <X size={20} />
               </button>
@@ -1453,7 +1626,9 @@ const handleDeleteUser = async (userId) => {
               <textarea
                 id="rejection-reason"
                 className={`rejection-textarea ${rejectionModalError ? 'has-error' : ''}`}
-                placeholder="Explain why this verification is being denied (required)..."
+                placeholder={rejectionMode === 'businessUpdate'
+                  ? 'Explain why this business update is being denied (required)...'
+                  : 'Explain why this verification is being denied (required)...'}
                 value={rejectionReason}
                 onChange={(e) => {
                   setRejectionReason(e.target.value);

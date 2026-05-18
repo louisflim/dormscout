@@ -125,6 +125,16 @@ export function AuthProvider({ children }) {
                 phoneNumber: result.phone ?? userData.phoneNumber ?? userData.phone ?? user.phoneNumber,
                 school: result.school ?? userData.school ?? userData.university ?? user.school,
                 university: result.school ?? userData.university ?? userData.school ?? user.university,
+                businessName: result.businessName ?? userData.businessName ?? user.businessName,
+                businessPermit: result.businessPermit ?? userData.businessPermit ?? user.businessPermit,
+                pendingBusinessName: result.pendingBusinessName ?? userData.pendingBusinessName ?? user.pendingBusinessName,
+                pendingBusinessPermit: result.pendingBusinessPermit ?? userData.pendingBusinessPermit ?? user.pendingBusinessPermit,
+                businessUpdateStatus: result.businessUpdateStatus ?? userData.businessUpdateStatus ?? user.businessUpdateStatus,
+                businessUpdateRejectionReason: result.businessUpdateRejectionReason ?? userData.businessUpdateRejectionReason ?? user.businessUpdateRejectionReason,
+                verified: result.verified ?? userData.verified ?? user.verified,
+                isVerified: result.verified ?? userData.isVerified ?? user.isVerified,
+                verificationStatus: result.verificationStatus ?? userData.verificationStatus ?? user.verificationStatus,
+                rejectionReason: result.rejectionReason ?? userData.rejectionReason ?? user.rejectionReason,
                 settings: result.settings ?? userData.settings ?? user.settings,
             };
 
@@ -165,11 +175,11 @@ export function AuthProvider({ children }) {
         }
     }, [user?.id]);
 
-    useEffect(() => {
-        const refreshFromServer = async () => {
-            if (!user?.id) return;
+    const refreshUser = useCallback(async () => {
+        if (!user?.id) return { success: false };
+        try {
             const fresh = await userAPI.getUserById(user.id);
-            if (!fresh || fresh.success === false) return;
+            if (!fresh || fresh.success === false) return { success: false };
             setUser((prev) => {
                 const merged = { ...prev, ...fresh };
                 sessionStorage.setItem('authUser', JSON.stringify(merged));
@@ -178,11 +188,23 @@ export function AuthProvider({ children }) {
                 }
                 return merged;
             });
-        };
-        refreshFromServer();
-        window.addEventListener('dormscout:verificationUpdated', refreshFromServer);
-        return () => window.removeEventListener('dormscout:verificationUpdated', refreshFromServer);
+            return { success: true };
+        } catch (error) {
+            console.error('❌ AuthContext: refreshUser error:', error);
+            return { success: false };
+        }
     }, [user?.id]);
+
+    useEffect(() => {
+        refreshUser();
+        const onProfileChange = () => { refreshUser(); };
+        window.addEventListener('dormscout:verificationUpdated', onProfileChange);
+        window.addEventListener('dormscout:profileUpdated', onProfileChange);
+        return () => {
+            window.removeEventListener('dormscout:verificationUpdated', onProfileChange);
+            window.removeEventListener('dormscout:profileUpdated', onProfileChange);
+        };
+    }, [refreshUser]);
 
     return (
         <AuthContext.Provider value={{
@@ -192,6 +214,7 @@ export function AuthProvider({ children }) {
             register,
             logout,
             updateUser,
+            refreshUser,
             deleteAccount,
             loading,
             setUser,

@@ -50,6 +50,11 @@ public class User {
 
     private String businessName;
     private String businessPermit;
+    private String pendingBusinessName;
+    private String pendingBusinessPermit;
+    /** null = none, pending = awaiting admin, rejected = last request denied */
+    private String businessUpdateStatus;
+    private String businessUpdateRejectionReason;
     @JsonProperty("verified")
     private boolean isVerified;
     private String verificationStatus; // pending, approved, rejected

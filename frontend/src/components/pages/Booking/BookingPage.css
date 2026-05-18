@@ -373,6 +373,10 @@
 .booking-wrapper.light .cancel-label { color: #666; }
 .booking-wrapper.dark  .cancel-label { color: #a0a0b0; }
 
+.cancel-required {
+  color: #ef4444;
+}
+
 .cancel-input,
 .cancel-textarea {
   width: 100%;

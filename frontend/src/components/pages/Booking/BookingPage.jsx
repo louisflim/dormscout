@@ -152,6 +152,10 @@ export default function BookingPage({ darkMode = false }) {
       setCancelFormError('Move-out must be scheduled at least 3 days from today.');
       return;
     }
+    if (!cancelReason.trim()) {
+      setCancelFormError('Please enter a reason for cancellation.');
+      return;
+    }
     setLoading(true);
     setActionError('');
     setCancelFormError('');
@@ -167,7 +171,8 @@ export default function BookingPage({ darkMode = false }) {
             email: user?.email,
           },
         },
-        cancelMoveOutDate
+        cancelMoveOutDate,
+        cancelReason.trim()
       );
 
       if (response?.success) {
@@ -400,7 +405,7 @@ export default function BookingPage({ darkMode = false }) {
             </p>
 
             <div className="cancel-field">
-              <label className="cancel-label">Move-out Date</label>
+              <label className="cancel-label">Move-out Date <span className="cancel-required">*</span></label>
               <input type="date" className="cancel-input" value={cancelMoveOutDate}
                 min={getMinSchedulableDateYmd()}
                 onChange={e => { setCancelMoveOutDate(e.target.value); setCancelFormError(''); }} />
@@ -409,14 +414,24 @@ export default function BookingPage({ darkMode = false }) {
               </p>
             </div>
             <div className="cancel-field">
-              <label className="cancel-label">Reason for Cancellation</label>
-              <textarea rows={3} placeholder="Enter reason..." className="cancel-textarea"
-                value={cancelReason} onChange={e => setCancelReason(e.target.value)} />
+              <label className="cancel-label">Reason for Cancellation <span className="cancel-required">*</span></label>
+              <textarea
+                rows={3}
+                placeholder="Enter reason..."
+                className="cancel-textarea"
+                value={cancelReason}
+                onChange={e => { setCancelReason(e.target.value); setCancelFormError(''); }}
+                required
+              />
             </div>
 
             <div className="cancel-actions">
               <button className="btn-keep-booking" onClick={() => { setCancelModal(false); setCancelFormError(''); }}>Keep Booking</button>
-              <button className="btn-confirm-cancel" onClick={handleCancelBooking} disabled={loading}>
+              <button
+                className="btn-confirm-cancel"
+                onClick={handleCancelBooking}
+                disabled={loading || !cancelMoveOutDate || !cancelReason.trim()}
+              >
                 {loading ? 'Cancelling...' : 'Confirm Cancel'}
               </button>
             </div>

@@ -295,9 +295,29 @@
   color: #222;
 }
 
+.review-card-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .review-date {
   font-size: 12px;
   color: #aaa;
+}
+
+.review-edit-btn {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.review-edit-btn:hover {
+  text-decoration: underline;
 }
 
 .review-rating-row {
