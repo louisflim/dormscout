@@ -36,7 +36,7 @@
 .dashboard-wrapper.dark  .dashboard-sidebar { background: #0f3460; border-right-color: #2a2a4a; }
 
 .page-header {
-  padding: 16px 24px 14px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -48,9 +48,9 @@
 }
 
 .page-header__sub {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-secondary);
-  margin: 3px 0 0;
+  margin: 5px 0 0;
 }
 
 .sidebar-logo-btn {

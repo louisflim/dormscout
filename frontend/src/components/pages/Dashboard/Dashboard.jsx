@@ -1269,10 +1269,6 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
 
         {/* Content */}
         <div className={`dashboard-content ${isFullscreen ? 'no-padding' : ''}`}>
-          {/* MODIFIED: Replaced .dashboard-subheader (<h4> + <p>) with .page-header.
-               Simplified to title + subtitle only — no icon box, matches the
-               Messages header pattern. CSS classes: page-header,
-               page-header__title, page-header__sub — add these to Dashboard.css. */}
           {!isOverview && !isFullscreen && (
             <div className="page-header">
               <h1 className="page-header__title">{pageMeta.label}</h1>

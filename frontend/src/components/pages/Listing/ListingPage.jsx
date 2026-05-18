@@ -7,6 +7,11 @@ import { UNIVERSITIES } from '../../../constants/universities';
 import TenantManagement from './TenantManagement';
 import { listingsAPI, activitiesAPI } from '../../../utils/api';
 import './ListingPage.css';
+import {
+    Pencil, Home, GraduationCap, MapPin, AlertTriangle,
+    CheckCircle2, XCircle, Loader2, Plus, Trash2, ChevronLeft,
+    BedDouble, Users, Tag, Lightbulb
+} from 'lucide-react';
 
 const BLUE = '#2563EB';
 const CEBU_CENTER = [10.3157, 123.8854];
@@ -95,6 +100,25 @@ const EMPTY_FORM = {
     title: '', address: '', price: '', rooms: '', availableRooms: '',
     description: '', tags: '', images: [], latitude: null, longitude: null, university: '', genderPolicy: '',
 };
+
+function TipsStrip({ darkMode }) {
+    const tips = [
+        { icon: <Lightbulb size={13} />, text: 'Use a clear, descriptive title' },
+        { icon: <MapPin size={13} />, text: 'Pin exact location on the map' },
+        { icon: <BedDouble size={13} />, text: 'Include room type & available count' },
+        { icon: <GraduationCap size={13} />, text: 'Nearby university is auto-detected' },
+    ];
+    return (
+        <div className="listing-tips-strip">
+            {tips.map((t, i) => (
+                <span key={i} className="listing-tips-strip__item">
+                    {t.icon}
+                    {t.text}
+                </span>
+            ))}
+        </div>
+    );
+}
 
 export default function ListingPage({ mode = 'board', darkMode = false, editListingData, onEditHandled }) {
     const [listings, setListings] = useState([]);
@@ -443,7 +467,6 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
         setLoading(true);
 
         try {
-            // ✅ FIX: Use 'deleteListing' instead of 'delete'
             const success = await listingsAPI.deleteListing(id);
             if (success) {
                 setListings(prev => prev.filter(l => l.id !== id));
@@ -497,45 +520,97 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
     if (loading && listings.length === 0) {
         return (
             <div className={`listing-wrapper ${theme}`}>
-                <div style={{ padding: 40, textAlign: 'center' }}>
-                    <div style={{ fontSize: '2rem' }}>⏳</div>
-                    <p>Loading listings...</p>
+                <div className="listing-loading-state">
+                    <Loader2 size={32} className="listing-loading-spinner" />
+                    <p>Loading listings…</p>
                 </div>
             </div>
         );
     }
-
+    
     return (
+        /* ── Layout ─────────────────────────────────────────────────────────────
+           CHANGE: aside removed → `listing-layout--full` makes the main column
+           take 100% width. The original `listing-layout` flex rules are untouched
+           so reverting is a one-class swap.
+        ────────────────────────────────────────────────────────────────────────── */
         <div className={`listing-wrapper ${theme}`}>
-            <div className="listing-layout">
+            <div className="listing-layout listing-layout--full">
                 <div className="listing-main">
+ 
+                    {/* ═══════════════════════ BOARD VIEW ═══════════════════════════ */}
                     {viewMode === 'board' ? (
                         <>
-                            <h3 className="listing-section-title">My Listings</h3>
-                            <p className="listing-section-subtitle">Manage your properties.</p>
-
+                            <div className="listing-board-header">
+                                {/* Action buttons visible whenever there are listings */}
+                                {listings.length > 0 && (
+                                    <div className="listing-board-header__actions">
+                                        <button
+                                            className="btn-delete-listing"
+                                            onClick={() => selectedId && removeListing(selectedId)}
+                                            disabled={!selectedId || loading}
+                                            title="Select a listing card first, then delete"
+                                        >
+                                            {/* CHANGE: Trash2 icon replaces bare text label */}
+                                            <Trash2 size={15} />
+                                            {loading ? 'Deleting…' : 'Delete Selected'}
+                                        </button>
+                                        <button className="btn-create-listing" onClick={createNewListing}>
+                                            {/* CHANGE: Plus icon replaces "+ " text prefix */}
+                                            <Plus size={15} />
+                                            Create New Listing
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+ 
+                            {/* ── Empty state ────────────────────────────────────────────
+                                CHANGE: bare two-line paragraph → proper empty state with icon,
+                                headline, sub-copy, primary CTA, and an inline tips strip.
+                                This gives the page credibility even before any data exists.
+                            ─────────────────────────────────────────────────────────── */}
                             {listings.length === 0 ? (
-                                <div className="listing-empty">
-                                    <p>No listings yet.</p>
-                                    <p>Create your first listing to get started!</p>
+                                <div className="listing-empty-state">
+                                    <div className="listing-empty-state__icon">
+                                        <Home size={40} strokeWidth={1.5} />
+                                    </div>
+                                    <h4 className="listing-empty-state__headline">No listings yet</h4>
+                                    <p className="listing-empty-state__sub">
+                                        Add your first property to start receiving booking requests from students.
+                                    </p>
+                                    <button className="btn-create-listing listing-empty-state__cta" onClick={createNewListing}>
+                                        <Plus size={15} />
+                                        Create New Listing
+                                    </button>
+                                    {/* Tips surfaced contextually — only when the landlord has nothing yet */}
+                                    <TipsStrip darkMode={darkMode} />
                                 </div>
                             ) : (
                                 <div className="listing-grid">
                                     {listings.map((l) => {
                                         const selected = selectedId === l.id;
+                                        const tags = Array.isArray(l.tags) ? l.tags : [];
                                         return (
                                             <div key={l.id} className={`listing-card ${selected ? 'selected' : ''}`}>
+                                                {/* Notification badge — unchanged */}
                                                 {getPendingCount(l.id) > 0 && (
                                                     <div className="listing-notif-badge">{getPendingCount(l.id)}</div>
                                                 )}
+ 
+                                                {/* ── Edit button ─────────────────────────────────────────
+                                                    CHANGE: ✏️ emoji → <Pencil> lucide icon for consistent
+                                                    icon weight across the app.
+                                                ────────────────────────────────────────────────────── */}
                                                 <button
                                                     className="listing-edit-btn"
                                                     onClick={(e) => { e.stopPropagation(); startEdit(l); }}
                                                 >
-                                                    ✏️ Edit
+                                                    <Pencil size={13} />
+                                                    Edit
                                                 </button>
-
-                                                <div onClick={() => setSelectedId(l.id)}>
+ 
+                                                <div onClick={() => setSelectedId(selected ? null : l.id)}>
+                                                    {/* Card media — unchanged logic */}
                                                     {l.images?.length > 0 ? (
                                                         <div className="listing-card-media">
                                                             <img src={l.images[0]} alt={l.title} />
@@ -545,16 +620,51 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                                             <SmallMap lat={l.lat} lng={l.lng} />
                                                         </div>
                                                     ) : (
-                                                        <div className="listing-card-placeholder">🏠 No Image</div>
+                                                        /* CHANGE: 🏠 emoji → <Home> icon */
+                                                        <div className="listing-card-placeholder">
+                                                            <Home size={28} strokeWidth={1.5} />
+                                                            <span>No Image</span>
+                                                        </div>
                                                     )}
-
+ 
                                                     <div className="listing-card-body">
                                                         <div className="listing-card-title">{l.title}</div>
                                                         <div className="listing-card-address">{l.address}</div>
+ 
+                                                        {/* CHANGE: 🎓 emoji → <GraduationCap> icon */}
                                                         {l.university && (
-                                                            <div className="listing-university-badge">🎓 {l.university}</div>
+                                                            <div className="listing-university-badge">
+                                                                <GraduationCap size={12} />
+                                                                {l.university}
+                                                            </div>
                                                         )}
-                                                        <div className="listing-card-price">₱{Number(l.price).toLocaleString()}</div>
+ 
+                                                        {/* ── Price + rooms row ──────────────────────────────
+                                                            CHANGE: rooms available now shown as a pill next to
+                                                            the price. Previously only the price appeared, making
+                                                            cards less informative at a glance.
+                                                        ──────────────────────────────────────────────────── */}
+                                                        <div className="listing-card-meta-row">
+                                                            <div className="listing-card-price">
+                                                                ₱{Number(l.price).toLocaleString()}
+                                                                <span className="listing-card-price__period">/mo</span>
+                                                            </div>
+                                                            {l.availableRooms && (
+                                                                <span className="listing-card-rooms-pill">
+                                                                    <BedDouble size={11} />
+                                                                    {l.availableRooms} avail.
+                                                                </span>
+                                                            )}
+                                                        </div>
+ 
+                                                        {/* Tags strip — CSS already supports this; just rendering it */}
+                                                        {tags.length > 0 && (
+                                                            <div className="listing-card-tags">
+                                                                {tags.slice(0, 3).map((t, i) => (
+                                                                    <span key={i} className="listing-tag">{t}</span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -562,20 +672,22 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                     })}
                                 </div>
                             )}
-
-                            <div className="listing-board-actions">
-                                <button
-                                    className="btn-delete-listing"
-                                    onClick={() => selectedId && removeListing(selectedId)}
-                                    disabled={!selectedId || loading}
-                                >
-                                    {loading ? 'Deleting...' : 'Delete Selected'}
-                                </button>
-                                <button className="btn-create-listing" onClick={createNewListing}>
-                                    + Create New Listing
-                                </button>
-                            </div>
-
+ 
+                            {/* ── Bottom board actions (kept for compat, hidden when listings exist) ──
+                                When listings exist, the header row already has the buttons.
+                                This div only shows in the empty state flow as a fallback.
+                                We hide it with CSS when the grid is populated.
+                            ─────────────────────────────────────────────────────────── */}
+                            {listings.length === 0 && (
+                                /* Hidden — the empty state CTA handles this case above */
+                                <div style={{ display: 'none' }} className="listing-board-actions">
+                                    <button className="btn-create-listing" onClick={createNewListing}>
+                                        <Plus size={15} /> Create New Listing
+                                    </button>
+                                </div>
+                            )}
+ 
+                            {/* Tenant management — unchanged */}
                             {selectedId && (
                                 <div className="listing-tenant-box">
                                     <TenantManagement
@@ -586,26 +698,55 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                 </div>
                             )}
                         </>
+ 
                     ) : (
+                    /* ═══════════════════════ FORM VIEW ════════════════════════════ */
                         <>
-                            <h3 className="listing-section-title">
-                                {editingId ? 'Edit Listing' : 'Create New Listing'}
-                            </h3>
-                            <p className="listing-section-subtitle">Click the map to set the exact location.</p>
-
+                            {/* ── Form page header ──────────────────────────────────────
+                                CHANGE: added ChevronLeft back-button at the top of the form.
+                                Users previously had to scroll all the way to the bottom Cancel
+                                button to exit the form. The back button is a standard UX pattern
+                                for sub-pages/drawers. The title is now larger (h2) to signal a
+                                distinct "page" context. Tips strip is shown here too so landlords
+                                see guidance right before they start filling fields.
+                            ─────────────────────────────────────────────────────────── */}
+                            <div className="listing-form-header">
+                                <button
+                                    type="button"
+                                    className="listing-back-btn"
+                                    onClick={() => { resetForm(); setViewMode('board'); }}
+                                >
+                                    <ChevronLeft size={16} />
+                                    Back to Listings
+                                </button>
+                                <h3 className="listing-section-title" style={{ marginTop: 12 }}>
+                                    {editingId ? 'Edit Listing' : 'Create New Listing'}
+                                </h3>
+                                <p className="listing-section-subtitle">
+                                    {editingId
+                                        ? 'Update the details below. Changes are saved immediately.'
+                                        : 'Fill in the details below. Click the map to pin the exact location.'}
+                                </p>
+                                {/* Tips only shown on create; on edit the landlord already knows them */}
+                                {!editingId && <TipsStrip darkMode={darkMode} />}
+                            </div>
+ 
                             <form className="listing-form" onSubmit={editingId ? handleUpdate : handleAdd}>
+                                {/* Error / success banners — CHANGE: icons replace emojis */}
                                 {errors.general && (
-                                    <div style={{ padding: '10px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px', marginBottom: '12px' }}>
+                                    <div className="listing-alert listing-alert--error">
+                                        <XCircle size={16} />
                                         {errors.general}
                                     </div>
                                 )}
-
                                 {successMessage && (
-                                        <div style={{ padding: '10px', backgroundColor: '#efe', color: '#080', borderRadius: '6px', marginBottom: '12px' }}>
-                                            ✅ {successMessage}
-                                        </div>
+                                    <div className="listing-alert listing-alert--success">
+                                        <CheckCircle2 size={16} />
+                                        {successMessage}
+                                    </div>
                                 )}
-
+ 
+                                {/* Form fields — ALL UNCHANGED functionally */}
                                 <div className="form-row-2">
                                     <div className="form-field">
                                         <input className="listing-input" value={form.title} onChange={setField('title')} placeholder="Listing title" />
@@ -616,40 +757,48 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                             <span className="listing-price-symbol">₱</span>
                                             <input
                                                 className="listing-input listing-price-input"
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
-                                                value={form.price}
-                                                onChange={setField('price')}
-                                                placeholder="0.00"
+                                                type="number" min="0" step="0.01"
+                                                value={form.price} onChange={setField('price')} placeholder="0.00"
                                             />
                                         </div>
                                         {errors.price && <div className="form-error">{errors.price}</div>}
                                     </div>
                                 </div>
-
+ 
                                 <div className="form-mt">
                                     <input className="listing-input" value={form.address} onChange={setField('address')} placeholder="Address / Location Name" />
                                     {errors.address && <div className="form-error">{errors.address}</div>}
                                 </div>
-
+ 
                                 <div
                                     ref={mapContainerRef}
                                     className="listing-map-inner"
                                     style={{ height: '300px', borderRadius: '12px', marginTop: '12px', border: '2px solid #5BADA8' }}
                                 />
-
+ 
+                                {/* ── Map hint row ─────────────────────────────────────────
+                                    CHANGE: 📍 → <MapPin> icon; ⚠️ → <AlertTriangle> icon;
+                                    ❌ → <XCircle> icon. Consistent with lucide throughout.
+                                ─────────────────────────────────────────────────────── */}
                                 <div className="listing-map-hint">
-                                    {locationError && (
-                                        <p style={{ color: '#dc3545', fontSize: '0.8rem', marginTop: '4px', fontWeight: 600 }}>
-                                            ❌ {locationError}
+                                    {locationError ? (
+                                        <p className="listing-map-hint-text listing-map-hint-text--error">
+                                            <XCircle size={13} />
+                                            {locationError}
+                                        </p>
+                                    ) : (
+                                        <p className="listing-map-hint-text">
+                                            <MapPin size={13} />
+                                            Click on the map to pin the location.
                                         </p>
                                     )}
-                                    <p className="listing-map-hint-text">📍 Click on the map to pin the location.</p>
-                                    <span className="listing-cebu-badge">⚠️ Cebu City Only</span>
+                                    <span className="listing-cebu-badge">
+                                        <AlertTriangle size={11} />
+                                        Cebu City Only
+                                    </span>
                                 </div>
                                 {errors.location && <div className="form-error">{errors.location}</div>}
-
+ 
                                 <div className="form-row-2 form-mt">
                                     <div>
                                         <select className="listing-select" value={form.rooms} onChange={setField('rooms')}>
@@ -675,21 +824,17 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                         {errors.availableRooms && <div className="form-error">{errors.availableRooms}</div>}
                                     </div>
                                 </div>
-
+ 
                                 <div className="form-mt">
                                     <label className="listing-upload-label">Gender Policy</label>
-                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                                    {/* Gender policy buttons — unchanged logic, uses existing CSS classes */}
+                                    <div className="gender-policy-group">
                                         {['Girls Only', 'Boys Only', 'Mixed'].map((g) => (
                                             <button
                                                 key={g}
                                                 type="button"
+                                                className={`gender-btn${form.genderPolicy === g ? ' gender-btn--active' : ''}`}
                                                 onClick={() => setForm((f) => ({ ...f, genderPolicy: g }))}
-                                                style={{
-                                                    flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px',
-                                                    border: form.genderPolicy === g ? '2px solid #E8622E' : '1px solid #ddd',
-                                                    background: form.genderPolicy === g ? '#E8622E15' : '#fff',
-                                                    color: form.genderPolicy === g ? '#E8622E' : '#333',
-                                                }}
                                             >
                                                 {g}
                                             </button>
@@ -697,12 +842,14 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                     </div>
                                     {errors.genderPolicy && <div className="form-error">{errors.genderPolicy}</div>}
                                 </div>
-
+ 
                                 <textarea className="listing-textarea form-mt" value={form.description} onChange={setField('description')} placeholder="Short description" />
                                 {errors.description && <div className="form-error">{errors.description}</div>}
-
+ 
                                 <div className="form-mt">
-                                    <label className="listing-upload-label">Upload images (max 3) <span style={{ color: '#e53e3e' }}>*</span></label>
+                                    <label className="listing-upload-label">
+                                        Upload images (max 3) <span style={{ color: '#e53e3e' }}>*</span>
+                                    </label>
                                     <input className="listing-input" value={form.tags} onChange={setField('tags')} placeholder="Tags (comma separated)" style={{ marginBottom: 12 }} />
                                     <input type="file" accept="image/*" multiple onChange={handleFileChange} />
                                     {errors.images && <div className="form-error" style={{ marginTop: 6 }}>{errors.images}</div>}
@@ -710,21 +857,26 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                                         {previewUrls.map((url, idx) => (
                                             <div key={`preview-${idx}`} className="listing-image-thumb">
                                                 <img src={url} alt="preview" />
-                                                <button type="button" className="listing-image-remove" onClick={() => removeSelectedImage(idx)}>x</button>
+                                                <button type="button" className="listing-image-remove" onClick={() => removeSelectedImage(idx)}>×</button>
                                             </div>
                                         ))}
                                         {(form.images || []).map((src, idx) => (
                                             <div key={`existing-${idx}`} className="listing-image-thumb">
                                                 <img src={src} alt="existing" />
-                                                <button type="button" className="listing-image-remove" onClick={() => removeExistingImage(idx)}>x</button>
+                                                <button type="button" className="listing-image-remove" onClick={() => removeExistingImage(idx)}>×</button>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
-
+ 
+                                {/* ── Form actions ──────────────────────────────────────────
+                                    The Cancel button here is kept as a secondary escape hatch
+                                    (in addition to the back button at the top). Standard pattern:
+                                    primary action left, cancel right.
+                                ─────────────────────────────────────────────────────────── */}
                                 <div className="listing-form-actions">
-                                    <button type="submit" className="btn-submit-listing" disabled={loading}>
-                                        {loading ? 'Saving...' : (editingId ? 'Update Listing' : 'Add Listing')}
+                                    <button type="submit" className="btn-submit-listing" disabled={loading || isSubmitting}>
+                                        {loading ? 'Saving…' : (editingId ? 'Update Listing' : 'Add Listing')}
                                     </button>
                                     <button type="button" className="btn-cancel-listing" onClick={() => { resetForm(); setViewMode('board'); }}>
                                         Cancel
@@ -734,18 +886,9 @@ export default function ListingPage({ mode = 'board', darkMode = false, editList
                         </>
                     )}
                 </div>
-
-                <aside className="listing-aside">
-                    <div className="listing-tips-card">
-                        <h4 className="listing-tips-card-title">Listing Tips</h4>
-                        <ul className="listing-tips-list">
-                            <li>Use a clear title.</li>
-                            <li>Include price/rooms.</li>
-                            <li>Nearby university auto-detected.</li>
-                            <li>Pin location on map.</li>
-                        </ul>
-                    </div>
-                </aside>
+                {/* REMOVED: <aside className="listing-aside"> ... </aside>
+                    The Listing Tips card has been removed from the aside.
+                    Tips are now shown contextually inside the empty state and the form header. */}
             </div>
         </div>
     );

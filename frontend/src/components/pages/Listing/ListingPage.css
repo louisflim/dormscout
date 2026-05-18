@@ -494,3 +494,288 @@ input[type="file"] {
 .listing-wrapper .listing-price-symbol {
   border-right-color: var(--border-soft);
 }
+
+.gender-policy-group {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gender-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  border: 1px solid var(--border-soft, #ddd);
+  background: transparent;
+  color: var(--text-main, #333);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.gender-btn--active {
+  border: 2px solid #E8622E;
+  background: rgba(232, 98, 46, 0.08);
+  color: #E8622E;
+}
+
+.listing-wrapper.dark .gender-btn {
+  color: #eaeaea;
+  border-color: #2a2a4a;
+}
+
+.listing-wrapper.dark .gender-btn--active {
+  background: rgba(232, 98, 46, 0.15);
+  color: #E8622E;
+}
+
+/* =======================================================================
+   PASTE THIS ENTIRE BLOCK AT THE BOTTOM OF YOUR ListingPage.css
+   Nothing below duplicates what's already in the file.
+   ======================================================================= */
+
+
+/* --- CHANGE: .listing-layout already exists but uses flex (2-col).
+       Add this new modifier class to collapse it to 1-col now that
+       the aside is removed. Apply via className="listing-layout listing-layout--full" */
+.listing-layout--full {
+  display: block;
+}
+
+
+/* --- NEW: Loading spinner screen (replaces the ⏳ emoji fallback) --- */
+.listing-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 12px;
+  color: var(--text-muted, #666);
+}
+
+.listing-loading-spinner {
+  color: #E8622E;
+  animation: listing-spin 1s linear infinite;
+}
+
+@keyframes listing-spin {
+  to { transform: rotate(360deg); }
+}
+
+
+/* --- NEW: Board header row (title left, buttons right) --- */
+.listing-board-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.listing-board-header__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding-top: 4px;
+  flex-shrink: 0;
+}
+
+/* --- NEW: Count badge next to "My Listings" e.g. "My Listings  3" --- */
+.listing-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(232, 98, 46, 0.1);
+  color: #E8622E;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 10px;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+/* --- CHANGE: btn-delete-listing and btn-create-listing already exist.
+       Add flex so the lucide icon sits inline with the label text. --- */
+.btn-delete-listing,
+.btn-create-listing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+
+/* --- NEW: Empty state (replaces the two bare <p> tags) --- */
+.listing-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 24px 36px;
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+.listing-wrapper.light .listing-empty-state { background: #fff; border: 1px solid rgba(0,0,0,0.06); }
+.listing-wrapper.dark  .listing-empty-state { background: #16213e; border: 1px solid #2a2a4a; }
+
+.listing-empty-state__icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.listing-wrapper.light .listing-empty-state__icon { background: rgba(232,98,46,0.08); color: #E8622E; }
+.listing-wrapper.dark  .listing-empty-state__icon { background: rgba(232,98,46,0.14); color: #E8622E; }
+
+.listing-empty-state__headline {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.listing-wrapper.light .listing-empty-state__headline { color: #333; }
+.listing-wrapper.dark  .listing-empty-state__headline { color: #eaeaea; }
+
+.listing-empty-state__sub {
+  font-size: 14px;
+  max-width: 380px;
+  margin: 0 0 20px;
+}
+
+.listing-wrapper.light .listing-empty-state__sub { color: #666; }
+.listing-wrapper.dark  .listing-empty-state__sub { color: #a0a0b0; }
+
+.listing-empty-state__cta {
+  margin-bottom: 24px;
+}
+
+
+/* --- NEW: Inline tips strip (replaces the aside card) --- */
+.listing-tips-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  justify-content: center;
+  width: 100%;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-soft, rgba(0,0,0,0.06));
+}
+
+.listing-tips-strip__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.listing-wrapper.light .listing-tips-strip__item { color: #888; }
+.listing-wrapper.dark  .listing-tips-strip__item { color: #a0a0b0; }
+
+.listing-tips-strip__item svg { flex-shrink: 0; color: #E8622E; }
+
+/* When tips strip is inside the form header, left-align it */
+.listing-form-header .listing-tips-strip {
+  justify-content: flex-start;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+
+/* --- NEW: Form page header wrapper --- */
+.listing-form-header {
+  margin-bottom: 20px;
+}
+
+/* --- NEW: Back button (ChevronLeft + "Back to Listings") at top of form --- */
+.listing-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+  color: #E8622E;
+  transition: opacity 0.15s;
+}
+
+.listing-back-btn:hover { opacity: 0.7; }
+
+
+/* --- NEW: Alert banners (replaces inline style={{ backgroundColor:'#fee'... }}) --- */
+.listing-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.listing-alert--error   { background: #fff0f0; color: #c00; border: 1px solid #fcc; }
+.listing-alert--success { background: #f0fff4; color: #080; border: 1px solid #9fc; }
+
+.listing-wrapper.dark .listing-alert--error   { background: rgba(220,53,69,0.12);  color: #ff8a8a; border-color: rgba(220,53,69,0.3); }
+.listing-wrapper.dark .listing-alert--success { background: rgba(40,167,69,0.12);  color: #6fcf97; border-color: rgba(40,167,69,0.3); }
+
+
+/* --- NEW: Card meta row — price + available rooms on one line --- */
+.listing-card-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.listing-card-price__period {
+  font-size: 11px;
+  font-weight: 400;
+  color: #999;
+  margin-left: 2px;
+}
+
+.listing-card-rooms-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.listing-wrapper.light .listing-card-rooms-pill { background: rgba(37,99,235,0.08); color: #2563EB; }
+.listing-wrapper.dark  .listing-card-rooms-pill { background: rgba(37,99,235,0.18); color: #93c5fd; }
+
+
+/* --- CHANGE: These already exist but need display updated so the
+       lucide icon sits centered with the text. Change display value only. --- */
+
+/* .listing-university-badge  →  change  display: inline-block  to  display: inline-flex  + add: */
+.listing-university-badge { display: inline-flex; align-items: center; gap: 5px; }
+
+/* .listing-cebu-badge  →  add flex so icon aligns with text */
+.listing-cebu-badge { display: inline-flex; align-items: center; gap: 4px; }
+
+/* .listing-map-hint-text  →  add flex so MapPin icon aligns with text */
+.listing-map-hint-text { display: inline-flex; align-items: center; gap: 5px; }
+
+/* --- NEW: Error variant of map hint text --- */
+.listing-map-hint-text--error { color: #dc3545 !important; font-weight: 600; }
+
+/* --- CHANGE: .listing-card-placeholder already exists.
+       Add flex-direction: column so the Home icon stacks above "No Image" text --- */
+.listing-card-placeholder { flex-direction: column; gap: 6px; font-size: 12px; }
