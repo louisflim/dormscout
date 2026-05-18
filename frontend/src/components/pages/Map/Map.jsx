@@ -13,6 +13,19 @@ import './Map.css';
 const PRIMARY = '#E8622E';
 const BLUE = '#2563EB';
 const CENTER = [10.3157, 123.8854];
+const NEAR_SCHOOL_RADIUS_KM = 2;
+
+/** Tenant map filters: "myschool" = within 2 km of profile school; "all" = distance slider. */
+const passesTenantDistanceFilter = (coords, user, schoolFilter, maxDistance) => {
+  if (schoolFilter === 'myschool' && user?.school) {
+    const dist = getDistanceFromUniversity(coords.lat, coords.lng, user.school);
+    return Boolean(dist && dist.distance <= NEAR_SCHOOL_RADIUS_KM);
+  }
+  const dist = user?.school
+    ? getDistanceFromUniversity(coords.lat, coords.lng, user.school)
+    : findNearestUniversity(coords.lat, coords.lng);
+  return !dist || dist.distance <= maxDistance;
+};
 
 const orangePinIcon = L.divIcon({
   className: '',
@@ -68,56 +81,6 @@ const getListingCoords = (listing) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return { lat, lng };
 };
-
-// ── Image Gallery Component ──────────────────────────────────────────────────
-function ImageGallery({ images, darkMode }) {
-  const [activeIdx, setActiveIdx] = useState(0);
-  if (!images || images.length === 0) {
-    return (
-      <div className="map-gallery-placeholder">
-        <span>🏠</span>
-        <p>No photos available</p>
-      </div>
-    );
-  }
-  return (
-    <div className="map-gallery">
-      <div className="map-gallery-main">
-        <img
-          src={images[activeIdx]}
-          alt={`Listing ${activeIdx + 1}`}
-          className="map-gallery-main-img"
-        />
-        {images.length > 1 && (
-          <>
-            <button
-              className="map-gallery-nav map-gallery-nav--prev"
-              onClick={() => setActiveIdx(i => (i - 1 + images.length) % images.length)}
-            >‹</button>
-            <button
-              className="map-gallery-nav map-gallery-nav--next"
-              onClick={() => setActiveIdx(i => (i + 1) % images.length)}
-            >›</button>
-            <div className="map-gallery-counter">{activeIdx + 1} / {images.length}</div>
-          </>
-        )}
-      </div>
-      {images.length > 1 && (
-        <div className="map-gallery-thumbs">
-          {images.map((img, i) => (
-            <button
-              key={i}
-              className={`map-gallery-thumb ${i === activeIdx ? 'active' : ''}`}
-              onClick={() => setActiveIdx(i)}
-            >
-              <img src={img} alt={`Thumb ${i + 1}`} />
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Availability Badge ───────────────────────────────────────────────────────
 function AvailabilityBadge({ availableRooms, totalRooms }) {
@@ -304,14 +267,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       } else {
         const coords = getListingCoords(l);
         if (!coords) return false;
-        const dist = user?.school
-          ? getDistanceFromUniversity(coords.lat, coords.lng, user.school)
-          : findNearestUniversity(coords.lat, coords.lng);
-        if (dist && dist.distance > maxDistance) return false;
-        if (schoolFilter === 'myschool' && user?.school) {
-          const listingUni = findNearestUniversity(coords.lat, coords.lng);
-          if (listingUni?.name !== user.school) return false;
-        }
+        if (!passesTenantDistanceFilter(coords, user, schoolFilter, maxDistance)) return false;
       }
       return true;
     });
@@ -374,14 +330,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     } else {
       const coords = getListingCoords(l);
       if (!coords) return false;
-      const dist = user?.school
-        ? getDistanceFromUniversity(coords.lat, coords.lng, user.school)
-        : findNearestUniversity(coords.lat, coords.lng);
-      if (dist && dist.distance > maxDistance) return false;
-      if (schoolFilter === 'myschool' && user?.school) {
-        const listingUni = findNearestUniversity(coords.lat, coords.lng);
-        if (listingUni?.name !== user.school) return false;
-      }
+      if (!passesTenantDistanceFilter(coords, user, schoolFilter, maxDistance)) return false;
     }
     return true;
   });
@@ -484,7 +433,11 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                       <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}
                         style={{ padding: '6px 8px', borderRadius: '7px', border: `1.5px solid ${schoolFilter !== 'all' ? '#E8622E' : (darkMode ? '#3d4a5c' : '#dde3ec')}`, background: darkMode ? '#0f3460' : '#f8fafc', color: darkMode ? '#fff' : '#333', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', outline: 'none', width: '100%' }}>
                         <option value="all">All Schools</option>
-                        {user?.school && <option value="myschool">Near {user.school}</option>}
+                        {user?.school && (
+                          <option value="myschool">
+                            {`2km near "${user.school}"`}
+                          </option>
+                        )}
                       </select>
                     </div>
                   </>
