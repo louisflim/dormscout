@@ -1,6 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { reportsAPI } from '../../../utils/api';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { messagesAPI, reportsAPI } from '../../../utils/api';
+import {
+  buildConversationId,
+  isBroadcastMessage,
+  isSupportMessage,
+  notifyReporterAboutReport,
+  parseSupportContent,
+  readLocalSupportSubmissions,
+  mergeSupportInboxLists,
+  SUPPORT_MESSAGES_KEY,
+} from '../../../utils/adminMessaging';
+import {
+  adminFetch,
+  clearAdminSession,
+  readAdminSession,
+  saveAdminSession,
+} from '../../../utils/adminAuth';
+import AdminMessaging from './AdminMessaging';
+import AdminSupportInbox from './AdminSupportInbox';
 import './AdminPage.css';
 import {
   LayoutDashboard,
@@ -19,16 +37,13 @@ import {
   Trash2,
   CheckCircle2,
   XCircle,
+  X,
   Filter,
   MessageSquare,
+  LifeBuoy,
 } from 'lucide-react';
 
 const ADMIN_DARKMODE_KEY = 'admin_darkMode';
-
-const buildConversationId = (idA, idB) => {
-  const [a, b] = [Number(idA), Number(idB)].sort((x, y) => x - y);
-  return `conv_${a}_${b}`;
-};
 
 const parseApiData = (json, fallback = []) => {
   if (Array.isArray(json)) return json;
@@ -45,9 +60,17 @@ const SIDEBAR_ITEMS = [
   { id: 'reports',    label: 'Reports',     icon: FileWarning     },
   { id: 'reviews',    label: 'Reviews',     icon: Star            },
   { id: 'messages',   label: 'Messages',    icon: MessageSquare   },
+  { id: 'support',    label: 'Support Inbox', icon: LifeBuoy    },
   { id: 'notifications', label: 'Notifications', icon: Bell      },
   { id: 'settings',   label: 'Settings',    icon: SettingsIcon    },
 ];
+
+const ADMIN_SECTION_IDS = SIDEBAR_ITEMS.map((item) => item.id);
+
+const getActiveSectionFromPath = (pathname) => {
+  const segment = pathname.replace(/^\/admin\/?/, '').split('/')[0] || 'overview';
+  return ADMIN_SECTION_IDS.includes(segment) ? segment : 'overview';
+};
 
 const toDisplayDate = (value) => {
   if (!value) return 'N/A';
@@ -85,8 +108,21 @@ const toFullName = (person) => {
   return joined || person.email || 'N/A';
 };
 
+const formatPesoPrice = (value) => {
+  if (value == null || value === '') return 'N/A';
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 'N/A';
+  return `\u20B1${amount.toLocaleString()}`;
+};
+
+const formatStarRating = (rating) => {
+  const stars = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+  return '\u2605'.repeat(stars) + '\u2606'.repeat(5 - stars);
+};
+
 export default function AdminPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
@@ -96,7 +132,11 @@ export default function AdminPage() {
 
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem(ADMIN_DARKMODE_KEY) === 'true');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [activeSection, setActiveSection] = useState('overview');
+
+  const activeSection = useMemo(
+    () => getActiveSectionFromPath(location.pathname),
+    [location.pathname]
+  );
 
   const [users, setUsers] = useState([]);
   const [listings, setListings] = useState([]);
@@ -106,11 +146,9 @@ export default function AdminPage() {
   const [reviews, setReviews] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [supportMessages, setSupportMessages] = useState([]);
-  const [broadcastRole, setBroadcastRole] = useState('landlord');
-  const [broadcastSubject, setBroadcastSubject] = useState('');
-  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [directConversations, setDirectConversations] = useState([]);
   const [selectedSupportId, setSelectedSupportId] = useState(null);
-  const [directReply, setDirectReply] = useState('');
+  const [selectedMessageId, setSelectedMessageId] = useState(null);
   const [selectedDirectUser, setSelectedDirectUser] = useState(null);
   const [inlineNotice, setInlineNotice] = useState('');
   const [inlineNoticeTone, setInlineNoticeTone] = useState('is-good');
@@ -129,6 +167,8 @@ export default function AdminPage() {
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [selectedLandlord, setSelectedLandlord] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionModalError, setRejectionModalError] = useState('');
+  const [evidencePreview, setEvidencePreview] = useState(null);
 
   const loadAdminDerivedData = useCallback(async (usersData, adminAccount) => {
     // Load bookmarks from all tenants
@@ -172,17 +212,14 @@ export default function AdminPage() {
     const adminId = adminAccount?.id || adminUser?.id;
     if (adminId) {
       try {
-        const convRes = await fetch(`http://localhost:8080/api/messages/conversations/${adminId}`);
-        const convData = convRes.ok ? await convRes.json() : [];
+        const convData = await messagesAPI.getConversations(adminId);
         const convList = parseApiData(convData, []).map((conv) => {
           const partnerId = Number(conv?.partnerId);
           const partnerUser = (usersData || users).find((u) => Number(u.id) === partnerId);
           const partnerName = conv?.partnerName || partnerUser?.name || `${partnerUser?.firstName || ''} ${partnerUser?.lastName || ''}`.trim() || 'User';
           const partnerEmail = partnerUser?.email || conv?.partnerEmail || '';
           const lastMessage = String(conv?.lastMessage || '');
-          const extractedSubject = lastMessage.startsWith('[') && lastMessage.includes(']')
-            ? lastMessage.slice(1, lastMessage.indexOf(']')).trim()
-            : 'Support concern';
+          const { subject: extractedSubject } = parseSupportContent(lastMessage);
 
           return {
             id: conv?.conversationId || `conv_${adminId}_${partnerId}`,
@@ -192,32 +229,48 @@ export default function AdminPage() {
             email: partnerEmail,
             subject: extractedSubject,
             message: lastMessage,
+            lastMessage,
             replied: false,
             createdAt: conv?.lastMessageTime ? new Date(conv.lastMessageTime).toISOString() : new Date().toISOString(),
           };
         });
-        const supportOnly = convList.filter((item) => !String(item.message || '').startsWith('[BROADCAST]'));
+        const supportFromApi = convList.filter((item) =>
+          isSupportMessage(item.message || item.lastMessage || '')
+        );
+        const localSupport = readLocalSupportSubmissions();
+        const supportOnly = mergeSupportInboxLists(supportFromApi, localSupport);
+        const directOnly = convList.filter((item) => {
+          const preview = item.message || item.lastMessage || '';
+          return !isBroadcastMessage(preview) && !isSupportMessage(preview);
+        });
         setSupportMessages(supportOnly);
-        if (supportOnly.length > 0 && !selectedSupportId && !selectedDirectUser) {
+        setDirectConversations(directOnly);
+        if (supportOnly.length > 0 && !selectedSupportId) {
           setSelectedSupportId(supportOnly[0].id);
         }
-      } catch { setSupportMessages([]); }
+        if (directOnly.length > 0 && !selectedMessageId && !selectedDirectUser) {
+          setSelectedMessageId(directOnly[0].id);
+        }
+      } catch {
+        setSupportMessages([]);
+        setDirectConversations([]);
+      }
     }
-  }, [users, adminUser, selectedSupportId, selectedDirectUser]);
+  }, [users, adminUser, selectedSupportId, selectedMessageId, selectedDirectUser]);
 
   const loadAdminData = useCallback(async () => {
     setDataLoading(true);
     try {
       const [usersRes, listingsRes, bookingsRes, reportsRes, reviewsRes] =
         await Promise.all([
-          fetch('http://localhost:8080/api/users').then(r => r.json()),
+          adminFetch('http://localhost:8080/api/users/admin/users').then((r) => r.json()),
           fetch('http://localhost:8080/api/listings').then(r => r.json()),
           fetch('http://localhost:8080/api/bookings').then(r => r.json()),
           fetch('http://localhost:8080/api/reports').then(r => r.json()),
           fetch('http://localhost:8080/api/reviews').then(r => r.json()),
         ]);
 
-      const usersData = Array.isArray(usersRes) ? usersRes : [];
+      const usersData = Array.isArray(usersRes?.data) ? usersRes.data : parseApiData(usersRes, []);
       setUsers(usersData);
       setListings(Array.isArray(listingsRes) ? listingsRes : []);
       setBookings(Array.isArray(bookingsRes) ? bookingsRes : []);
@@ -226,6 +279,13 @@ export default function AdminPage() {
       await loadAdminDerivedData(usersData, null);
     } catch (err) {
       console.error('Failed to load admin data:', err);
+      if (String(err?.message || '').includes('session')) {
+        clearAdminSession();
+        setIsLoggedIn(false);
+        setAdminUser(null);
+        setInlineNotice('Session expired. Please sign in again.');
+        setInlineNoticeTone('is-bad');
+      }
     } finally {
       setDataLoading(false);
     }
@@ -241,16 +301,53 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
+    const session = readAdminSession();
+    if (session?.user && session?.token) {
+      setAdminUser(session.user);
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  useEffect(() => {
     if (isLoggedIn) loadAdminData();
   }, [isLoggedIn, loadAdminData]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (location.pathname === '/admin' || location.pathname === '/admin/') {
+      navigate('/admin/overview', { replace: true });
+      return;
+    }
+    const segment = location.pathname.replace(/^\/admin\/?/, '').split('/')[0] || '';
+    if (segment && !ADMIN_SECTION_IDS.includes(segment)) {
+      navigate('/admin/overview', { replace: true });
+    }
+  }, [isLoggedIn, location.pathname, navigate]);
 
   useEffect(() => {
     if (isLoggedIn && activeSection === 'reports') reloadReports();
   }, [isLoggedIn, activeSection, reloadReports]);
 
   useEffect(() => {
+    if (!isLoggedIn || activeSection !== 'support') return undefined;
+    const refresh = () => loadAdminDerivedData(users, adminUser);
+    refresh();
+    const timer = setInterval(refresh, 5000);
+    return () => clearInterval(timer);
+  }, [isLoggedIn, activeSection, users, adminUser, loadAdminDerivedData]);
+
+  useEffect(() => {
     localStorage.setItem(ADMIN_DARKMODE_KEY, darkMode ? 'true' : 'false');
   }, [darkMode]);
+
+  useEffect(() => {
+    if (!evidencePreview) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setEvidencePreview(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [evidencePreview]);
 
   const summary = useMemo(() => {
     const pendingReports = reports.filter((r) => String(r.status || '').toLowerCase() === 'pending').length;
@@ -336,9 +433,14 @@ export default function AdminPage() {
 
       const data = await response.json();
 
-      if (data.success) {
-        setAdminUser(data.user || null);
+      if (data.success && data.user && data.token) {
+        saveAdminSession(data.user, data.token, data.expiresIn);
+        setAdminUser(data.user);
         setIsLoggedIn(true);
+        const segment = location.pathname.replace(/^\/admin\/?/, '').split('/')[0] || '';
+        if (location.pathname === '/admin' || location.pathname === '/admin/' || !ADMIN_SECTION_IDS.includes(segment)) {
+          navigate('/admin/overview', { replace: true });
+        }
       } else {
         setLoginError(data.message || 'Invalid credentials');
       }
@@ -350,10 +452,11 @@ export default function AdminPage() {
   };
 
   const handleLogout = () => {
+    clearAdminSession();
     setIsLoggedIn(false);
     setAdminUser(null);
     setShowDropdown(false);
-    setActiveSection('overview');
+    navigate('/admin/overview', { replace: true });
   };
 
   const showInlineNotice = (message, tone = 'is-good') => {
@@ -368,8 +471,8 @@ const handleDeleteUser = async (userId) => {
       return;
     }
     try {
-      const response = await fetch(`http://localhost:8080/api/users/admin/users/${userId}`, {
-        method: 'DELETE'
+      const response = await adminFetch(`http://localhost:8080/api/users/admin/users/${userId}`, {
+        method: 'DELETE',
       });
       const data = await response.json();
       if (data.success) {
@@ -404,7 +507,7 @@ const handleDeleteUser = async (userId) => {
 
   const handleApproveLandlord = async (userId) => {
     try {
-      const response = await fetch(`http://localhost:8080/api/users/admin/verify-landlord/${userId}/approve`, {
+      const response = await adminFetch(`http://localhost:8080/api/users/admin/verify-landlord/${userId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -424,21 +527,28 @@ const handleDeleteUser = async (userId) => {
   const handleRejectLandlord = (landlord) => {
     setSelectedLandlord(landlord);
     setRejectionReason('');
+    setRejectionModalError('');
     setShowRejectionModal(true);
   };
 
   const handleSubmitRejection = async () => {
-    if (!rejectionReason.trim()) {
-      showInlineNotice('Please provide a reason for rejection.', 'is-pending');
+    const reason = rejectionReason.trim();
+    if (!reason) {
+      setRejectionModalError('An explanation is required before you can reject this verification.');
       return;
     }
+    setRejectionModalError('');
     try {
-      const response = await fetch(`http://localhost:8080/api/users/admin/verify-landlord/${selectedLandlord.id}/reject`, {
+      const response = await adminFetch(`http://localhost:8080/api/users/admin/verify-landlord/${selectedLandlord.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: rejectionReason })
+        body: JSON.stringify({ reason })
       });
       const data = await response.json();
+      if (!response.ok || data.success === false) {
+        setRejectionModalError(data.message || 'Failed to reject landlord. Please try again.');
+        return;
+      }
       if (data.success) {
         setUsers(prev => prev.map(u => u.id === selectedLandlord.id ? { ...u, verified: false, verificationStatus: 'rejected', rejectionReason } : u));
         setShowRejectionModal(false);
@@ -491,144 +601,104 @@ const handleDeleteUser = async (userId) => {
     }
   };
 
-  const selectedSupportMessage = useMemo(() => {
-    if (!selectedSupportId) return selectedDirectUser;
-    return supportMessages.find((msg) => msg.id === selectedSupportId) || selectedDirectUser;
-  }, [supportMessages, selectedSupportId, selectedDirectUser]);
+  const messageConversations = useMemo(() => {
+    const byPartner = new Map();
+    const isPlaceholderConv = (conv) =>
+      conv?.isDirectUser || String(conv?.id || '').startsWith('direct-user-');
+
+    directConversations.forEach((conv) => {
+      const partnerId = Number(conv.otherUserId ?? conv.userId);
+      if (!Number.isFinite(partnerId)) {
+        byPartner.set(String(conv.id), conv);
+        return;
+      }
+      const current = byPartner.get(partnerId);
+      if (!current) {
+        byPartner.set(partnerId, conv);
+        return;
+      }
+      const keepCurrent =
+        !isPlaceholderConv(current) && isPlaceholderConv(conv);
+      const keepIncoming =
+        isPlaceholderConv(current) && !isPlaceholderConv(conv);
+      if (keepIncoming) {
+        byPartner.set(partnerId, conv);
+        return;
+      }
+      if (keepCurrent) return;
+      const currentTime = new Date(current.createdAt || current.lastMessageTime || 0).getTime();
+      const convTime = new Date(conv.createdAt || conv.lastMessageTime || 0).getTime();
+      if (convTime >= currentTime) byPartner.set(partnerId, conv);
+    });
+
+    return Array.from(byPartner.values()).sort(
+      (a, b) =>
+        new Date(b.createdAt || b.lastMessageTime || 0).getTime() -
+        new Date(a.createdAt || a.lastMessageTime || 0).getTime()
+    );
+  }, [directConversations]);
 
   const handleMessageUser = (userRecord) => {
     const numericId = userRecord?.id != null ? Number(userRecord.id) : NaN;
+    if (!Number.isFinite(numericId)) return;
+
+    const displayName =
+      userRecord?.name ||
+      (userRecord?.firstName && userRecord?.lastName
+        ? `${userRecord.firstName} ${userRecord.lastName}`
+        : userRecord?.firstName || userRecord?.lastName || 'User');
+
+    setSelectedSupportId(null);
+    setSelectedDirectUser(null);
+
+    const existing = directConversations.find(
+      (c) => Number(c.otherUserId ?? c.userId) === numericId
+    );
+    if (existing) {
+      setSelectedMessageId(existing.id);
+      navigate('/admin/messages');
+      return;
+    }
+
+    const adminId = adminUser?.id;
+    const convId = adminId ? buildConversationId(adminId, numericId) : `direct-user-${numericId}`;
     const directTarget = {
-      id: `direct-user-${userRecord?.id || Date.now()}`,
-      otherUserId: Number.isFinite(numericId) ? numericId : undefined,
-      userId: Number.isFinite(numericId) ? numericId : undefined,
-      name:
-        userRecord?.name ||
-        (userRecord?.firstName && userRecord?.lastName
-          ? `${userRecord.firstName} ${userRecord.lastName}`
-          : userRecord?.firstName || userRecord?.lastName || 'User'),
+      id: convId,
+      conversationId: convId,
+      otherUserId: numericId,
+      userId: numericId,
+      name: displayName,
       email: userRecord?.email || '',
       subject: 'Direct message from admin',
-      message: '',
+      message: 'Start a conversation',
+      lastMessage: 'Start a conversation',
       forRole: getRole(userRecord),
       replied: false,
       createdAt: new Date().toISOString(),
       isDirectUser: true,
     };
 
-    setSelectedSupportId(null);
-    setSelectedDirectUser(directTarget);
-    setActiveSection('messages');
-  };
-
-  const handleSendAdminMessage = async () => {
-    if (!broadcastSubject.trim() || !broadcastMessage.trim()) {
-      showInlineNotice('Please provide both a subject and a message.', 'is-pending');
-      return;
-    }
-
-    const adminId = adminUser?.id;
-    if (!adminId) {
-      showInlineNotice('Admin session missing. Please log in again.', 'is-bad');
-      return;
-    }
-
-    const recipients = broadcastRole === 'all'
-      ? users
-      : users.filter(u => getRole(u) === broadcastRole);
-
-    const content = `[BROADCAST][${broadcastSubject.trim()}] ${broadcastMessage.trim()}`;
-
-    try {
-      await Promise.all(recipients.map(u => {
-        const convId = buildConversationId(adminId, u.id);
-        return fetch(`http://localhost:8080/api/messages?senderId=${adminId}&receiverId=${u.id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, conversationId: convId }),
-        }).catch(() => {});
-      }));
-      setBroadcastSubject('');
-      setBroadcastMessage('');
-      showInlineNotice('Broadcast message sent.', 'is-good');
-    } catch (err) {
-      console.error('Failed to send broadcast:', err);
-      showInlineNotice('Failed to send broadcast.', 'is-bad');
-    }
-  };
-
-  const handleSendDirectReply = async () => {
-    if (!selectedSupportMessage) {
-      showInlineNotice('Select a concern first.', 'is-pending');
-      return;
-    }
-    if (!directReply.trim()) {
-      showInlineNotice('Please type your reply.', 'is-pending');
-      return;
-    }
-
-    const adminId = adminUser?.id;
-    const rawRecipient =
-      selectedSupportMessage.otherUserId ??
-      selectedSupportMessage.userId ??
-      (selectedSupportMessage.isDirectUser ? null : selectedSupportMessage.id);
-    const recipientId = rawRecipient != null && rawRecipient !== '' ? Number(rawRecipient) : NaN;
-
-    if (!adminId) {
-      showInlineNotice('Admin session missing. Please log in again.', 'is-bad');
-      return;
-    }
-    if (!Number.isFinite(recipientId) || recipientId <= 0) {
-      showInlineNotice('Invalid recipient; open this user from Users and use Message again.', 'is-bad');
-      return;
-    }
-
-    try {
-      const convId = buildConversationId(adminId, recipientId);
-      const res = await fetch(
-        `http://localhost:8080/api/messages?senderId=${adminId}&receiverId=${recipientId}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: directReply.trim(), conversationId: convId }),
-        }
-      );
-      if (!res.ok) {
-        let errMsg = `Server error (${res.status})`;
-        try {
-          const body = await res.json();
-          errMsg = body?.message || errMsg;
-        } catch (_) { /* ignore */ }
-        showInlineNotice(errMsg, 'is-bad');
-        return;
-      }
-      setSupportMessages(prev =>
-        prev.map(item =>
-          item.id === selectedSupportMessage.id
-            ? { ...item, replied: true, repliedAt: new Date().toISOString(), latestReply: directReply.trim() }
-            : item
-        )
-      );
-      if (selectedSupportMessage.isDirectUser) {
-        setSelectedDirectUser((prev) =>
-          prev && prev.id === selectedSupportMessage.id
-            ? { ...prev, replied: true, repliedAt: new Date().toISOString(), latestReply: directReply.trim() }
-            : prev
-        );
-      }
-      setDirectReply('');
-      showInlineNotice(`Reply sent to ${selectedSupportMessage.name || selectedSupportMessage.email}.`, 'is-good');
-    } catch (err) {
-      console.error('Failed to send reply:', err);
-      showInlineNotice('Failed to send reply.', 'is-bad');
-    }
+    setSelectedMessageId(convId);
+    setDirectConversations((prev) => {
+      if (prev.some((c) => Number(c.otherUserId ?? c.userId) === numericId)) return prev;
+      return [directTarget, ...prev];
+    });
+    navigate('/admin/messages');
   };
 
   const handleDeleteSupportMessage = async (targetId) => {
+    const target = supportMessages.find((item) => item.id === targetId);
     const adminId = adminUser?.id;
     try {
-      if (adminId) {
-        await fetch(`http://localhost:8080/api/messages/conversation/${targetId}?userId=${adminId}`, { method: 'DELETE' });
+      if (target?.isLocalSupport) {
+        const raw = JSON.parse(localStorage.getItem(SUPPORT_MESSAGES_KEY) || '[]');
+        const nextLocal = (Array.isArray(raw) ? raw : []).filter((item) => item.id !== targetId);
+        localStorage.setItem(SUPPORT_MESSAGES_KEY, JSON.stringify(nextLocal));
+      } else if (adminId && target?.conversationId) {
+        await fetch(
+          `http://localhost:8080/api/messages/conversation/${target.conversationId}?userId=${adminId}`,
+          { method: 'DELETE' }
+        );
       }
     } catch (err) {
       console.error('Failed to delete conversation:', err);
@@ -640,37 +710,55 @@ const handleDeleteUser = async (userId) => {
     }
   };
 
-  const handleDeleteReport = async (reportId) => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/reports/${reportId}`, {
-        method: 'DELETE'
-      });
-      const data = await response.json();
-      if (data.success) {
-        setReports(prev => prev.filter(r => r.id !== reportId));
-        showInlineNotice('Report deleted.', 'is-good');
-      } else {
-        showInlineNotice('Failed to delete report.', 'is-bad');
-      }
-    } catch (err) {
-      console.error('Failed to delete report:', err);
-      showInlineNotice('Failed to delete report.', 'is-bad');
-    }
-  };
-
   const handleResolveReport = async (reportId) => {
+    const report = reports.find((r) => r.id === reportId);
     try {
       const response = await fetch(`http://localhost:8080/api/reports/${reportId}/status?status=resolved`, {
-        method: 'PUT'
+        method: 'PUT',
       });
       const data = await response.json();
       if (data.success) {
-        setReports(prev => prev.map(r =>
-          r.id === reportId ? { ...r, status: 'resolved' } : r
-        ));
+        setReports((prev) => prev.map((r) => (r.id === reportId ? { ...r, status: 'resolved' } : r)));
+        if (report && adminUser?.id) {
+          await notifyReporterAboutReport({
+            adminId: adminUser.id,
+            report,
+            outcome: 'resolved',
+          });
+        }
+        showInlineNotice('Report resolved and reporter notified.', 'is-good');
+      } else {
+        showInlineNotice('Failed to resolve report.', 'is-bad');
       }
     } catch (err) {
       console.error('Failed to resolve report:', err);
+      showInlineNotice('Failed to resolve report.', 'is-bad');
+    }
+  };
+
+  const handleDismissReport = async (reportId) => {
+    const report = reports.find((r) => r.id === reportId);
+    try {
+      const response = await fetch(`http://localhost:8080/api/reports/${reportId}/status?status=dismissed`, {
+        method: 'PUT',
+      });
+      const data = await response.json();
+      if (data.success) {
+        setReports((prev) => prev.map((r) => (r.id === reportId ? { ...r, status: 'dismissed' } : r)));
+        if (report && adminUser?.id) {
+          await notifyReporterAboutReport({
+            adminId: adminUser.id,
+            report,
+            outcome: 'dismissed',
+          });
+        }
+        showInlineNotice('Report dismissed and reporter notified.', 'is-good');
+      } else {
+        showInlineNotice('Failed to dismiss report.', 'is-bad');
+      }
+    } catch (err) {
+      console.error('Failed to dismiss report:', err);
+      showInlineNotice('Failed to dismiss report.', 'is-bad');
     }
   };
 
@@ -789,7 +877,7 @@ const handleDeleteUser = async (userId) => {
   return (
     <div className={`admin-wrapper ${darkMode ? 'dark' : 'light'}`}>
       <nav className="admin-nav">
-        <div className="admin-nav-brand" onClick={() => setActiveSection('overview')} role="button" tabIndex={0}>
+        <div className="admin-nav-brand" onClick={() => navigate('/admin/overview')} role="button" tabIndex={0}>
           <div className="admin-text-logo" aria-label="DormScout logo">
             <span className="admin-text-logo-primary">Dorm</span>
             <span className="admin-text-logo-secondary">Scout</span>
@@ -828,7 +916,8 @@ const handleDeleteUser = async (userId) => {
               <button
                 key={item.id}
                 className={`admin-side-btn ${isActive ? 'active' : ''}`}
-                onClick={() => setActiveSection(item.id)}
+                onClick={() => navigate(`/admin/${item.id}`)}
+                aria-current={isActive ? 'page' : undefined}
               >
                 <Icon size={18} />
                 <span className="admin-side-label">{item.label}</span>
@@ -839,8 +928,16 @@ const handleDeleteUser = async (userId) => {
 
         <main className="admin-main">
           {inlineNotice ? (
-            <div className={`admin-inline-notice ${inlineNoticeTone}`}>
-              {inlineNotice}
+            <div className={`admin-inline-notice ${inlineNoticeTone}`} role="status">
+              <span className="admin-inline-notice-text">{inlineNotice}</span>
+              <button
+                type="button"
+                className="admin-inline-notice-close"
+                onClick={() => setInlineNotice('')}
+                aria-label="Dismiss notice"
+              >
+                <X size={18} />
+              </button>
             </div>
           ) : null}
 
@@ -890,7 +987,9 @@ const handleDeleteUser = async (userId) => {
                       <tr><td colSpan={6} className="admin-empty">No users found.</td></tr>
                     ) : filteredUsers.map((u, idx) => {
                       const role = getRole(u);
-                      const verStatus = u.verificationStatus || 'none';
+                      const verStatus = String(u.verificationStatus || 'none').toLowerCase();
+                      const isLandlordApproved =
+                        u.verified === true || u.isVerified === true || verStatus === 'approved';
                       const isLandlord = role === 'landlord';
                       return (
                         <tr key={u.id || u.email || `user-${idx}`}>
@@ -902,19 +1001,19 @@ const handleDeleteUser = async (userId) => {
                             </span>
                           </td>
                           <td>
-                            {isLandlord && verStatus === 'pending' ? (
+                            {isLandlord && verStatus === 'pending' && !isLandlordApproved ? (
                               <span className="admin-badge is-pending">Pending</span>
-                            ) : isLandlord && verStatus === 'approved' ? (
-                              <span className="admin-badge is-good">✓ Verified</span>
+                            ) : isLandlord && isLandlordApproved ? (
+                              <span className="admin-badge is-good">Verified</span>
                             ) : isLandlord && verStatus === 'rejected' ? (
-                              <span className="admin-badge is-bad">✗ Rejected</span>
+                              <span className="admin-badge is-bad">Rejected</span>
                             ) : (
                               <span className="admin-badge">N/A</span>
                             )}
                           </td>
                           <td>{toDisplayDate(u.createdAt)}</td>
                           <td>
-                            {isLandlord && verStatus === 'pending' ? (
+                            {isLandlord && verStatus === 'pending' && !isLandlordApproved ? (
                               <div className="admin-action-group">
                                 <button className="admin-icon-btn success" onClick={() => handleApproveLandlord(u.id)}>
                                   <CheckCircle2 size={15} /> Approve
@@ -975,7 +1074,7 @@ const handleDeleteUser = async (userId) => {
                   <article className="admin-listing-card" key={l.id || `${l.title}-${l.address}-${idx}`}>
                     <h4>{l.title || 'Untitled Listing'}</h4>
                     <p><strong>Address:</strong> {l.address || 'N/A'}</p>
-                    <p><strong>Price:</strong> {l.price ? `PHP ${l.price}` : 'N/A'}</p>
+                    <p><strong>Price:</strong> {formatPesoPrice(l.price)}</p>
                     <p><strong>Landlord Name:</strong> {l.landlordName || l.landlord || 'N/A'}</p>
                     <p><strong>University:</strong> {l.university || l.school || 'N/A'}</p>
                     <p><strong>Gender Policy:</strong> {l.genderPolicy || 'N/A'}</p>
@@ -1068,7 +1167,7 @@ const handleDeleteUser = async (userId) => {
                         <td>{bm.tenantId || 'N/A'}</td>
                         <td>{bm.listingTitle || 'N/A'}</td>
                         <td>{bm.listingAddress || 'N/A'}</td>
-                        <td>{bm.listingPrice ? `₱${Number(bm.listingPrice).toLocaleString()}` : 'N/A'}</td>
+                        <td>{formatPesoPrice(bm.listingPrice)}</td>
                         <td>{toDisplayDate(bm.savedAt)}</td>
                         <td>
                           <button className="admin-icon-btn danger" onClick={() => deleteBookmark(bm)}>
@@ -1088,7 +1187,7 @@ const handleDeleteUser = async (userId) => {
               <div className="admin-section-head">
                 <h2 className="admin-section-title">Reports</h2>
                 <div className="admin-tabs">
-                  {['all', 'pending', 'resolved'].map((tab) => (
+                  {['all', 'pending', 'resolved', 'dismissed'].map((tab) => (
                     <button
                       key={tab}
                       className={`admin-tab ${reportFilter === tab ? 'active' : ''}`}
@@ -1119,7 +1218,14 @@ const handleDeleteUser = async (userId) => {
                       <p><strong>Description:</strong> {r.description || 'N/A'}</p>
                       {evidence ? (
                         <div className="admin-evidence-wrap">
-                          <img src={evidence} alt="Evidence" className="admin-evidence-thumb" />
+                          <button
+                            type="button"
+                            className="admin-evidence-thumb-btn"
+                            onClick={() => setEvidencePreview(evidence)}
+                            aria-label="View evidence full size"
+                          >
+                            <img src={evidence} alt="Evidence" className="admin-evidence-thumb" />
+                          </button>
                         </div>
                       ) : null}
                       <p><strong>Submitted At:</strong> {toDisplayDate(r.submittedAt || r.createdAt)}</p>
@@ -1129,9 +1235,11 @@ const handleDeleteUser = async (userId) => {
                             <CheckCircle2 size={15} /> Resolve
                           </button>
                         ) : null}
-                        <button className="admin-icon-btn danger" onClick={() => handleDeleteReport(r.id)}>
-                          <XCircle size={15} /> Dismiss
-                        </button>
+                        {status === 'pending' ? (
+                          <button className="admin-icon-btn danger" onClick={() => handleDismissReport(r.id)}>
+                            <XCircle size={15} /> Dismiss
+                          </button>
+                        ) : null}
                       </div>
                     </article>
                   );
@@ -1159,13 +1267,13 @@ const handleDeleteUser = async (userId) => {
                   <tbody>
                     {reviews.length === 0 ? (
                       <tr><td colSpan={7} className="admin-empty">No reviews found.</td></tr>
-                    ) : reviews.map((rv, idx) => {
-                      const rating = Number(rv.rating || 0);
-                      return (
+                    ) : reviews.map((rv, idx) => (
                         <tr key={rv.id || `${rv.author}-${rv.createdAt}-${idx}`}>
                           <td>{rv.author || rv.name || 'N/A'}</td>
                           <td>{rv.dorm || rv.listingTitle || rv.property || 'N/A'}</td>
-                          <td>{'★'.repeat(Math.max(0, Math.min(5, rating)))}{'☆'.repeat(5 - Math.max(0, Math.min(5, rating)))}</td>
+                          <td className="admin-rating-stars" aria-label={`${rv.rating || 0} out of 5 stars`}>
+                            {formatStarRating(rv.rating)}
+                          </td>
                           <td>{Array.isArray(rv.tags) ? rv.tags.join(', ') : (rv.tags || 'N/A')}</td>
                           <td>{truncate(rv.body || rv.comment || rv.review, 90)}</td>
                           <td>{toDisplayDate(rv.date || rv.createdAt)}</td>
@@ -1175,8 +1283,7 @@ const handleDeleteUser = async (userId) => {
                             </button>
                           </td>
                         </tr>
-                      );
-                    })}
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1237,128 +1344,32 @@ const handleDeleteUser = async (userId) => {
                 <h2 className="admin-section-title">Messages</h2>
               </div>
 
-              <div className="admin-messages-grid">
-                <article className="admin-card admin-support-inbox-card">
-                  <h3>Support Inbox</h3>
-                  <p>Pick a concern to reply directly to the sender.</p>
-                  <div className="admin-support-list">
-                    {supportMessages.length === 0 && !selectedDirectUser ? (
-                      <p className="admin-empty">No support concerns yet.</p>
-                    ) : null}
-                    {selectedDirectUser ? (
-                      <div
-                        key={selectedDirectUser.id}
-                        className={`admin-support-item ${!selectedSupportId ? 'active' : ''}`}
-                        onClick={() => {
-                          setSelectedSupportId(null);
-                        }}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        <div className="admin-support-item-top">
-                          <strong>{selectedDirectUser.name || 'User'}</strong>
-                          <span className="admin-badge is-pending">Direct</span>
-                        </div>
-                        <p>Message from Users table — {selectedDirectUser.subject || 'Direct message'}</p>
-                        <small>{selectedDirectUser.email || 'No email'} · {toDisplayDate(selectedDirectUser.createdAt)}</small>
-                      </div>
-                    ) : null}
-                    {supportMessages.map((item) => {
-                      const isActive = selectedSupportId === item.id;
-                      return (
-                        <div
-                          key={item.id}
-                          className={`admin-support-item ${isActive ? 'active' : ''}`}
-                          onClick={() => {
-                            setSelectedDirectUser(null);
-                            setSelectedSupportId(item.id);
-                          }}
-                          role="button"
-                          tabIndex={0}
-                        >
-                          <div className="admin-support-item-top">
-                            <strong>{item.name || 'Unknown User'}</strong>
-                            <span className={`admin-badge ${item.replied ? 'is-good' : 'is-pending'}`}>
-                              {item.replied ? 'Replied' : 'Open'}
-                            </span>
-                          </div>
-                          <p>{item.subject || 'No subject'}</p>
-                          <small>{item.email || 'No email'} · {toDisplayDate(item.createdAt)}</small>
-                          <div className="admin-support-actions">
-                            <button
-                              className="admin-icon-btn danger"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSupportMessage(item.id);
-                              }}
-                            >
-                              <Trash2 size={15} /> Delete
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </article>
+              <p style={{ marginTop: 0, opacity: 0.8 }}>Direct conversations and broadcasts. Support tickets are in Support Inbox.</p>
+              <AdminMessaging
+                darkMode={darkMode}
+                adminUser={adminUser}
+                users={users}
+                conversations={messageConversations}
+                selectedConversationId={selectedMessageId}
+                onSelectConversation={setSelectedMessageId}
+                onNotice={showInlineNotice}
+              />
+            </section>
+          ) : null}
 
-                <article className="admin-card admin-broadcast-card">
-                  <h3>Message Selected User</h3>
-                  {selectedSupportMessage ? (
-                    <>
-                      <p>
-                        <strong>To:</strong> {selectedSupportMessage.name} ({selectedSupportMessage.email})
-                      </p>
-                      <p>
-                        <strong>Concern:</strong> {selectedSupportMessage.subject}
-                      </p>
-                      <p className="admin-support-preview">{selectedSupportMessage.message}</p>
-                    </>
-                  ) : (
-                    <p>Select a support concern from the inbox.</p>
-                  )}
-
-                  <textarea
-                    className="admin-broadcast-textarea"
-                    placeholder="Type your direct reply"
-                    value={directReply}
-                    onChange={(e) => setDirectReply(e.target.value)}
-                    rows={4}
-                    disabled={!selectedSupportMessage}
-                  />
-                  <button className="admin-icon-btn" onClick={handleSendDirectReply} disabled={!selectedSupportMessage}>
-                    Send Direct Reply
-                  </button>
-                </article>
-
-                <article className="admin-card admin-broadcast-card">
-                  <h3>Broadcast Message</h3>
-                  <p>Send a one-way message to all landlords, all tenants, or everyone.</p>
-                  <div className="admin-broadcast-grid">
-                    <div className="admin-select-wrap">
-                      <select value={broadcastRole} onChange={(e) => setBroadcastRole(e.target.value)}>
-                        <option value="landlord">All Landlords</option>
-                        <option value="tenant">All Tenants</option>
-                        <option value="all">Everyone</option>
-                      </select>
-                    </div>
-                    <input
-                      className="admin-broadcast-input"
-                      type="text"
-                      placeholder="Subject"
-                      value={broadcastSubject}
-                      onChange={(e) => setBroadcastSubject(e.target.value)}
-                    />
-                  </div>
-                  <textarea
-                    className="admin-broadcast-textarea"
-                    placeholder="Type your message here"
-                    value={broadcastMessage}
-                    onChange={(e) => setBroadcastMessage(e.target.value)}
-                    rows={4}
-                  />
-                  <button className="admin-icon-btn" onClick={handleSendAdminMessage}>Send Broadcast</button>
-                </article>
-              </div>
+          {activeSection === 'support' ? (
+            <section>
+              <h2 className="admin-section-title">Support Inbox</h2>
+              <p style={{ marginTop: 0, opacity: 0.8 }}>Support form submissions — separate from general messages.</p>
+              <AdminSupportInbox
+                darkMode={darkMode}
+                adminUser={adminUser}
+                supportMessages={supportMessages}
+                selectedSupportId={selectedSupportId}
+                onSelectSupport={setSelectedSupportId}
+                onDeleteSupport={handleDeleteSupportMessage}
+                onNotice={showInlineNotice}
+              />
             </section>
           ) : null}
 
@@ -1400,28 +1411,77 @@ const handleDeleteUser = async (userId) => {
       </div>
 
       {/* Rejection Modal */}
+      {evidencePreview ? (
+        <div
+          className="admin-evidence-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Evidence preview"
+          onClick={() => setEvidencePreview(null)}
+        >
+          <button
+            type="button"
+            className="admin-evidence-lightbox-close"
+            onClick={() => setEvidencePreview(null)}
+            aria-label="Close preview"
+          >
+            <X size={22} />
+          </button>
+          <img
+            src={evidencePreview}
+            alt="Evidence full size"
+            className="admin-evidence-lightbox-img"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
+
       {showRejectionModal && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
               <h2>Reject Landlord Verification</h2>
-              <button className="modal-close" onClick={() => setShowRejectionModal(false)}>×</button>
+              <button type="button" className="modal-close" onClick={() => setShowRejectionModal(false)} aria-label="Close">
+                <X size={20} />
+              </button>
             </div>
             <div className="modal-body">
               <p>Landlord: <strong>{selectedLandlord?.name || selectedLandlord?.email}</strong></p>
-              <label htmlFor="rejection-reason">Reason for Rejection</label>
+              <label htmlFor="rejection-reason">
+                Reason for rejection <span className="admin-required">(required)</span>
+              </label>
               <textarea
                 id="rejection-reason"
-                className="rejection-textarea"
-                placeholder="Please provide a detailed reason for rejecting this landlord's verification..."
+                className={`rejection-textarea ${rejectionModalError ? 'has-error' : ''}`}
+                placeholder="Explain why this verification is being denied (required)..."
                 value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
+                onChange={(e) => {
+                  setRejectionReason(e.target.value);
+                  if (rejectionModalError && e.target.value.trim()) {
+                    setRejectionModalError('');
+                  }
+                }}
                 rows={6}
+                required
+                aria-invalid={rejectionModalError ? 'true' : 'false'}
+                aria-describedby={rejectionModalError ? 'rejection-reason-error' : undefined}
               />
+              {rejectionModalError ? (
+                <p id="rejection-reason-error" className="rejection-error" role="alert">
+                  {rejectionModalError}
+                </p>
+              ) : null}
             </div>
             <div className="modal-footer">
-              <button className="admin-btn" onClick={() => setShowRejectionModal(false)}>Cancel</button>
-              <button className="admin-btn danger" onClick={handleSubmitRejection}>Reject & Send</button>
+              <button type="button" className="admin-btn" onClick={() => setShowRejectionModal(false)}>Cancel</button>
+              <button
+                type="button"
+                className="admin-btn danger"
+                onClick={handleSubmitRejection}
+                disabled={!rejectionReason.trim()}
+              >
+                Reject & Send
+              </button>
             </div>
           </div>
         </div>

@@ -12,7 +12,7 @@ import Support from './components/pages/Support/Support.jsx';
 import AboutUs from './components/pages/About/AboutUs.jsx';
 import ProfilePage from './components/pages/Profile/ProfilePage.jsx';
 import Report from './components/pages/Report/Report.jsx';
-import AdminPage from './components/pages/Admin/AdminPage.jsx';
+import AdminProtectedRoute from './components/pages/Admin/AdminProtectedRoute.jsx';
 import GroqChatbot from './components/Chatbot/GroqChatbot';
 
 const ProtectedRoute = ({ children }) => {
@@ -79,7 +79,18 @@ function AppRoutes({ darkMode, setDarkMode }) {
       } />
       <Route path="/support" element={<Support darkMode={darkMode} setDarkMode={setDarkMode} />} />
       <Route path="/about" element={<AboutUs darkMode={darkMode} setDarkMode={setDarkMode} />} />
-      <Route path="/admin" element={<AdminPage />} />
+      <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
+      <Route path="/admin/overview" element={<AdminProtectedRoute />} />
+      <Route path="/admin/users" element={<AdminProtectedRoute />} />
+      <Route path="/admin/listings" element={<AdminProtectedRoute />} />
+      <Route path="/admin/bookings" element={<AdminProtectedRoute />} />
+      <Route path="/admin/bookmarks" element={<AdminProtectedRoute />} />
+      <Route path="/admin/reports" element={<AdminProtectedRoute />} />
+      <Route path="/admin/reviews" element={<AdminProtectedRoute />} />
+      <Route path="/admin/messages" element={<AdminProtectedRoute />} />
+      <Route path="/admin/support" element={<AdminProtectedRoute />} />
+      <Route path="/admin/notifications" element={<AdminProtectedRoute />} />
+      <Route path="/admin/settings" element={<AdminProtectedRoute />} />
       <Route path="/report" element={
         <ProtectedRoute>
           <Report userType={userType} darkMode={darkMode} setDarkMode={setDarkMode} />

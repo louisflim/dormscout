@@ -4,6 +4,7 @@ import { useAuth } from '../../../context/AuthContext';
 import './ProfilePage.css';
 import { User, HelpCircle, Info, Moon, Sun, LogOut, BadgeCheck } from 'lucide-react';
 import { userAPI, listingsAPI, bookingsAPI, reviewsAPI } from '../../../utils/api';
+import { isLandlordVerified } from '../../../utils/landlordVerification';
 
 const COLORS = {
   light: {
@@ -45,7 +46,7 @@ function displayNameFromUser(u) {
 export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
   const navigate = useNavigate();
   const { viewUserId } = useParams();
-  const { user, logout } = useAuth();
+  const { user, logout, setUser } = useAuth();
 
   const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
   const [showDropdown, setShowDropdown] = useState(false);
@@ -68,11 +69,7 @@ export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
 
   const colors = isDark ? COLORS.dark : COLORS.light;
 
-  const isVerifiedLandlord = isLandlord && Boolean(
-    profileData?.verified
-    || profileData?.isVerified
-    || String(profileData?.verificationStatus || '').toLowerCase() === 'approved'
-  );
+  const isVerifiedLandlord = isLandlord && isLandlordVerified(profileData);
 
   const userSchool = profileData?.school || profileData?.university || '';
   const profileImage = profileData?.profileImage || null;
@@ -105,6 +102,21 @@ export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDropdown]);
+
+  useEffect(() => {
+    if (!isOwnProfile || !user?.id) return undefined;
+    let cancelled = false;
+    (async () => {
+      const fresh = await userAPI.getUserById(user.id);
+      if (cancelled || !fresh || fresh.success === false) return;
+      setUser((prev) => {
+        const merged = { ...prev, ...fresh };
+        sessionStorage.setItem('authUser', JSON.stringify(merged));
+        return merged;
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [isOwnProfile, user?.id, setUser]);
 
   useEffect(() => {
     if (!viewUserId || String(viewUserId) === String(user?.id)) {
@@ -367,9 +379,10 @@ export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
             </p>
           )}
 
-          {isLandlord && profileData?.businessName && (
+          {isLandlord && String(profileData?.businessName || '').trim() && (
             <p style={{ color: colors.secondaryText, fontSize: '14px', marginBottom: '8px' }}>
-              {profileData.businessName}
+              <span style={{ fontWeight: 600 }}>Business:</span>{' '}
+              {String(profileData.businessName).trim()}
             </p>
           )}
 

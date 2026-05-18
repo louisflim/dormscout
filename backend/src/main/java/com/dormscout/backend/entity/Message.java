@@ -2,6 +2,7 @@ package com.dormscout.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -23,6 +24,8 @@ public class Message {
 
     private String conversationId;
 
+    @JsonProperty("read")
+    @JsonAlias("isRead")
     private boolean isRead = false;
 
     @Column(name = "created_at")

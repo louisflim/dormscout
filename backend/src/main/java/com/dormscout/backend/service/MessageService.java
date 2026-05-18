@@ -19,6 +19,15 @@ public class MessageService {
     private MessageRepository messageRepository;
 
     public Message sendMessage(Message message) {
+        if (message.getConversationId() == null || message.getConversationId().isBlank()) {
+            User sender = message.getSender();
+            User receiver = message.getReceiver();
+            if (sender != null && receiver != null && sender.getId() != null && receiver.getId() != null) {
+                long min = Math.min(sender.getId(), receiver.getId());
+                long max = Math.max(sender.getId(), receiver.getId());
+                message.setConversationId("conv_" + min + "_" + max);
+            }
+        }
         return messageRepository.save(message);
     }
 

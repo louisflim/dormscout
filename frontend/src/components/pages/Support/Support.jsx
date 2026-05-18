@@ -10,10 +10,14 @@ import {
   HelpCircle,
   Info,
 } from 'lucide-react';
+import {
+  SUPPORT_MESSAGES_KEY,
+  formatSupportContent,
+  fetchAdminUser,
+  sendSupportToAdmin,
+} from '../../../utils/adminMessaging';
 
 const PRIMARY = '#E8622E';
-
-const SUPPORT_MESSAGES_KEY = 'dormscout_support_messages';
 
 
 const COLORS = {
@@ -105,13 +109,15 @@ export default function Support({ darkMode = false, setDarkMode }) {
 
     const senderRole = (localStorage.getItem('userType') || 'all').toLowerCase();
 
+    const formattedContent = formatSupportContent(formData.subject, formData.message);
+
     const supportMessage = {
       id: `support-${Date.now()}`,
       userId: user?.id,
       name: formData.name,
       email: formData.email,
       subject: formData.subject,
-      message: formData.message,
+      message: formattedContent,
       forRole: senderRole,
       createdAt: new Date().toISOString(),
       replied: false,
@@ -124,20 +130,13 @@ export default function Support({ darkMode = false, setDarkMode }) {
 
     if (user?.id) {
       try {
-        const adminsRes = await fetch('http://localhost:8080/api/users/type/admin');
-        const adminsJson = adminsRes.ok ? await adminsRes.json() : [];
-        const admins = Array.isArray(adminsJson) ? adminsJson : (adminsJson?.data || []);
-        const adminUser = admins[0];
-
-        if (adminUser?.id) {
-          await fetch('http://localhost:8080/api/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              senderId: Number(user.id),
-              receiverId: Number(adminUser.id),
-              content: `[${formData.subject}] ${formData.message}`,
-            }),
+        const adminAccount = await fetchAdminUser();
+        if (adminAccount?.id) {
+          await sendSupportToAdmin({
+            senderId: Number(user.id),
+            adminId: Number(adminAccount.id),
+            subject: formData.subject,
+            message: formData.message,
           });
         }
       } catch (_) {

@@ -299,6 +299,12 @@ export const activitiesAPI = {
     deleteActivity: (id) => api.delete(`/activities/${id}`),
 };
 
+const parseListPayload = (payload) => {
+    if (Array.isArray(payload)) return payload;
+    if (payload && Array.isArray(payload.data)) return payload.data;
+    return [];
+};
+
 // ── Messages / Conversations ─────────────────────────────────────────────────
 export const messagesAPI = {
     /**
@@ -315,7 +321,8 @@ export const messagesAPI = {
                 { content, conversationId },
                 { params: { senderId, receiverId } }
             );
-            return response.data;
+            if (response.data?.success === false) return null;
+            return response.data?.data ?? response.data;
         } catch (error) {
             console.error('❌ API: sendMessage error:', error);
             return null;
@@ -326,7 +333,7 @@ export const messagesAPI = {
     getConversations: async (userId) => {
         try {
             const response = await api.get(`/messages/conversations/${userId}`);
-            return Array.isArray(response.data) ? response.data : [];
+            return parseListPayload(response.data);
         } catch (error) {
             console.error('❌ API: getConversations error:', error);
             return [];
@@ -337,7 +344,7 @@ export const messagesAPI = {
     getConversationMessages: async (conversationId) => {
         try {
             const response = await api.get(`/messages/conversation/${conversationId}`);
-            return Array.isArray(response.data) ? response.data : [];
+            return parseListPayload(response.data);
         } catch (error) {
             console.error('❌ API: getConversationMessages error:', error);
             return [];

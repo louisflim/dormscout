@@ -1,0 +1,233 @@
+.admin-messaging {
+  width: 100%;
+}
+
+.admin-messaging-layout {
+  display: flex;
+  min-height: 520px;
+  border: 1px solid #e4e6eb;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.admin-messaging-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e4e6eb;
+  padding: 16px;
+  gap: 12px;
+}
+
+.admin-messaging-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-messaging-sidebar-head h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.admin-messaging-broadcast-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: #e8622e;
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.admin-messaging-broadcast-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #e4e6eb;
+}
+
+.admin-messaging-broadcast-panel select,
+.admin-messaging-broadcast-panel input,
+.admin-messaging-broadcast-panel textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #e4e6eb;
+  padding: 8px 10px;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.admin-messaging-search {
+  width: 100%;
+  border-radius: 20px;
+  border: 1px solid #e4e6eb;
+  padding: 10px 12px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.admin-messaging-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-messaging-conv {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-messaging-conv.active {
+  background: #e8622e;
+  color: #fff;
+}
+
+.admin-messaging-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #5bada8;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.admin-messaging-conv-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-messaging-conv-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.admin-messaging-preview {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-messaging-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-messaging-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e4e6eb;
+}
+
+.admin-messaging-chat-head h4 {
+  margin: 0 0 2px;
+}
+
+.admin-messaging-chat-head p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.admin-messaging-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-messaging-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.admin-messaging-bubble.sent {
+  align-self: flex-end;
+}
+
+.admin-messaging-bubble.received {
+  align-self: flex-start;
+  border: 1px solid #e4e6eb;
+}
+
+.admin-messaging-compose {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid #e4e6eb;
+  align-items: flex-end;
+}
+
+.admin-messaging-compose textarea {
+  flex: 1;
+  border-radius: 12px;
+  border: 1px solid #e4e6eb;
+  padding: 10px 12px;
+  font: inherit;
+  resize: vertical;
+}
+
+.admin-messaging-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: #e8622e;
+  color: #fff;
+  border-radius: 999px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.admin-messaging-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-messaging-empty,
+.admin-messaging-empty-state {
+  padding: 16px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.admin-messaging-empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

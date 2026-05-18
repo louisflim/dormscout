@@ -232,11 +232,40 @@
 }
 
 .admin-inline-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 12px;
   border-radius: 10px;
   padding: 10px 12px;
   font-weight: 700;
   border: 1px solid transparent;
+}
+
+.admin-inline-notice-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-inline-notice-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin: -4px -4px -4px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  opacity: 0.75;
+  color: inherit;
+}
+
+.admin-inline-notice-close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .admin-inline-notice.is-good {
@@ -569,11 +598,74 @@
   margin-bottom: 8px;
 }
 
+.admin-evidence-thumb-btn {
+  display: block;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: 10px;
+}
+
+.admin-evidence-thumb-btn:hover .admin-evidence-thumb {
+  opacity: 0.88;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
 .admin-evidence-thumb {
+  display: block;
   width: 96px;
   height: 96px;
   border-radius: 10px;
   object-fit: cover;
+}
+
+.admin-evidence-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px 24px;
+  background: rgba(0, 0, 0, 0.88);
+  cursor: zoom-out;
+}
+
+.admin-evidence-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+}
+
+.admin-evidence-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.admin-evidence-lightbox-img {
+  max-width: min(92vw, 960px);
+  max-height: 88vh;
+  border-radius: 12px;
+  object-fit: contain;
+  cursor: default;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.admin-rating-stars {
+  letter-spacing: 1px;
+  color: #e8622e;
+  white-space: nowrap;
+  font-size: 1rem;
 }
 
 .admin-report-actions,
@@ -918,6 +1010,27 @@
   background: #0f3460;
   color: var(--admin-dark-text);
   border-color: rgba(255, 255, 255, 0.1);
+}
+
+.rejection-textarea.has-error {
+  border-color: #dc2626;
+}
+
+.rejection-error {
+  margin: 8px 0 0;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-required {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.admin-btn.danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .rejection-textarea:focus {

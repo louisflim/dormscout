@@ -3,6 +3,7 @@ package com.dormscout.backend.controller;
 import com.dormscout.backend.entity.User;
 import com.dormscout.backend.service.UserService;
 import com.dormscout.backend.service.ActivityService;
+import com.dormscout.backend.service.AdminTokenService;
 import com.dormscout.backend.dto.LoginRequest;
 import com.dormscout.backend.dto.RegisterRequest;
 import com.dormscout.backend.dto.UserDTO;
@@ -28,6 +29,9 @@ public class UserController {
 
     @Autowired
     private ActivityService activityService;
+
+    @Autowired
+    private AdminTokenService adminTokenService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
@@ -117,7 +121,7 @@ public class UserController {
                         "verification_pending",
                         "Your business verification request was submitted and is pending admin review.",
                         "just now",
-                        "settings"
+                        "notifications"
                 );
             }
             UserDTO userDTO = userService.convertToDTO(updatedUser);
@@ -179,10 +183,13 @@ public class UserController {
         }
 
         UserDTO userDTO = userService.convertToDTO(user);
+        String token = adminTokenService.createToken(user.getId());
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Admin login successful!",
-                "user", userDTO
+                "user", userDTO,
+                "token", token,
+                "expiresIn", 8 * 60 * 60
         ));
     }
 
@@ -267,7 +274,7 @@ public class UserController {
                 "verification_approved",
                 "Your business verification was approved. You are now a verified landlord.",
                 "just now",
-                "settings"
+                "notifications"
         );
         return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -278,7 +285,14 @@ public class UserController {
 
     @PostMapping("/admin/verify-landlord/{id}/reject")
     public ResponseEntity<?> rejectLandlordVerification(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        String reason = body.getOrDefault("reason", "No reason provided");
+        String reason = body != null ? body.get("reason") : null;
+        if (reason == null || reason.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "success", false,
+                    "message", "A rejection explanation is required."
+            ));
+        }
+        reason = reason.trim();
         UserDTO rejected = userService.verifyLandlord(id, false, reason);
         if (rejected == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
@@ -291,7 +305,7 @@ public class UserController {
                 "verification_rejected",
                 "Your business verification was rejected. Reason: " + reason,
                 "just now",
-                "settings"
+                "notifications"
         );
         return ResponseEntity.ok(Map.of(
                 "success", true,

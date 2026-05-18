@@ -2,6 +2,13 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { messagesAPI } from '../../../utils/api';
+import {
+  isBroadcastMessage,
+  isSupportMessage,
+  isVerificationNoticeMessage,
+  mapAdminThreadMessage,
+  partnerIdFromConversationId,
+} from '../../../utils/adminMessaging';
 import './Messaging.css';
 
 const PRIMARY = '#E8622E';
@@ -168,6 +175,7 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
 
   // ── Admin broadcasts stay in localStorage (system-generated) ─
   const [adminBroadcasts, setAdminBroadcasts] = useState(() => loadAdminBroadcastsFromStorage());
+  const [adminApiMessages, setAdminApiMessages] = useState([]);
 
   // ── UI state ─────────────────────────────────────────────
   const [selectedConvId, setSelectedConvId]     = useState(null);
@@ -323,12 +331,76 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     return () => window.removeEventListener('storage', handler);
   }, []);
 
+  const adminPartnerConversation = useMemo(() => {
+    const byAdminRole = apiConversations.find((conv) => {
+      const partnerUser = userDirectory[String(conv.partnerId)] || null;
+      return String(partnerUser?.userType || '').toLowerCase() === 'admin';
+    });
+    if (byAdminRole) return byAdminRole;
+    return (
+      apiConversations.find((conv) => {
+        const preview = String(conv.lastMessage || '');
+        return isBroadcastMessage(preview) || isSupportMessage(preview);
+      }) || null
+    );
+  }, [apiConversations, userDirectory]);
+
+  useEffect(() => {
+    const convId = adminPartnerConversation?.conversationId;
+    if (!convId) {
+      setAdminApiMessages([]);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      const data = await messagesAPI.getConversationMessages(convId);
+      if (cancelled) return;
+      const mapped = (Array.isArray(data) ? data : [])
+        .filter((m) => !isVerificationNoticeMessage(m.content))
+        .map((m) => mapAdminThreadMessage(m, user?.id))
+        .filter(Boolean);
+      setAdminApiMessages(mapped);
+    };
+    load();
+    const timer = setInterval(load, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [adminPartnerConversation?.conversationId, user?.id]);
+
+  // DormScout Admin uses a virtual thread; mark the real backend conversation read when viewed.
+  useEffect(() => {
+    const convId = adminPartnerConversation?.conversationId;
+    if (selectedConvId !== ADMIN_CONVERSATION_ID || !convId || !user?.id) return;
+
+    let cancelled = false;
+    const markAdminThreadRead = async () => {
+      await messagesAPI.markConversationRead(convId, user.id);
+      if (cancelled) return;
+      setApiConversations((prev) =>
+        prev.map((c) => (c.conversationId === convId ? { ...c, unreadCount: 0 } : c))
+      );
+      window.dispatchEvent(new Event('dormscout:messagesUpdated'));
+    };
+
+    markAdminThreadRead();
+    const timer = setInterval(markAdminThreadRead, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [selectedConvId, adminPartnerConversation?.conversationId, user?.id]);
+
   // ── Map API conversations → role-keyed object for render ─
   const roleConversations = useMemo(() => {
     const map = {};
     apiConversations.forEach(conv => {
       const partnerUser = userDirectory[String(conv.partnerId)] || null;
-      const partnerRole = String(partnerUser?.userType || '').toLowerCase();
+      const partnerRole = String(partnerUser?.userType || conv?.partnerRole || '').toLowerCase();
+      const preview = String(conv.lastMessage || '');
+      if (partnerRole === 'admin') return;
+      if (isBroadcastMessage(preview) || isSupportMessage(preview)) return;
       const isLandlordPartner = partnerRole === 'landlord';
       const isVerifiedPartner = Boolean(partnerUser?.verified || partnerUser?.isVerified || partnerUser?.verificationStatus === 'approved');
       const partnerName = conv.partnerName || fullName(partnerUser) || 'Unknown';
@@ -385,21 +457,6 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     };
   }, [contactLandlord, contactTenant, role, roleConversations, user?.id]);
 
-  // ── Admin system messages (unchanged logic) ──────────────
-  const verificationSystemMessages = useMemo(() => {
-    if (role !== 'landlord' || !user?.verificationStatus) return [];
-    let text = null;
-    if (user.verificationStatus === 'rejected' && user.rejectionReason) {
-      text = user.rejectionReason;
-    } else if (user.verificationStatus === 'approved') {
-      text = 'Your business verification was approved.';
-    } else if (user.verificationStatus === 'pending') {
-      text = 'Your business verification is pending admin review.';
-    }
-    if (!text) return [];
-    return [{ id: `${ADMIN_CONVERSATION_ID}-${user?.verificationStatus}`, sender: 'received', text, timestamp: Date.now() }];
-  }, [role, user?.verificationStatus, user?.rejectionReason]);
-
   const broadcastSystemMessages = useMemo(() => {
     const currentUserEmail = String(user?.email || '').toLowerCase();
     return (Array.isArray(adminBroadcasts) ? adminBroadcasts : [])
@@ -412,16 +469,31 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [adminBroadcasts, role, user?.email]);
 
-  const adminMessages = useMemo(() =>
-    [...verificationSystemMessages, ...broadcastSystemMessages].sort((a, b) => a.timestamp - b.timestamp),
-    [verificationSystemMessages, broadcastSystemMessages]
+  const adminMessages = useMemo(
+    () =>
+      [...broadcastSystemMessages, ...adminApiMessages].sort(
+        (a, b) => a.timestamp - b.timestamp
+      ),
+    [broadcastSystemMessages, adminApiMessages]
   );
 
   const adminConversation = useMemo(() => {
     if (adminMessages.length === 0) return null;
     const latest = adminMessages[adminMessages.length - 1];
-    return { id: ADMIN_CONVERSATION_ID, name: 'DormScout Admin', avatar: 'DA', online: true, lastMessage: latest.text, timestamp: latest.timestamp, unread: 0, isSystem: true };
-  }, [adminMessages]);
+    const apiUnread = Number(adminPartnerConversation?.unreadCount) || 0;
+    const unread =
+      selectedConvId === ADMIN_CONVERSATION_ID || !notificationEnabled ? 0 : apiUnread;
+    return {
+      id: ADMIN_CONVERSATION_ID,
+      name: 'DormScout Admin',
+      avatar: 'DA',
+      online: true,
+      lastMessage: latest.text,
+      timestamp: latest.timestamp,
+      unread,
+      isSystem: true,
+    };
+  }, [adminMessages, adminPartnerConversation?.unreadCount, selectedConvId, notificationEnabled]);
 
   const mergedConversations = useMemo(() => {
     const merged = { ...roleConversations };
@@ -437,6 +509,23 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     return merged;
   }, [roleConversations, pendingContactConversation, adminConversation]);
 
+  const resolvePartnerIdForConversation = useCallback(
+    (convId) => {
+      const conv = mergedConversations[convId];
+      if (conv?.partnerId != null && Number.isFinite(Number(conv.partnerId))) {
+        return Number(conv.partnerId);
+      }
+      const fromApi = apiConversations.find(
+        (c) => String(c.conversationId) === String(convId)
+      );
+      if (fromApi?.partnerId != null && Number.isFinite(Number(fromApi.partnerId))) {
+        return Number(fromApi.partnerId);
+      }
+      return partnerIdFromConversationId(convId, user?.id);
+    },
+    [mergedConversations, apiConversations, user?.id]
+  );
+
   const isAdminConversationSelected = selectedConvId === ADMIN_CONVERSATION_ID;
   const selectedConvRoleLabel = isAdminConversationSelected ? '· System' : role === 'tenant' ? '· Landlord' : '· Tenant';
 
@@ -447,15 +536,20 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   // ── Messages array for the chat window ──────────────────
   const messages = useMemo(() => {
     if (isAdminConversationSelected) return adminMessages;
-    return conversationMessages.map(msg => ({
-      id: msg.id,
-      sender: Number(msg.senderId) === Number(user?.id) ? 'sent' : 'received',
-      text: msg.content,
-      timestamp: msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now(),
-      status: msg.read ? 'read' : 'delivered',
-      senderProfileImage: msg.senderProfileImage || null,
-      receiverProfileImage: msg.receiverProfileImage || null,
-    }));
+    return conversationMessages
+      .filter((msg) => {
+        const content = String(msg.content || '');
+        return !isBroadcastMessage(content) && !isSupportMessage(content);
+      })
+      .map((msg) => ({
+        id: msg.id,
+        sender: Number(msg.senderId) === Number(user?.id) ? 'sent' : 'received',
+        text: msg.content,
+        timestamp: msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now(),
+        status: msg.read || msg.isRead ? 'read' : 'delivered',
+        senderProfileImage: msg.senderProfileImage || null,
+        receiverProfileImage: msg.receiverProfileImage || null,
+      }));
   }, [conversationMessages, user?.id, isAdminConversationSelected, adminMessages]);
 
   const selectedConv = mergedConversations[selectedConvId];
@@ -465,17 +559,18 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
     : 'XX';
   const fallbackContactImage = contactLandlord?.profileImage || contactTenant?.profileImage || null;
 
-  // Auto-select admin conversation on first load if it exists and nothing is selected
-  useEffect(() => {
-    if (adminConversation && !selectedConvId) setSelectedConvId(ADMIN_CONVERSATION_ID);
-  }, [adminConversation, selectedConvId]);
-
-  // Ensure there is always a selected conversation when normal conversations exist
+  // Prefer landlord/tenant chats over DormScout Admin when opening Messages
   useEffect(() => {
     if (selectedConvId) return;
-    const first = Object.values(mergedConversations)[0];
-    if (first?.id) setSelectedConvId(first.id);
-  }, [mergedConversations, selectedConvId]);
+    const regular = Object.values(mergedConversations).filter(
+      (conv) => conv.id !== ADMIN_CONVERSATION_ID
+    );
+    if (regular.length > 0) {
+      setSelectedConvId(regular[0].id);
+    } else if (adminConversation) {
+      setSelectedConvId(ADMIN_CONVERSATION_ID);
+    }
+  }, [mergedConversations, adminConversation, selectedConvId]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, []);
@@ -512,39 +607,57 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
   const sendMessage = useCallback(async () => {
     if (!messageInput.trim() || !selectedConvId || isAdminConversationSelected) return;
 
-    const selectedConvData = mergedConversations[selectedConvId]
-      || apiConversations.find(c => c.conversationId === selectedConvId);
-    const partnerId = selectedConvData?.partnerId;
+    const selectedConvData = mergedConversations[selectedConvId];
+    let partnerId = selectedConvData?.partnerId;
+    if (!partnerId) {
+      const fromApi = apiConversations.find(
+        (c) => String(c.conversationId) === String(selectedConvId)
+      );
+      partnerId = fromApi?.partnerId;
+    }
+    if (!partnerId) {
+      partnerId = partnerIdFromConversationId(selectedConvId, user?.id);
+    }
     if (!partnerId || !user?.id) return;
 
+    const convId = selectedConvId || makeConvId(user.id, partnerId);
     const text = messageInput.trim();
     setMessageInput('');
 
-    // Optimistic: add bubble immediately
     const optimistic = {
       id: `opt_${Date.now()}`,
       senderId: user.id,
       content: text,
-      conversationId: selectedConvId,
+      conversationId: convId,
       createdAt: new Date().toISOString(),
       read: false,
       senderProfileImage: user?.profileImage || null,
     };
-    setConversationMessages(prev => [...prev, optimistic]);
+    setConversationMessages((prev) => [...prev, optimistic]);
 
-    // Persist to backend
-    await messagesAPI.sendMessage(user.id, partnerId, text, selectedConvId);
+    const sent = await messagesAPI.sendMessage(user.id, partnerId, text, convId);
+    if (!sent) {
+      setConversationMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+      setMessageInput(text);
+      return;
+    }
 
-    // Replace optimistic with real backend data
     const [msgs, convs] = await Promise.all([
-      messagesAPI.getConversationMessages(selectedConvId),
+      messagesAPI.getConversationMessages(convId),
       messagesAPI.getConversations(user.id),
     ]);
-    setConversationMessages(Array.isArray(msgs)  ? msgs  : []);
+    setConversationMessages(Array.isArray(msgs) ? msgs : []);
     setApiConversations(Array.isArray(convs) ? convs : []);
     window.dispatchEvent(new Event('dormscout:messagesUpdated'));
-
-  }, [messageInput, selectedConvId, mergedConversations, apiConversations, user?.id, user?.profileImage, isAdminConversationSelected]);
+  }, [
+    messageInput,
+    selectedConvId,
+    mergedConversations,
+    apiConversations,
+    user?.id,
+    user?.profileImage,
+    isAdminConversationSelected,
+  ]);
 
   // ── Delete a single message ──────────────────────────────
   const handleDeleteMessage = useCallback(async (msgId) => {
@@ -871,12 +984,12 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
           {contextMenuOpen !== ADMIN_CONVERSATION_ID && (
             <>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   const convId = contextMenuOpen;
                   setContextMenuOpen(null);
-                  const convData = apiConversations.find(c => c.conversationId === String(convId));
-                  const pid = convData?.partnerId;
-                  if (pid != null && String(pid).trim() !== '' && Number.isFinite(Number(pid))) {
+                  const pid = resolvePartnerIdForConversation(convId);
+                  if (pid != null) {
                     navigate(`/profile/${pid}`);
                   }
                 }}
@@ -892,7 +1005,8 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                 <span style={{ fontSize: '16px' }}>👤</span> View profile
               </button>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   const conv = mergedConversations[contextMenuOpen];
                   setContextMenuOpen(null);
                   navigate('/report', {
@@ -916,7 +1030,8 @@ export default function Messaging({ darkMode = false, userType = 'tenant', conta
                 <span style={{ fontSize: '16px' }}>🚩</span> Report
               </button>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   const convId = contextMenuOpen;
                   setContextMenuOpen(null);
                   handleDeleteConversation(convId);

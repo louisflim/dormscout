@@ -169,13 +169,17 @@ export function AuthProvider({ children }) {
         const refreshFromServer = async () => {
             if (!user?.id) return;
             const fresh = await userAPI.getUserById(user.id);
-            if (!fresh) return;
+            if (!fresh || fresh.success === false) return;
             setUser((prev) => {
                 const merged = { ...prev, ...fresh };
                 sessionStorage.setItem('authUser', JSON.stringify(merged));
+                if (merged.userType) {
+                    localStorage.setItem('userType', merged.userType);
+                }
                 return merged;
             });
         };
+        refreshFromServer();
         window.addEventListener('dormscout:verificationUpdated', refreshFromServer);
         return () => window.removeEventListener('dormscout:verificationUpdated', refreshFromServer);
     }, [user?.id]);
