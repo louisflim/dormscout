@@ -25,7 +25,7 @@ export default function ImageCarousel({ images = [], title = 'Listing' }) {
     <div className="image-carousel">
       <img
         src={images[currentIndex]}
-        alt={`${title} - Image ${currentIndex + 1}`}
+        alt={`${title} (${currentIndex + 1} of ${images.length})`}
         className="image-carousel__image"
       />
 
