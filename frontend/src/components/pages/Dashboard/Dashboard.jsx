@@ -105,26 +105,18 @@ function formatTimeAgo(dateString) {
   return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
 }
 
-const SECTION_LABELS = {
-  map:           <><span style={{ color: '#E8622E' }}>Map </span><span style={{ color: '#5BADA8' }}>View</span></>,
-  settings:      <><span style={{ color: '#E8622E' }}>Settings </span><span style={{ color: '#5BADA8' }}>View</span></>,
-  reviews:       <><span style={{ color: '#E8622E' }}>Dorm </span><span style={{ color: '#5BADA8' }}>Reviews</span></>,
-  booking:       <><span style={{ color: '#E8622E' }}>Booking </span><span style={{ color: '#5BADA8' }}>View</span></>,
-  bookmarks:     <><span style={{ color: '#E8622E' }}>Saved </span><span style={{ color: '#5BADA8' }}>Listings</span></>,
-  notifications: <><span style={{ color: '#E8622E' }}>Notifications </span><span style={{ color: '#5BADA8' }}>View</span></>,
-  listing:       <><span style={{ color: '#E8622E' }}>Listing </span><span style={{ color: '#5BADA8' }}>View</span></>,
-  messages:      <><span style={{ color: '#E8622E' }}>Message </span><span style={{ color: '#5BADA8' }}>View</span></>,
-};
 
-const SECTION_DESCRIPTIONS = {
-  map:           'Search for dorms around Cebu City and find the perfect dorm near campus',
-  settings:      'Manage your profile, security, and application preferences.',
-  reviews:       'Real feedback from students who have lived there',
-  booking:       'Manage and track all your boarding house booking requests.',
-  bookmarks:     'Your saved listings. Come back to them anytime.',
-  notifications: 'Stay updated with booking requests, approvals, and messages.',
-  messages:      'Chat with landlords and property managers about bookings.',
-  listing:       'Create and manage your property listings.',
+
+const PAGE_META = {
+  overview:      { label: 'Dashboard',      sub: 'See an overview of your activity',              Icon: LayoutDashboard },
+  map:           { label: 'Map View',       sub: 'Find dorms near your campus',                   Icon: MapPin          },
+  listing:       { label: 'Listings',       sub: 'Manage your properties',                        Icon: ClipboardList   },
+  booking:       { label: 'Bookings',       sub: 'Track your booking requests',                   Icon: CalendarDays    },
+  bookmarks:     { label: 'Saved',          sub: 'Your bookmarked listings',                      Icon: Bookmark        },
+  notifications: { label: 'Notifications',  sub: 'Booking requests and updates',                  Icon: Bell            },
+  messages:      { label: 'Messages',       sub: 'Conversations with landlords and tenants',      Icon: MessageCircle   },
+  settings:      { label: 'Settings',       sub: 'Manage your account and preferences',           Icon: SettingsIcon    },
+  reviews:       { label: 'Reviews',        sub: 'Real feedback from students',                   Icon: Star            },
 };
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -1146,15 +1138,8 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   }, [showDropdown]);
 
   const isOverview = activeNav === 'overview';
-  const subLabel = SECTION_LABELS[activeNav] || 'Dashboard';
-  const subDesc = activeNav === 'messages'
-    ? SECTION_DESCRIPTIONS.messages
-    : activeNav === 'listing'
-      ? ''
-      : SECTION_DESCRIPTIONS[activeNav] || (isLandlord
-          ? 'See an overview of your current listings, messages, and recent activity.'
-          : 'See an overview of your current bookings, messages, and recent activity.'
-        );
+  const pageMeta = PAGE_META[activeNav] ?? PAGE_META.overview;
+  const PageHeaderIcon = pageMeta.Icon;
 
   const handleLogout = () => {
     logout();
@@ -1284,10 +1269,14 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
 
         {/* Content */}
         <div className={`dashboard-content ${isFullscreen ? 'no-padding' : ''}`}>
+          {/* MODIFIED: Replaced .dashboard-subheader (<h4> + <p>) with .page-header.
+               Simplified to title + subtitle only — no icon box, matches the
+               Messages header pattern. CSS classes: page-header,
+               page-header__title, page-header__sub — add these to Dashboard.css. */}
           {!isOverview && !isFullscreen && (
-            <div className="dashboard-subheader">
-              <h4>{subLabel}</h4>
-              <p>{subDesc}</p>
+            <div className="page-header">
+              <h1 className="page-header__title">{pageMeta.label}</h1>
+              <p className="page-header__sub">{pageMeta.sub}</p>
             </div>
           )}
 
