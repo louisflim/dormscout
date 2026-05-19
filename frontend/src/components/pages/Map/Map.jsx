@@ -572,7 +572,13 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
           {noResults ? (
             <div className="map-empty-state">
               <p>No listings found for "{search}"</p>
-              <button className="clear-btn" onClick={() => {setSearch(''); setMaxPrice(50000);}}>Clear Filters</button>
+              <button className="clear-btn" onClick={() => {
+                setSearch('');
+                setMaxPrice(50000);
+                setMaxDistance(100);
+                setSchoolFilter('all');
+                setGenderPolicyFilter('all');
+              }}>Clear Filters</button>
             </div>
           ) : (
             <div className="sidebar-cards-list">
