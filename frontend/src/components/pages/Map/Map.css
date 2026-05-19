@@ -1043,3 +1043,155 @@
   flex: 1;
   height: 100%;
 }
+
+/* ============================================================
+   MAP.CSS — PATCH
+   Paste this at the very bottom of your existing Map.css.
+   Each block is commented with what it fixes and why.
+   ============================================================ */
+
+
+/* ── Loader spinner keyframe (supports the Lucide Loader2 spin in JSX) ── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+
+/* ── Sidebar card: address line now uses a Lucide MapPin icon ──
+   Added flex + align so the icon sits on the same baseline as the text.
+   Previously was just text with a 📍 emoji prefix. */
+.card-addr {
+  display: flex;
+  align-items: flex-start;
+  gap: 3px;
+  line-height: 1.4;
+}
+
+
+/* ── Sidebar card: img placeholder ──
+   Old: font-size:1.5rem emoji centered in div.
+   New: flex center for the Lucide Home icon, background kept neutral. */
+.img-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: #f1f5f9;
+}
+.map-wrapper.dark .img-placeholder { background: #1a1a3e; }
+
+
+/* ── University card in sidebar ──
+   Old: plain text button with a 📍 emoji prefix.
+   New: flex row to align the Lucide University icon + name neatly. */
+.map-uni-card-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2563EB;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.map-uni-card-compact:hover { border-color: #2563EB; background: rgba(37,99,235,0.04); }
+.map-wrapper.dark .map-uni-card-compact { background: #16213e; border-color: #2a2a4a; color: #93c5fd; }
+.map-wrapper.dark .map-uni-card-compact:hover { background: rgba(37,99,235,0.1); border-color: #3b82f6; }
+
+
+/* ── Modal close button ──
+   Old: &times; character, hard to click precisely.
+   New: Lucide X icon — needs flex centering + a visible hover state. */
+.map-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+.map-wrapper.light .map-modal-close:hover { background: rgba(0,0,0,0.07); }
+.map-wrapper.dark  .map-modal-close:hover { background: rgba(255,255,255,0.1); }
+
+
+/* ── Modal address line ──
+   Now has a Lucide MapPin icon — needs flex to keep icon inline with text. */
+.map-modal-address {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  line-height: 1.4;
+}
+
+
+/* ── Modal tab buttons ──
+   Now contain a Lucide icon — flex keeps icon + label aligned. */
+.map-modal-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* ── Modal stat pills ──
+   Old: top element was a plain <span> with a large emoji (🛏️ etc.), looked oversized and inconsistent.
+   New: Lucide icon (16px) is the first child — tighten padding and harmonize icon color. */
+.map-modal-stat {
+  gap: 5px; /* was implicitly 0; icons need breathing room */
+}
+
+/* ── Action buttons: flex for icon + label ──
+   map-btn-book, map-btn-contact, map-btn-confirm, map-btn-edit all now have
+   a Lucide icon as first child. Adding flex so icon + text sit on one line. */
+.map-btn-book,
+.map-btn-contact,
+.map-btn-confirm,
+.map-btn-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s ease, transform 0.15s ease;
+}
+
+.map-btn-book:hover,
+.map-btn-confirm:hover,
+.map-btn-edit:hover { opacity: 0.88; transform: translateY(-1px); }
+.map-btn-contact:hover { opacity: 0.88; transform: translateY(-1px); }
+
+
+/* ── Verified / Unverified badges ──
+   Now use Lucide ShieldCheck / ShieldAlert — need flex for icon + text. */
+.map-verified-badge,
+.map-unverified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+
+/* ── Gender badge ──
+   Now uses Lucide Venus / Mars / CircleDot — already inline-flex, just confirm gap. */
+.map-gender-badge {
+  gap: 5px; /* was 4px, slightly tighter with icon vs symbol */
+}
+
+
+/* ── Success state ──
+   Old: ✅ emoji then <h4> block.
+   New: Lucide CheckCircle2 icon then text — flex column + center. */
+.map-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}

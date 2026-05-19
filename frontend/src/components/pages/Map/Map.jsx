@@ -16,7 +16,21 @@ import {
   ChevronUp, 
   MapPin, 
   Banknote, 
-  GraduationCap, X } from 'lucide-react';
+  GraduationCap, Home,
+  DoorOpen,
+  Layers,
+  Ruler,
+  CalendarDays,
+  MessageCircle,
+  Pencil,
+  CheckCircle2,
+  ShieldCheck,
+  ShieldAlert,
+  Venus,
+  Mars,
+  CircleDot,
+  Loader2,
+  University,X } from 'lucide-react';
 
 const PRIMARY = '#E8622E';
 const BLUE = '#2563EB';
@@ -120,13 +134,15 @@ function GenderBadge({ policy }) {
   if (!policy) return null;
   const p = policy.toLowerCase();
   const config = p.includes('girl') || p.includes('female')
-    ? { icon: '♀', label: 'Girls Only', color: '#ec4899', bg: 'rgba(236,72,153,0.1)' }
+    ? { Icon: Venus,     label: 'Girls Only', color: '#ec4899', bg: 'rgba(236,72,153,0.1)' }
     : p.includes('boy') || p.includes('male')
-    ? { icon: '♂', label: 'Boys Only', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' }
-    : { icon: '⚧', label: 'Mixed', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' };
+    ? { Icon: Mars,      label: 'Boys Only',  color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' }
+    : { Icon: CircleDot, label: 'Mixed',       color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' };
+  const { Icon } = config;
   return (
     <span className="map-gender-badge" style={{ color: config.color, background: config.bg }}>
-      {config.icon} {config.label}
+      <Icon size={12} strokeWidth={2.5} />
+      {config.label}
     </span>
   );
 }
@@ -384,9 +400,9 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     <div className={`map-wrapper ${theme}`} style={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {loading && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.7)' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '2rem' }}>⏳</div>
-            <p style={{ marginTop: '12px', color: darkMode ? '#a0a0b0' : '#666' }}>Loading listings...</p>
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <Loader2 size={32} color={PRIMARY} style={{ animation: 'spin 1s linear infinite' }} />
+            <p style={{ margin: 0, fontSize: 14, color: darkMode ? '#a0a0b0' : '#666' }}>Loading listings...</p>
           </div>
         </div>
       )}
@@ -517,7 +533,8 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
             <div className="sidebar-cards-list">
               {filteredUnis.map((uni) => (
                 <button key={`uni-${uni.abbr}`} className="map-uni-card-compact" onClick={() => handleUniversityClick(uni)}>
-                  📍 {uni.name}
+                  <University size={13} color={BLUE} />
+                  {uni.name}
                 </button>
               ))}
               
@@ -537,14 +554,21 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                     }}
                   >
                     <div className="sidebar-card-img">
-                      {images.length > 0 ? <img src={images[0]} alt="" /> : <div className="img-placeholder">🏠</div>}
+                      {images.length > 0
+                        ? <img src={images[0]} alt="" />
+                        : <div className="img-placeholder"><Home size={22} color="#ccc" /></div>
+                      }
                       <div className="sidebar-price-tag">₱{Number(listing.price).toLocaleString()}</div>
                     </div>
                     <div className="sidebar-card-content">
                       <div className="card-top">
                         <h4 className="card-title">{listing.title}</h4>
                       </div>
-                      <p className="card-addr">📍 {listing.address}</p>
+
+                      <p className="card-addr">
+                        <MapPin size={11} style={{ flexShrink: 0, marginRight: 3, color: '#94a3b8' }} />
+                        {listing.address}
+                      </p>
                       <div className="card-footer">
                         <GenderBadge policy={listing.genderPolicy} />
                         <span className={`avail-indicator ${available === 0 ? 'full' : 'ok'}`}>
@@ -586,42 +610,81 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         return (
           <div className="map-overlay">
             <div className="map-modal map-modal--rich">
-              <button className="map-modal-close" onClick={closeModal}>&times;</button>
+              {/* CHANGED: Replaced &times; string with Lucide X icon for the close button */}
+              <button className="map-modal-close" onClick={closeModal} aria-label="Close">
+                <X size={18} strokeWidth={2.5} />
+              </button>
+ 
               <ImageCarousel images={images} title={selectedListing.title} />
+ 
               <div className="map-modal-body">
                 <div className="map-modal-header">
                   <div className="map-modal-header-left">
                     <h2 className="map-modal-title">{selectedListing.title}</h2>
-                    <p className="map-modal-address">📍 {selectedListing.address}</p>
+                    {/* CHANGED: Replaced 📍 emoji with Lucide MapPin in modal address */}
+                    <p className="map-modal-address">
+                      <MapPin size={13} style={{ flexShrink: 0, marginRight: 4, color: '#94a3b8' }} />
+                      {selectedListing.address}
+                    </p>
                   </div>
                   <div className="map-modal-price-block">
                     <span className="map-modal-price">₱{Number(selectedListing.price).toLocaleString()}</span>
                     <span className="map-modal-price-label">/month</span>
                   </div>
                 </div>
-
+ 
                 <div className="map-modal-badges">
                   <GenderBadge policy={selectedListing.genderPolicy} />
-                  {landlord.verified ? <span className="map-verified-badge">✓ Verified</span> : <span className="map-unverified-badge">⚠ Unverified</span>}
+                  {/* CHANGED: Replaced ✓ / ⚠ text chars with Lucide ShieldCheck / ShieldAlert */}
+                  {landlord.verified
+                    ? <span className="map-verified-badge"><ShieldCheck size={13} strokeWidth={2.5} /> Verified</span>
+                    : <span className="map-unverified-badge"><ShieldAlert size={13} strokeWidth={2.5} /> Unverified</span>
+                  }
                 </div>
-
+ 
                 <AvailabilityBadge availableRooms={available} totalRooms={total} />
-
+ 
+                {/* CHANGED: Replaced 📋 / 🗺️ emoji tab labels with Lucide icons inline */}
                 <div className="map-modal-tabs">
-                  {['details', 'location'].map(tab => (
-                    <button key={tab} className={`map-modal-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
-                      {tab === 'details' ? '📋 Details' : '🗺️ Location'}
+                  {[
+                    { key: 'details',  Icon: Home,   label: 'Details'  },
+                    { key: 'location', Icon: MapPin,  label: 'Location' },
+                  ].map(({ key, Icon, label }) => (
+                    <button
+                      key={key}
+                      className={`map-modal-tab ${activeTab === key ? 'active' : ''}`}
+                      onClick={() => setActiveTab(key)}
+                    >
+                      <Icon size={14} strokeWidth={2} style={{ marginRight: 5 }} />
+                      {label}
                     </button>
                   ))}
                 </div>
-
+ 
                 {activeTab === 'details' && (
                   <div className="map-modal-tab-content">
+                    {/* CHANGED: Replaced 🛏️ 🚪 🏠 📏 emojis with Lucide Home/DoorOpen/Layers/Ruler icons in stat pills */}
                     <div className="map-modal-stats">
-                      <div className="map-modal-stat"><span>🛏️</span><strong>{selectedListing.rooms || 'N/A'}</strong><small>Type</small></div>
-                      <div className="map-modal-stat"><span>🚪</span><strong>{available}</strong><small>Avail</small></div>
-                      <div className="map-modal-stat"><span>🏠</span><strong>{total}</strong><small>Total</small></div>
-                      <div className="map-modal-stat"><span>📏</span><strong>{nearest ? `${nearest.distance.toFixed(1)}km` : 'N/A'}</strong><small>Dist</small></div>
+                      <div className="map-modal-stat">
+                        <Home size={16} color={PRIMARY} strokeWidth={2} />
+                        <strong>{selectedListing.rooms || 'N/A'}</strong>
+                        <small>Type</small>
+                      </div>
+                      <div className="map-modal-stat">
+                        <DoorOpen size={16} color={PRIMARY} strokeWidth={2} />
+                        <strong>{available}</strong>
+                        <small>Avail</small>
+                      </div>
+                      <div className="map-modal-stat">
+                        <Layers size={16} color={PRIMARY} strokeWidth={2} />
+                        <strong>{total}</strong>
+                        <small>Total</small>
+                      </div>
+                      <div className="map-modal-stat">
+                        <Ruler size={16} color={PRIMARY} strokeWidth={2} />
+                        <strong>{nearest ? `${nearest.distance.toFixed(1)}km` : 'N/A'}</strong>
+                        <small>Dist</small>
+                      </div>
                     </div>
                     {selectedListing.description && <p className="map-modal-desc-text">{selectedListing.description}</p>}
                     <div className="map-modal-tags">
@@ -629,35 +692,62 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                     </div>
                   </div>
                 )}
-
+ 
                 {activeTab === 'location' && (
                   <div className="map-modal-tab-content">
-                    <div className="map-modal-minimap"><MiniMap lat={coords?.lat} lng={coords?.lng} /></div>
+                    <div className="map-modal-minimap">
+                      <MiniMap lat={coords?.lat} lng={coords?.lng} />
+                    </div>
                   </div>
                 )}
-
+ 
                 <div className="map-modal-actions">
                   {!isLandlord ? (
                     bookingStep === 'info' ? (
                       <div className="map-modal-secondary-actions">
-                        <button className="map-btn-book" onClick={() => setBookingStep('booking')}>📅 Book Now</button>
-                        <button className="map-btn-contact" onClick={() => navigate('/messages', { state: { contactLandlord: { id: selectedListing.landlordId, name: landlord.name } } })}>💬 Message</button>
+                        {/* CHANGED: Replaced 📅 💬 emoji button labels with Lucide CalendarDays / MessageCircle */}
+                        <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
+                          <CalendarDays size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                          Book Now
+                        </button>
+                        <button className="map-btn-contact" onClick={() => navigate('/messages', { state: { contactLandlord: { id: selectedListing.landlordId, name: landlord.name } } })}>
+                          <MessageCircle size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                          Message
+                        </button>
                       </div>
                     ) : bookingStep === 'booking' ? (
                       <div className="map-booking-box">
-                        <input type="date" className="map-date-input" value={moveInDate} onChange={(e) => setMoveInDate(e.target.value)} min={getMinSchedulableDateYmd()} />
-                        <button className="map-btn-confirm" onClick={() => handleConfirmBooking(selectedListing)}>✔ Confirm</button>
+                        <input type="date" className="map-date-input" value={moveInDate}
+                          onChange={(e) => setMoveInDate(e.target.value)} min={getMinSchedulableDateYmd()} />
+                        {/* CHANGED: Replaced ✔ text with Lucide CheckCircle2 */}
+                        <button className="map-btn-confirm" onClick={() => handleConfirmBooking(selectedListing)}>
+                          <CheckCircle2 size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                          Confirm
+                        </button>
                         <button className="map-btn-back" onClick={() => setBookingStep('info')}>Back</button>
                       </div>
                     ) : bookingStep === 'success' ? (
-                      <div className="map-success"><h4>✅ Request Sent!</h4><button className="map-btn-done" onClick={closeModal}>Done</button></div>
+                      <div className="map-success">
+                        {/* CHANGED: Replaced ✅ emoji with Lucide CheckCircle2 */}
+                        <CheckCircle2 size={36} color="#22c55e" strokeWidth={2} style={{ marginBottom: 8 }} />
+                        <h4 style={{ margin: '0 0 12px', color: '#22c55e' }}>Request Sent!</h4>
+                        <button className="map-btn-done" onClick={closeModal}>Done</button>
+                      </div>
                     ) : <p>Processing...</p>
                   ) : (
                     <div className="map-modal-actions">
-                      <button className="map-btn-edit" onClick={() => { if (onEditListing) onEditListing(selectedListing); closeModal(); }}>✏️ Edit</button>
+                      {/* CHANGED: Replaced ✏️ emoji with Lucide Pencil */}
+                      <button className="map-btn-edit" onClick={() => { if (onEditListing) onEditListing(selectedListing); closeModal(); }}>
+                        <Pencil size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                        Edit Listing
+                      </button>
                     </div>
                   )}
                 </div>
+ 
+                {bookingError && (
+                  <p className="map-modal-warn">{bookingError}</p>
+                )}
               </div>
             </div>
           </div>
