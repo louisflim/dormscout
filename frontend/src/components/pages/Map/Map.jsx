@@ -9,6 +9,14 @@ import { getMinSchedulableDateYmd, isAtLeastDaysFromToday } from '../../../utils
 import { isLandlordVerified } from '../../../utils/landlordVerification';
 import ImageCarousel from '../Listing/ImageCarousel';
 import './Map.css';
+import { 
+  Search, 
+  SlidersHorizontal, 
+  ChevronDown, 
+  ChevronUp, 
+  MapPin, 
+  Banknote, 
+  GraduationCap, X } from 'lucide-react';
 
 const PRIMARY = '#E8622E';
 const BLUE = '#2563EB';
@@ -385,58 +393,103 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
 
       {/* 1. TOP BAR: Search & Filters */}
       <div className="map-header-section">
-        <div className="map-search-pill-container">
-          <span className="search-icon">🔍</span>
-          <input
-            type="search"
-            className="map-search-input-new"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, university, or tags..."
-          />
-        </div>
-        
-        <div style={{ position: 'relative' }}>
-          <button 
-            className={`filter-toggle-btn ${showFilters ? 'active' : ''}`}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            ⚙️ Filters {showFilters ? '▲' : '▼'}
-          </button>
+          {/* Search Container */}
+          <div className="map-search-container">
+            <div className="map-search-pill">
+              <Search size={18} className="icon-muted" />
+              <input
+                type="search"
+                className="map-search-input-refined"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, university, or tags..."
+              />
+              {search && (
+                <button className="clear-search-btn" onClick={() => setSearch('')}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
 
-          {showFilters && (
-            <div className="filter-dropdown-overlay">
-               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div className="filter-group">
-                    <div className="filter-label-row">
-                      <span>💰 Max Price</span>
-                      <span className="badge-orange">₱{maxPrice.toLocaleString()}</span>
+          {/* Filter Toggle */}
+          <div style={{ position: 'relative' }}>
+            <button 
+              className={`filter-action-btn ${showFilters ? 'active' : ''}`}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <SlidersHorizontal size={18} />
+              <span>Filters</span>
+              {showFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {showFilters && (
+              <div className="filter-dropdown-card">
+                <div className="filter-card-content">
+                  
+                  {/* Price Filter */}
+                  <div className="filter-section">
+                    <div className="filter-section-header">
+                      <div className="filter-title">
+                        <Banknote size={16} className="icon-primary" />
+                        <span>Monthly Rent</span>
+                      </div>
+                      <span className="filter-value-badge">₱{maxPrice.toLocaleString()}</span>
                     </div>
-                    <input type="range" min="0" max="50000" step="1000" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} />
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="50000" 
+                      step="500" 
+                      value={maxPrice} 
+                      onChange={(e) => setMaxPrice(Number(e.target.value))}
+                      className="custom-range-slider"
+                    />
                   </div>
+
                   {!isLandlord && (
                     <>
-                      <div className="filter-group">
-                        <div className="filter-label-row">
-                          <span>📍 Distance</span>
-                          <span className="badge-orange">{maxDistance}km</span>
+                      {/* Distance Filter */}
+                      <div className="filter-section">
+                        <div className="filter-section-header">
+                          <div className="filter-title">
+                            <MapPin size={16} className="icon-primary" />
+                            <span>Max Distance</span>
+                          </div>
+                          <span className="filter-value-badge">{maxDistance} km</span>
                         </div>
-                        <input type="range" min="0" max="50" value={maxDistance} onChange={(e) => setMaxDistance(Number(e.target.value))} />
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="50" 
+                          value={maxDistance} 
+                          onChange={(e) => setMaxDistance(Number(e.target.value))}
+                          className="custom-range-slider"
+                        />
                       </div>
-                      <div className="filter-group">
-                        <span>🎓 School</span>
-                        <select className="filter-select" value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}>
-                          <option value="all">All Schools</option>
-                          {user?.school && <option value="myschool">Near "{user.school}"</option>}
+
+                      {/* School Filter */}
+                      <div className="filter-section">
+                        <div className="filter-title" style={{marginBottom: '8px'}}>
+                          <GraduationCap size={16} className="icon-primary" />
+                          <span>Target School</span>
+                        </div>
+                        <select 
+                          className="filter-select-refined" 
+                          value={schoolFilter} 
+                          onChange={(e) => setSchoolFilter(e.target.value)}
+                        >
+                          <option value="all">All Locations</option>
+                          {user?.school && <option value="myschool">Near {user.school}</option>}
                         </select>
                       </div>
                     </>
                   )}
-               </div>
-            </div>
-          )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
       {/* 2. MAIN CONTENT: Sidebar + Map */}
         <div className="map-split-container" style={{ position: 'relative' }}>
