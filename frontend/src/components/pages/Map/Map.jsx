@@ -64,6 +64,7 @@ function makeBlueLabel(abbr) {
   });
 }
 
+
 const matchesSearch = (l, s) => {
   const searchTerm = s.toLowerCase();
   return (
@@ -145,7 +146,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [landlordMetaById, setLandlordMetaById] = useState({});
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'location'
-
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { user } = useAuth();
   const isLandlordUser = user?.userType === 'landlord';
 
@@ -156,6 +157,14 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       });
     }
   }, [user?.id, isLandlordUser]);
+
+  useEffect(() => {
+    if (mapInstance.current) {
+      setTimeout(() => {
+        mapInstance.current.invalidateSize();
+      }, 400); 
+    }
+  }, [isSidebarOpen]);
 
   const navigate = useNavigate();
   const normalizedUserType = userType?.toLowerCase() || 'tenant';
@@ -364,9 +373,9 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   };
 
   return (
-    <div className={`map-wrapper ${theme}`} style={{ position: 'relative' }}>
+    <div className={`map-wrapper ${theme}`} style={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {loading && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.7)', borderRadius: '28px' }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.7)' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '2rem' }}>⏳</div>
             <p style={{ marginTop: '12px', color: darkMode ? '#a0a0b0' : '#666' }}>Loading listings...</p>
@@ -374,207 +383,145 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         </div>
       )}
 
-      {/* Search + Filters */}
-      <div className="map-search-wrap" style={{ alignItems: 'center', gap: '8px', position: 'relative' }}>
-        <div style={{
-          flex: 1, display: 'flex', alignItems: 'center',
-          background: darkMode ? '#16213e' : '#fff',
-          border: `1.5px solid #5BADA8`,
-          borderRadius: '10px', padding: '0 12px', gap: '6px',
-        }}>
-          <span style={{ opacity: 0.45, fontSize: '0.85rem' }}>🔍</span>
+      {/* 1. TOP BAR: Search & Filters */}
+      <div className="map-header-section">
+        <div className="map-search-pill-container">
+          <span className="search-icon">🔍</span>
           <input
-            type="search" className="map-search-input" value={search}
+            type="search"
+            className="map-search-input-new"
+            value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, address, or university..."
-            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', padding: '9px 0', fontSize: '13px', color: darkMode ? '#eaeaea' : '#333' }}
+            placeholder="Search by name, university, or tags..."
           />
         </div>
+        
         <div style={{ position: 'relative' }}>
-          <button
+          <button 
+            className={`filter-toggle-btn ${showFilters ? 'active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
-            style={{
-              padding: '9px 14px',
-              background: showFilters ? '#E8622E' : (darkMode ? '#2d3748' : '#f0f4f8'),
-              color: showFilters ? '#fff' : (darkMode ? '#ccc' : '#555'),
-              border: `1.5px solid ${showFilters ? '#E8622E' : (darkMode ? '#3d4a5c' : '#dde3ec')}`,
-              borderRadius: '10px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
-              transition: 'all 0.2s', whiteSpace: 'nowrap',
-            }}
-          >⚙️ Filters {showFilters ? '▲' : '▼'}</button>
+          >
+            ⚙️ Filters {showFilters ? '▲' : '▼'}
+          </button>
+
           {showFilters && (
-            <div style={{
-              position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 9999,
-              width: '230px', background: darkMode ? '#16213e' : '#fff',
-              border: `1px solid ${darkMode ? '#2d3748' : '#e2e8f0'}`,
-              borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', overflow: 'hidden',
-            }}>
-              <div style={{ background: '#E8622E', color: '#fff', padding: '10px 14px', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                ⚙️ Filters
-              </div>
-              <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>💰 Max Price</span>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#E8622E', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>₱{maxPrice.toLocaleString()}</span>
+            <div className="filter-dropdown-overlay">
+               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div className="filter-group">
+                    <div className="filter-label-row">
+                      <span>💰 Max Price</span>
+                      <span className="badge-orange">₱{maxPrice.toLocaleString()}</span>
+                    </div>
+                    <input type="range" min="0" max="50000" step="1000" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} />
                   </div>
-                  <input type="range" min="0" max="50000" step="1000" value={maxPrice}
-                    onChange={(e) => setMaxPrice(Number(e.target.value))}
-                    style={{ width: '100%', accentColor: '#E8622E', cursor: 'pointer' }}
-                  />
-                </div>
-                {!isLandlord && (
-                  <>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>📍 Distance</span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#E8622E', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>{maxDistance} km</span>
+                  {!isLandlord && (
+                    <>
+                      <div className="filter-group">
+                        <div className="filter-label-row">
+                          <span>📍 Distance</span>
+                          <span className="badge-orange">{maxDistance}km</span>
+                        </div>
+                        <input type="range" min="0" max="50" value={maxDistance} onChange={(e) => setMaxDistance(Number(e.target.value))} />
                       </div>
-                      <input type="range" min="0" max="50" value={maxDistance}
-                        onChange={(e) => setMaxDistance(Number(e.target.value))}
-                        style={{ width: '100%', accentColor: '#E8622E', cursor: 'pointer' }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>🎓 School</span>
-                      <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}
-                        style={{ padding: '6px 8px', borderRadius: '7px', border: `1.5px solid ${schoolFilter !== 'all' ? '#E8622E' : (darkMode ? '#3d4a5c' : '#dde3ec')}`, background: darkMode ? '#0f3460' : '#f8fafc', color: darkMode ? '#fff' : '#333', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', outline: 'none', width: '100%' }}>
-                        <option value="all">All Schools</option>
-                        {user?.school && (
-                          <option value="myschool">
-                            {`2km near "${user.school}"`}
-                          </option>
-                        )}
-                      </select>
-                    </div>
-                  </>
-                )}
-                {isLandlord && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: darkMode ? '#ccc' : '#555' }}>⚧ Gender Policy</span>
-                    <select value={genderPolicyFilter} onChange={(e) => setGenderPolicyFilter(e.target.value)}
-                      style={{ padding: '6px 8px', borderRadius: '7px', border: `1.5px solid ${genderPolicyFilter !== 'all' ? '#E8622E' : (darkMode ? '#3d4a5c' : '#dde3ec')}`, background: darkMode ? '#0f3460' : '#f8fafc', color: darkMode ? '#fff' : '#333', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', outline: 'none', width: '100%' }}>
-                      <option value="all">All Policies</option>
-                      <option value="Both">Both Genders</option>
-                      <option value="Female">Female Only</option>
-                      <option value="Male">Male Only</option>
-                    </select>
-                  </div>
-                )}
-              </div>
+                      <div className="filter-group">
+                        <span>🎓 School</span>
+                        <select className="filter-select" value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}>
+                          <option value="all">All Schools</option>
+                          {user?.school && <option value="myschool">Near "{user.school}"</option>}
+                        </select>
+                      </div>
+                    </>
+                  )}
+               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Map */}
-      <div className="map-container-wrap">
-        <div className="map-box">
-          <div ref={mapRef} className="map-inner" style={{ width: '100%', height: '520px' }} />
+      {/* 2. MAIN CONTENT: Sidebar + Map */}
+        <div className="map-split-container" style={{ position: 'relative' }}>
+            {/* Sleek Arrow Toggle Button */}
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className={`sidebar-toggle-tab ${isSidebarOpen ? 'is-open' : 'is-closed'}`}
+              title={isSidebarOpen ? "Collapse List" : "Expand List"}
+            >
+              {isSidebarOpen ? '«' : '»'}
+            </button>
+  
+            {/* LEFT SIDE: Sidebar (Now with dynamic className) */}
+            <div className={`map-sidebar-results ${isSidebarOpen ? 'open' : 'closed'}`}>
+              <div className="results-meta">
+                Found <strong>{filteredListings.length}</strong> available dorms
+              </div>
+    
+          {noResults ? (
+            <div className="map-empty-state">
+              <p>No listings found for "{search}"</p>
+              <button className="clear-btn" onClick={() => {setSearch(''); setMaxPrice(50000);}}>Clear Filters</button>
+            </div>
+          ) : (
+            <div className="sidebar-cards-list">
+              {filteredUnis.map((uni) => (
+                <button key={`uni-${uni.abbr}`} className="map-uni-card-compact" onClick={() => handleUniversityClick(uni)}>
+                  📍 {uni.name}
+                </button>
+              ))}
+              
+              {filteredListings.map((listing) => {
+                const landlord = getLandlordMeta(listing);
+                const coords = getListingCoords(listing);
+                const available = Number(listing.availableRooms) || 0;
+                const images = Array.isArray(listing.images) ? listing.images : [];
+                
+                return (
+                  <div 
+                    key={listing.id} 
+                    className="map-listing-card-sidebar"
+                    onClick={() => {
+                      if (coords && mapInstance.current) mapInstance.current.setView([coords.lat, coords.lng], 16);
+                      openModal(listing);
+                    }}
+                  >
+                    <div className="sidebar-card-img">
+                      {images.length > 0 ? <img src={images[0]} alt="" /> : <div className="img-placeholder">🏠</div>}
+                      <div className="sidebar-price-tag">₱{Number(listing.price).toLocaleString()}</div>
+                    </div>
+                    <div className="sidebar-card-content">
+                      <div className="card-top">
+                        <h4 className="card-title">{listing.title}</h4>
+                      </div>
+                      <p className="card-addr">📍 {listing.address}</p>
+                      <div className="card-footer">
+                        <GenderBadge policy={listing.genderPolicy} />
+                        <span className={`avail-indicator ${available === 0 ? 'full' : 'ok'}`}>
+                          ● {available === 0 ? 'Full' : `${available} left`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT SIDE: Map */}
+        <div className="map-main-view">
+          <div ref={mapRef} className="map-inner" style={{ width: '100%', height: '100%' }} />
           <div className="map-legend">
-            <div className="map-legend-title">Legend</div>
-            <div className="map-legend-row">
-              <svg width="16" height="22" viewBox="0 0 30 42">
-                <path d="M15 0C6.716 0 0 6.716 0 15c0 10.5 15 27 15 27s15-16.5 15-27C30 6.716 23.284 0 15 0z" fill="#E8622E"/>
-                <circle cx="15" cy="14" r="6" fill="#fff"/>
-              </svg>
-              <span>Dorms</span>
-            </div>
-            <div className="map-legend-row">
-              <svg width="16" height="22" viewBox="0 0 30 42">
-                <path d="M15 0C6.716 0 0 6.716 0 15c0 10.5 15 27 15 27s15-16.5 15-27C30 6.716 23.284 0 15 0z" fill="#2563EB"/>
-                <circle cx="15" cy="14" r="6" fill="#fff"/>
-              </svg>
-              <span>Universities</span>
-            </div>
+             <div className="map-legend-row">
+                <div style={{width: 12, height: 12, borderRadius: '50%', background: '#E8622E'}} />
+                <span>Dorms</span>
+             </div>
+             <div className="map-legend-row">
+                <div style={{width: 12, height: 12, borderRadius: '50%', background: '#2563EB'}} />
+                <span>Universities</span>
+             </div>
           </div>
         </div>
       </div>
 
-      {/* Listing Cards Grid */}
-      <div className={`map-cards-grid${noResults ? ' map-cards-grid--empty' : ''}`}>
-        {filteredUnis.map((uni) => (
-          <button key={`uni-${uni.abbr}`} type="button" className="map-card-btn map-uni-card" onClick={() => handleUniversityClick(uni)}>
-            <div className="map-uni-card-name">📍 {uni.name}</div>
-            <div className="map-uni-card-hint">Click to zoom to campus</div>
-          </button>
-        ))}
-        {noResults ? (
-          <div className="map-empty-state">
-          <h3>No listings found for "{search}"</h3>
-          <p>Try searching for "WiFi", "Single Room", or clear your filters.</p>
-          <button 
-              onClick={() => {setSearch(''); setMaxPrice(50000); setMaxDistance(100);}}
-              style={{marginTop: '10px', padding: '8px 16px', background: PRIMARY, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer'}}
-          >
-          Clear All Filters
-          </button>
-        </div>
-        ) : (
-          filteredListings.map((listing) => {
-            const landlord = getLandlordMeta(listing);
-            const coords = getListingCoords(listing);
-            const available = Number(listing.availableRooms) || 0;
-            const images = Array.isArray(listing.images) ? listing.images : [];
-            return (
-              <button
-                key={listing.id}
-                type="button"
-                className="map-listing-card-rich"
-                onClick={() => {
-                  if (coords && mapInstance.current) mapInstance.current.setView([coords.lat, coords.lng], 15);
-                  openModal(listing);
-                }}
-              >
-                {/* Card image */}
-                <div className="map-card-rich-img-wrap">
-                  {images.length > 0
-                    ? <img src={images[0]} alt={listing.title} className="map-card-rich-img" />
-                    : <div className="map-card-rich-img-placeholder">🏠</div>
-                  }
-                  <div className="map-card-rich-price-badge">₱{Number(listing.price).toLocaleString()}</div>
-                  {available === 0 && <div className="map-card-rich-full-badge">Full</div>}
-                </div>
-
-                {/* Card body */}
-                <div className="map-card-rich-body">
-                  <div className="map-card-rich-title">{listing.title}</div>
-                  <div className="map-card-rich-address">📍 {listing.address}</div>
-
-                  {/* Tags */}
-                  {Array.isArray(listing.tags) && listing.tags.length > 0 && (
-                    <div className="map-card-rich-tags">
-                      {listing.tags.slice(0, 3).map((tag, i) => (
-                        <span key={i} className="map-card-rich-tag">{tag}</span>
-                      ))}
-                      {listing.tags.length > 3 && (
-                        <span className="map-card-rich-tag map-card-rich-tag--more">+{listing.tags.length - 3}</span>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="map-card-rich-meta">
-                    <GenderBadge policy={listing.genderPolicy} />
-                    <span className={`map-card-rich-avail ${available === 0 ? 'full' : available <= 2 ? 'low' : 'ok'}`}>
-                      {available === 0 ? '● Full' : available <= 2 ? `● ${available} left` : `● ${available} rooms`}
-                    </span>
-                  </div>
-
-                  <div className="map-card-rich-landlord">
-                    <span>{landlord.name}</span>
-                    {landlord.verified
-                      ? <span className="map-verified-badge">✓ Verified</span>
-                      : <span className="map-unverified-badge">⚠ Unverified</span>
-                    }
-                  </div>
-                </div>
-              </button>
-            );
-          })
-        )}
-      </div>
-
-      {/* ── ENHANCED MODAL ────────────────────────────────────────────────── */}
       {selectedListing && (() => {
         const landlord = getLandlordMeta(selectedListing);
         const images = Array.isArray(selectedListing.images) ? selectedListing.images : [];
@@ -586,14 +533,9 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         return (
           <div className="map-overlay">
             <div className="map-modal map-modal--rich">
-              {/* Close button */}
               <button className="map-modal-close" onClick={closeModal}>&times;</button>
-
-              {/* Image gallery — full width at top */}
               <ImageCarousel images={images} title={selectedListing.title} />
-
               <div className="map-modal-body">
-                {/* Header */}
                 <div className="map-modal-header">
                   <div className="map-modal-header-left">
                     <h2 className="map-modal-title">{selectedListing.title}</h2>
@@ -605,209 +547,64 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                   </div>
                 </div>
 
-                {/* Badges row */}
                 <div className="map-modal-badges">
                   <GenderBadge policy={selectedListing.genderPolicy} />
-                  {landlord.verified
-                    ? <span className="map-verified-badge map-verified-badge--lg">✓ Verified Landlord</span>
-                    : <span className="map-unverified-badge map-unverified-badge--lg">⚠ Not Verified</span>
-                  }
-                  {selectedListing.university && (
-                    <span className="map-uni-badge">🎓 {selectedListing.university}</span>
-                  )}
+                  {landlord.verified ? <span className="map-verified-badge">✓ Verified</span> : <span className="map-unverified-badge">⚠ Unverified</span>}
                 </div>
 
-                {/* Availability bar */}
                 <AvailabilityBadge availableRooms={available} totalRooms={total} />
 
-                {/* Tabs */}
                 <div className="map-modal-tabs">
                   {['details', 'location'].map(tab => (
-                    <button
-                      key={tab}
-                      className={`map-modal-tab ${activeTab === tab ? 'active' : ''}`}
-                      onClick={() => setActiveTab(tab)}
-                    >
+                    <button key={tab} className={`map-modal-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
                       {tab === 'details' ? '📋 Details' : '🗺️ Location'}
                     </button>
                   ))}
                 </div>
 
-                {/* Tab: Details */}
                 {activeTab === 'details' && (
                   <div className="map-modal-tab-content">
-                    {/* Stats grid */}
                     <div className="map-modal-stats">
-                      <div className="map-modal-stat">
-                        <span className="map-modal-stat-icon">🛏️</span>
-                        <span className="map-modal-stat-value">{selectedListing.rooms || 'N/A'}</span>
-                        <span className="map-modal-stat-label">Room Type</span>
-                      </div>
-                      <div className="map-modal-stat">
-                        <span className="map-modal-stat-icon">🚪</span>
-                        <span className="map-modal-stat-value">{available}</span>
-                        <span className="map-modal-stat-label">Available</span>
-                      </div>
-                      <div className="map-modal-stat">
-                        <span className="map-modal-stat-icon">🏠</span>
-                        <span className="map-modal-stat-value">{total || 'N/A'}</span>
-                        <span className="map-modal-stat-label">Total Rooms</span>
-                      </div>
-                      <div className="map-modal-stat">
-                        <span className="map-modal-stat-icon">📏</span>
-                        <span className="map-modal-stat-value">{nearest ? `${nearest.distance.toFixed(1)}km` : 'N/A'}</span>
-                        <span className="map-modal-stat-label">From Campus</span>
-                      </div>
+                      <div className="map-modal-stat"><span>🛏️</span><strong>{selectedListing.rooms || 'N/A'}</strong><small>Type</small></div>
+                      <div className="map-modal-stat"><span>🚪</span><strong>{available}</strong><small>Avail</small></div>
+                      <div className="map-modal-stat"><span>🏠</span><strong>{total}</strong><small>Total</small></div>
+                      <div className="map-modal-stat"><span>📏</span><strong>{nearest ? `${nearest.distance.toFixed(1)}km` : 'N/A'}</strong><small>Dist</small></div>
                     </div>
-
-                    {/* Nearest university */}
-                    {nearest && (
-                      <div className="map-modal-nearest-uni">
-                        <span className="map-modal-nearest-uni-icon">🎓</span>
-                        <span>Nearest: <strong>{nearest.name}</strong> — {nearest.distance.toFixed(2)} km away</span>
-                      </div>
-                    )}
-
-                    {/* Description */}
-                    {selectedListing.description && (
-                      <div className="map-modal-section">
-                        <h4 className="map-modal-section-title">About this place</h4>
-                        <p className="map-modal-desc-text">{selectedListing.description}</p>
-                      </div>
-                    )}
-
-                    {/* Tags / Amenities */}
-                    {tags.length > 0 && (
-                      <div className="map-modal-section">
-                        <h4 className="map-modal-section-title">Amenities & Features</h4>
-                        <div className="map-modal-tags">
-                          {tags.map((tag, i) => (
-                            <span key={i} className="map-modal-tag">{tag}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Landlord info */}
-                    <div className="map-modal-landlord-card">
-                      <div className="map-modal-landlord-avatar">
-                        {(landlord.name || 'L').charAt(0).toUpperCase()}
-                      </div>
-                      <div className="map-modal-landlord-info">
-                        <span className="map-modal-landlord-name">{landlord.name}</span>
-                        <span className="map-modal-landlord-role">Property Owner</span>
-                      </div>
-                      {landlord.verified && <span className="map-verified-badge">✓ Verified</span>}
+                    {selectedListing.description && <p className="map-modal-desc-text">{selectedListing.description}</p>}
+                    <div className="map-modal-tags">
+                      {tags.map((tag, i) => <span key={i} className="map-modal-tag">{tag}</span>)}
                     </div>
                   </div>
                 )}
 
-                {/* Tab: Location */}
                 {activeTab === 'location' && (
                   <div className="map-modal-tab-content">
-                    <div className="map-modal-section">
-                      <h4 className="map-modal-section-title">Property Location</h4>
-                      <p className="map-modal-address" style={{ marginBottom: 12 }}>
-                        📍 {selectedListing.address}
-                      </p>
-                      {coords ? (
-                        <div className="map-modal-minimap" id={`minimap-${selectedListing.id}`}>
-                          <MiniMap lat={coords.lat} lng={coords.lng} darkMode={darkMode} />
-                        </div>
-                      ) : (
-                        <div className="map-modal-no-location">📍 Location not set for this listing</div>
-                      )}
-                    </div>
-                    {nearest && (
-                      <div className="map-modal-section">
-                        <h4 className="map-modal-section-title">Nearby Universities</h4>
-                        <div className="map-modal-nearest-uni">
-                          <span className="map-modal-nearest-uni-icon">🎓</span>
-                          <span><strong>{nearest.name}</strong> — {nearest.distance.toFixed(2)} km</span>
-                        </div>
-                      </div>
-                    )}
+                    <div className="map-modal-minimap"><MiniMap lat={coords?.lat} lng={coords?.lng} /></div>
                   </div>
                 )}
 
-                {/* Action buttons */}
-                {!isLandlord ? (
-                  <div className="map-modal-actions">
-                    {bookingStep === 'info' && (
-                      <>
-                        {!landlord.verified && (
-                          <p className="map-modal-warn">ℹ️ This landlord is not yet verified — you can still book.</p>
-                        )}
-                        {available > 0 ? (
-                          <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
-                            📅 Book This Property
-                          </button>
-                        ) : (
-                          <button className="map-btn-book" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-                            No rooms available
-                          </button>
-                        )}
-                        <div className="map-modal-secondary-actions">
-                          <button className="map-btn-contact" onClick={() => navigate('/messages', { state: { contactLandlord: { id: selectedListing.landlordId, name: selectedListing.landlordName || 'Landlord' } } })}>
-                            💬 Message
-                          </button>
-                          {user?.id && (
-                            <button
-                              className="map-btn-contact"
-                              style={{ background: bookmarkedIds.has(selectedListing.id) ? '#5BADA8' : 'transparent', color: bookmarkedIds.has(selectedListing.id) ? '#fff' : '#5BADA8', border: '1.5px solid #5BADA8' }}
-                              disabled={bookmarkLoading}
-                              onClick={async () => {
-                                setBookmarkLoading(true);
-                                if (bookmarkedIds.has(selectedListing.id)) {
-                                  await bookmarksAPI.removeBookmark(user.id, selectedListing.id);
-                                  setBookmarkedIds(prev => { const next = new Set(prev); next.delete(selectedListing.id); return next; });
-                                } else {
-                                  await bookmarksAPI.addBookmark(user.id, selectedListing.id);
-                                  setBookmarkedIds(prev => new Set([...prev, selectedListing.id]));
-                                }
-                                setBookmarkLoading(false);
-                              }}
-                            >
-                              {bookmarkedIds.has(selectedListing.id) ? '🔖 Saved' : '🔖 Save'}
-                            </button>
-                          )}
-                        </div>
-                      </>
-                    )}
-
-                    {bookingStep === 'booking' && (
+                <div className="map-modal-actions">
+                  {!isLandlord ? (
+                    bookingStep === 'info' ? (
+                      <div className="map-modal-secondary-actions">
+                        <button className="map-btn-book" onClick={() => setBookingStep('booking')}>📅 Book Now</button>
+                        <button className="map-btn-contact" onClick={() => navigate('/messages', { state: { contactLandlord: { id: selectedListing.landlordId, name: landlord.name } } })}>💬 Message</button>
+                      </div>
+                    ) : bookingStep === 'booking' ? (
                       <div className="map-booking-box">
-                        {bookingError && <p style={{ color: '#dc3545', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 600 }}>❌ {bookingError}</p>}
-                        <h4>📅 Select Move-in Date</h4>
-                        <input type="date" className="map-date-input" value={moveInDate}
-                          onChange={(e) => setMoveInDate(e.target.value)} min={getMinSchedulableDateYmd()} />
-                        <p style={{ fontSize: '0.78rem', color: darkMode ? '#a0a0b0' : '#666', margin: '6px 0 10px 0' }}>Earliest move-in is 3 days from today.</p>
-                        <button className="map-btn-confirm" onClick={() => handleConfirmBooking(selectedListing)}>✔ Confirm Booking</button>
-                        <button className="map-btn-back" onClick={() => setBookingStep('info')}>← Back</button>
+                        <input type="date" className="map-date-input" value={moveInDate} onChange={(e) => setMoveInDate(e.target.value)} min={getMinSchedulableDateYmd()} />
+                        <button className="map-btn-confirm" onClick={() => handleConfirmBooking(selectedListing)}>✔ Confirm</button>
+                        <button className="map-btn-back" onClick={() => setBookingStep('info')}>Back</button>
                       </div>
-                    )}
-
-                    {bookingStep === 'confirming' && (
-                      <div className="map-confirming">
-                        <div className="map-confirming-icon">⏳</div>
-                        <p className="map-confirming-title">Confirming booking...</p>
-                      </div>
-                    )}
-
-                    {bookingStep === 'success' && (
-                      <div className="map-success">
-                        <div className="map-success-icon">✅</div>
-                        <h4 className="map-success-title">Booking Request Sent!</h4>
-                        <button className="map-btn-done" onClick={closeModal}>Done</button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="map-modal-actions">
-                    <button className="map-btn-edit" onClick={() => { if (onEditListing) onEditListing(selectedListing); setSelectedListing(null); }}>✏️ Edit Listing</button>
-                    <button className="map-btn-delete" onClick={async () => { await listingsAPI.deleteListing(selectedListing.id); setListings(listings.filter(l => l.id !== selectedListing.id)); setSelectedListing(null); window.dispatchEvent(new Event('dormscout:listingUpdated')); }}>🗑️ Delete Listing</button>
-                  </div>
-                )}
+                    ) : bookingStep === 'success' ? (
+                      <div className="map-success"><h4>✅ Request Sent!</h4><button className="map-btn-done" onClick={closeModal}>Done</button></div>
+                    ) : <p>Processing...</p>
+                  ) : (
+                    <div className="map-modal-actions">
+                      <button className="map-btn-edit" onClick={() => { if (onEditListing) onEditListing(selectedListing); closeModal(); }}>✏️ Edit</button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -817,17 +614,15 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   );
 }
 
-// ── Mini map inside modal location tab ──────────────────────────────────────
+// ── Mini map inside modal ──
 function MiniMap({ lat, lng }) {
   const ref = useRef(null);
   useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    if (node._leaflet_id) return;
-    const map = L.map(node, { center: [lat, lng], zoom: 15, zoomControl: false, dragging: false, scrollWheelZoom: false, attributionControl: false });
+    if (!ref.current || !lat || !lng) return;
+    const map = L.map(ref.current, { center: [lat, lng], zoom: 15, zoomControl: false, attributionControl: false });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     L.marker([lat, lng], { icon: orangePinIcon }).addTo(map);
-    return () => { try { map.remove(); } catch { /* ignore */ } };
+    return () => map.remove();
   }, [lat, lng]);
-  return <div ref={ref} style={{ width: '100%', height: '100%' }} />;
+  return <div ref={ref} style={{ width: '100%', height: '180px', borderRadius: '12px' }} />;
 }
