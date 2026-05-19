@@ -88,7 +88,7 @@ function AppRoutes({ darkMode, setDarkMode }) {
       <Route path="/admin/reports" element={<AdminProtectedRoute />} />
       <Route path="/admin/reviews" element={<AdminProtectedRoute />} />
       <Route path="/admin/messages" element={<AdminProtectedRoute />} />
-      <Route path="/admin/support" element={<AdminProtectedRoute />} />
+      <Route path="/admin/support" element={<Navigate to="/admin/messages" replace />} />
       <Route path="/admin/notifications" element={<AdminProtectedRoute />} />
       <Route path="/admin/settings" element={<AdminProtectedRoute />} />
       <Route path="/report" element={

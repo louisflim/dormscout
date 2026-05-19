@@ -4,6 +4,7 @@ import { messagesAPI } from '../../../utils/api';
 import {
   isBroadcastMessage,
   isSupportMessage,
+  parseSupportContent,
   sendAdminBroadcast,
   sendAdminDirectMessage,
 } from '../../../utils/adminMessaging';
@@ -38,6 +39,7 @@ export default function AdminMessaging({
   conversations = [],
   selectedConversationId,
   onSelectConversation,
+  onConversationRead,
   onNotice,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,19 +57,28 @@ export default function AdminMessaging({
     const q = searchQuery.trim().toLowerCase();
     return conversations.filter((conv) => {
       const preview = conv.message || conv.lastMessage || '';
-      if (isSupportMessage(preview) || isBroadcastMessage(preview)) return false;
+      if (isBroadcastMessage(preview)) return false;
       if (!q) return true;
-      return `${conv.name || ''} ${conv.email || ''} ${preview}`.toLowerCase().includes(q);
+      const parsed = isSupportMessage(preview) ? parseSupportContent(preview) : null;
+      const searchPreview = parsed
+        ? `${parsed.subject} ${parsed.body}`
+        : preview;
+      return `${conv.name || ''} ${conv.email || ''} ${searchPreview}`.toLowerCase().includes(q);
     });
   }, [conversations, searchQuery]);
 
-  const selectedConv = useMemo(
-    () =>
-      filteredConversations.find((c) => c.id === selectedConversationId) ||
-      filteredConversations[0] ||
-      null,
-    [filteredConversations, selectedConversationId]
-  );
+  const selectedConv = useMemo(() => {
+    if (selectedConversationId) {
+      const match =
+        conversations.find((c) => c.id === selectedConversationId) ||
+        conversations.find((c) => c.conversationId === selectedConversationId);
+      if (match) return match;
+    }
+    if (!selectedConversationId) {
+      return filteredConversations[0] || null;
+    }
+    return null;
+  }, [conversations, filteredConversations, selectedConversationId]);
 
   const activeConvId = selectedConv?.conversationId || selectedConv?.id;
 
@@ -92,6 +103,25 @@ export default function AdminMessaging({
     const timer = setInterval(loadThread, 4000);
     return () => clearInterval(timer);
   }, [loadThread]);
+
+  useEffect(() => {
+    if (!activeConvId || !adminId) return undefined;
+
+    let cancelled = false;
+    const markRead = async () => {
+      await messagesAPI.markConversationRead(activeConvId, adminId);
+      if (cancelled) return;
+      onConversationRead?.(activeConvId);
+      window.dispatchEvent(new Event('dormscout:messagesUpdated'));
+    };
+
+    markRead();
+    const timer = setInterval(markRead, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [activeConvId, adminId, onConversationRead]);
 
   const handleSend = async () => {
     if (!messageInput.trim() || !selectedConv || !adminId) return;
@@ -191,6 +221,10 @@ export default function AdminMessaging({
             ) : (
               filteredConversations.map((conv) => {
                 const active = selectedConv?.id === conv.id;
+                const rawPreview = conv.lastMessage || conv.message || '';
+                const listPreview = isSupportMessage(rawPreview)
+                  ? (parseSupportContent(rawPreview).body || parseSupportContent(rawPreview).subject)
+                  : (rawPreview || 'Start a conversation');
                 return (
                   <button
                     key={conv.conversationId || conv.id}
@@ -206,7 +240,7 @@ export default function AdminMessaging({
                         <small>{formatTime(conv.createdAt || conv.lastMessageTime)}</small>
                       </span>
                       <span className="admin-messaging-preview" style={{ opacity: active ? 0.9 : 0.72 }}>
-                        {conv.lastMessage || conv.message || 'Start a conversation'}
+                        {listPreview}
                       </span>
                     </span>
                   </button>
@@ -223,7 +257,12 @@ export default function AdminMessaging({
                 <span className="admin-messaging-avatar">{initialsFromName(selectedConv.name)}</span>
                 <div>
                   <h4 style={{ color: theme.text }}>{selectedConv.name || 'User'}</h4>
-                  <p style={{ color: theme.muted }}>{selectedConv.email || ''} · Direct message</p>
+                  <p style={{ color: theme.muted }}>
+                    {selectedConv.email || ''}
+                    {isSupportMessage(selectedConv.lastMessage || selectedConv.message || '')
+                      ? ` · ${parseSupportContent(selectedConv.lastMessage || selectedConv.message).subject || 'Support'}`
+                      : ' · Direct message'}
+                  </p>
                 </div>
               </header>
 

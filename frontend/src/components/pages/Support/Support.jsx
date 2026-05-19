@@ -76,6 +76,13 @@ const FAQ_ITEMS = [
   },
 ];
 
+const accountNameFromUser = (accountUser) =>
+  [accountUser?.firstName, accountUser?.lastName].filter(Boolean).join(' ').trim()
+  || accountUser?.name
+  || '';
+
+const accountEmailFromUser = (accountUser) => String(accountUser?.email || '').trim();
+
 const CONTACT_INFO = [
   {
     icon: Mail,
@@ -109,16 +116,33 @@ export default function Support({ darkMode = false, setDarkMode }) {
   const dropdownRef = useRef(null);
  
   const [expandedIndex, setExpandedIndex] = useState(null);
-  const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
+  const [formData, setFormData] = useState({
+    name: accountNameFromUser(user),
+    email: accountEmailFromUser(user),
+    subject: '',
+    message: '',
+  });
   const [submitted, setSubmitted] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
- 
-  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
-    || user?.name || user?.email || 'Account';
+
+  const isLoggedIn = Boolean(user?.id);
+  const accountName = accountNameFromUser(user);
+  const accountEmail = accountEmailFromUser(user);
+
+  const displayName = accountName || user?.email || 'Account';
   const userInitials = displayName
     .split(' ').filter(Boolean).map((p) => p[0]).join('').toUpperCase().slice(0, 2) || 'A';
  
   useEffect(() => { setLocalDarkMode(Boolean(darkMode)); }, [darkMode]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    setFormData((prev) => ({
+      ...prev,
+      name: accountName,
+      email: accountEmail,
+    }));
+  }, [isLoggedIn, accountName, accountEmail]);
  
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -139,12 +163,14 @@ export default function Support({ darkMode = false, setDarkMode }) {
     } catch (_) { existingSupportMessages = []; }
  
     const senderRole = (localStorage.getItem('userType') || 'all').toLowerCase();
+    const submitName = isLoggedIn ? accountName : formData.name;
+    const submitEmail = isLoggedIn ? accountEmail : formData.email;
     const formattedContent = formatSupportContent(formData.subject, formData.message);
     const supportMessage = {
       id: `support-${Date.now()}`,
       userId: user?.id,
-      name: formData.name,
-      email: formData.email,
+      name: submitName,
+      email: submitEmail,
       subject: formData.subject,
       message: formattedContent,
       forRole: senderRole,
@@ -169,7 +195,12 @@ export default function Support({ darkMode = false, setDarkMode }) {
     }
  
     setSubmitted(true);
-    setFormData({ name: '', email: '', subject: '', message: '' });
+    setFormData({
+      name: isLoggedIn ? accountName : '',
+      email: isLoggedIn ? accountEmail : '',
+      subject: '',
+      message: '',
+    });
     setTimeout(() => setSubmitted(false), 5000);
   };
  
@@ -381,19 +412,41 @@ export default function Support({ darkMode = false, setDarkMode }) {
                 <div className="form-field">
                   <label className="form-label" style={{ color: colors.secondaryText }}>Full Name</label>
                   <input
-                    type="text" name="name" placeholder="e.g. Juan dela Cruz"
-                    value={formData.name} onChange={handleFormChange} required
-                    className="contact-form__input" style={inputStyle}
-                    onFocus={handleFocus} onBlur={handleBlur}
+                    type="text"
+                    name="name"
+                    placeholder={isLoggedIn ? accountName : 'e.g. Juan dela Cruz'}
+                    value={formData.name}
+                    onChange={handleFormChange}
+                    required
+                    readOnly={isLoggedIn}
+                    aria-readonly={isLoggedIn}
+                    className="contact-form__input"
+                    style={{
+                      ...inputStyle,
+                      ...(isLoggedIn ? { cursor: 'default', opacity: 0.92 } : {}),
+                    }}
+                    onFocus={isLoggedIn ? undefined : handleFocus}
+                    onBlur={isLoggedIn ? undefined : handleBlur}
                   />
                 </div>
                 <div className="form-field">
                   <label className="form-label" style={{ color: colors.secondaryText }}>Email Address</label>
                   <input
-                    type="email" name="email" placeholder="you@example.com"
-                    value={formData.email} onChange={handleFormChange} required
-                    className="contact-form__input" style={inputStyle}
-                    onFocus={handleFocus} onBlur={handleBlur}
+                    type="email"
+                    name="email"
+                    placeholder={isLoggedIn ? accountEmail : 'you@example.com'}
+                    value={formData.email}
+                    onChange={handleFormChange}
+                    required
+                    readOnly={isLoggedIn}
+                    aria-readonly={isLoggedIn}
+                    className="contact-form__input"
+                    style={{
+                      ...inputStyle,
+                      ...(isLoggedIn ? { cursor: 'default', opacity: 0.92 } : {}),
+                    }}
+                    onFocus={isLoggedIn ? undefined : handleFocus}
+                    onBlur={isLoggedIn ? undefined : handleBlur}
                   />
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { activitiesAPI, messagesAPI, reportsAPI } from '../../../utils/api';
 import {
@@ -9,7 +9,6 @@ import {
   parseSupportContent,
   readLocalSupportSubmissions,
   mergeSupportInboxLists,
-  SUPPORT_MESSAGES_KEY,
 } from '../../../utils/adminMessaging';
 import {
   adminFetch,
@@ -19,7 +18,6 @@ import {
 } from '../../../utils/adminAuth';
 import { countUnreadActivities } from '../../../utils/activities';
 import AdminMessaging from './AdminMessaging';
-import AdminSupportInbox from './AdminSupportInbox';
 import './AdminPage.css';
 import {
   LayoutDashboard,
@@ -41,7 +39,6 @@ import {
   X,
   Filter,
   MessageSquare,
-  LifeBuoy,
 } from 'lucide-react';
 
 const ADMIN_DARKMODE_KEY = 'admin_darkMode';
@@ -61,7 +58,6 @@ const SIDEBAR_ITEMS = [
   { id: 'reports',    label: 'Reports',     icon: FileWarning     },
   { id: 'reviews',    label: 'Reviews',     icon: Star            },
   { id: 'messages',   label: 'Messages',    icon: MessageSquare   },
-  { id: 'support',    label: 'Support Inbox', icon: LifeBuoy    },
   { id: 'notifications', label: 'Notifications', icon: Bell      },
   { id: 'settings',   label: 'Settings',    icon: SettingsIcon    },
 ];
@@ -70,6 +66,7 @@ const ADMIN_SECTION_IDS = SIDEBAR_ITEMS.map((item) => item.id);
 
 const getActiveSectionFromPath = (pathname) => {
   const segment = pathname.replace(/^\/admin\/?/, '').split('/')[0] || 'overview';
+  if (segment === 'support') return 'messages';
   return ADMIN_SECTION_IDS.includes(segment) ? segment : 'overview';
 };
 
@@ -203,11 +200,8 @@ export default function AdminPage() {
   const [reports, setReports] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [supportMessages, setSupportMessages] = useState([]);
   const [directConversations, setDirectConversations] = useState([]);
-  const [selectedSupportId, setSelectedSupportId] = useState(null);
   const [selectedMessageId, setSelectedMessageId] = useState(null);
-  const [selectedDirectUser, setSelectedDirectUser] = useState(null);
   const [inlineNotice, setInlineNotice] = useState('');
   const [inlineNoticeTone, setInlineNoticeTone] = useState('is-good');
 
@@ -234,6 +228,56 @@ export default function AdminPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [deleteModalError, setDeleteModalError] = useState('');
+
+  const pendingOpenMessageUserRef = useRef(null);
+  const selectedMessageIdRef = useRef(null);
+
+  const applyOpenMessageUser = useCallback((userRecord) => {
+    const numericId = userRecord?.id != null ? Number(userRecord.id) : NaN;
+    if (!Number.isFinite(numericId)) return;
+
+    const displayName =
+      userRecord?.name ||
+      (userRecord?.firstName && userRecord?.lastName
+        ? `${userRecord.firstName} ${userRecord.lastName}`
+        : userRecord?.firstName || userRecord?.lastName || 'User');
+
+    const adminId = adminUser?.id;
+    const convId = adminId ? buildConversationId(adminId, numericId) : `direct-user-${numericId}`;
+    let selectedId = convId;
+
+    setDirectConversations((prev) => {
+      const existing = prev.find(
+        (c) => Number(c.otherUserId ?? c.userId) === numericId
+      );
+      if (existing) {
+        selectedId = existing.id;
+        return prev;
+      }
+
+      const directTarget = {
+        id: convId,
+        conversationId: convId,
+        otherUserId: numericId,
+        userId: numericId,
+        name: displayName,
+        email: userRecord?.email || '',
+        subject: 'Direct message from admin',
+        message: 'Start a conversation',
+        lastMessage: 'Start a conversation',
+        forRole: getRole(userRecord),
+        replied: false,
+        createdAt: new Date().toISOString(),
+        isDirectUser: true,
+      };
+
+      if (prev.some((c) => Number(c.otherUserId ?? c.userId) === numericId)) return prev;
+      return [directTarget, ...prev];
+    });
+
+    selectedMessageIdRef.current = selectedId;
+    setSelectedMessageId(selectedId);
+  }, [adminUser]);
 
   const loadAdminDerivedData = useCallback(async (usersData, adminAccount) => {
     // Load bookmarks from all tenants
@@ -281,7 +325,7 @@ export default function AdminPage() {
       );
     } catch { setNotifications([]); }
 
-    // Load support inbox (admin's conversations)
+    // Load admin message conversations (direct + support, excluding broadcasts)
     const adminId = adminAccount?.id || adminUser?.id;
     if (adminId) {
       try {
@@ -308,29 +352,53 @@ export default function AdminPage() {
             createdAt: conv?.lastMessageTime ? new Date(conv.lastMessageTime).toISOString() : new Date().toISOString(),
           };
         });
-        const supportFromApi = convList.filter((item) =>
+        const nonBroadcast = convList.filter((item) => {
+          const preview = item.message || item.lastMessage || '';
+          return !isBroadcastMessage(preview);
+        });
+        const supportFromApi = nonBroadcast.filter((item) =>
           isSupportMessage(item.message || item.lastMessage || '')
         );
         const localSupport = readLocalSupportSubmissions();
-        const supportOnly = mergeSupportInboxLists(supportFromApi, localSupport);
-        const directOnly = convList.filter((item) => {
-          const preview = item.message || item.lastMessage || '';
-          return !isBroadcastMessage(preview) && !isSupportMessage(preview);
+        const localSupportOnly = mergeSupportInboxLists(supportFromApi, localSupport);
+
+        setDirectConversations((prev) => {
+          const placeholders = (prev || []).filter((c) => c.isDirectUser);
+          const byPartner = new Map();
+          nonBroadcast.forEach((conv) => {
+            const partnerId = Number(conv.otherUserId ?? conv.userId);
+            if (Number.isFinite(partnerId)) byPartner.set(partnerId, conv);
+          });
+          localSupportOnly.forEach((conv) => {
+            const partnerId = Number(conv.otherUserId ?? conv.userId);
+            if (!Number.isFinite(partnerId)) return;
+            if (!byPartner.has(partnerId)) byPartner.set(partnerId, conv);
+          });
+          placeholders.forEach((conv) => {
+            const partnerId = Number(conv.otherUserId ?? conv.userId);
+            if (!Number.isFinite(partnerId)) return;
+            if (!byPartner.has(partnerId)) byPartner.set(partnerId, conv);
+          });
+          return Array.from(byPartner.values());
         });
-        setSupportMessages(supportOnly);
-        setDirectConversations(directOnly);
-        if (supportOnly.length > 0 && !selectedSupportId) {
-          setSelectedSupportId(supportOnly[0].id);
-        }
-        if (directOnly.length > 0 && !selectedMessageId && !selectedDirectUser) {
-          setSelectedMessageId(directOnly[0].id);
+
+        const pendingMessageUser = pendingOpenMessageUserRef.current;
+        if (pendingMessageUser) {
+          applyOpenMessageUser(pendingMessageUser);
+          pendingOpenMessageUserRef.current = null;
+        } else if (
+          nonBroadcast.length > 0 &&
+          !selectedMessageIdRef.current &&
+          !pendingOpenMessageUserRef.current
+        ) {
+          selectedMessageIdRef.current = nonBroadcast[0].id;
+          setSelectedMessageId(nonBroadcast[0].id);
         }
       } catch {
-        setSupportMessages([]);
         setDirectConversations([]);
       }
     }
-  }, [users, adminUser, selectedSupportId, selectedMessageId, selectedDirectUser]);
+  }, [users, adminUser, applyOpenMessageUser]);
 
   const loadAdminData = useCallback(async () => {
     setDataLoading(true);
@@ -393,22 +461,27 @@ export default function AdminPage() {
       return;
     }
     const segment = location.pathname.replace(/^\/admin\/?/, '').split('/')[0] || '';
+    if (segment === 'support') {
+      navigate('/admin/messages', { replace: true });
+      return;
+    }
     if (segment && !ADMIN_SECTION_IDS.includes(segment)) {
       navigate('/admin/overview', { replace: true });
     }
   }, [isLoggedIn, location.pathname, navigate]);
 
   useEffect(() => {
-    if (isLoggedIn && activeSection === 'reports') reloadReports();
-  }, [isLoggedIn, activeSection, reloadReports]);
+    const target = location.state?.openMessageUser;
+    if (!target?.id || activeSection !== 'messages') return;
+    pendingOpenMessageUserRef.current = target;
+    applyOpenMessageUser(target);
+    pendingOpenMessageUserRef.current = null;
+    navigate(location.pathname, { replace: true, state: null });
+  }, [activeSection, location.state, location.pathname, navigate, applyOpenMessageUser]);
 
   useEffect(() => {
-    if (!isLoggedIn || activeSection !== 'support') return undefined;
-    const refresh = () => loadAdminDerivedData(users, adminUser);
-    refresh();
-    const timer = setInterval(refresh, 5000);
-    return () => clearInterval(timer);
-  }, [isLoggedIn, activeSection, users, adminUser, loadAdminDerivedData]);
+    if (isLoggedIn && activeSection === 'reports') reloadReports();
+  }, [isLoggedIn, activeSection, reloadReports]);
 
   useEffect(() => {
     if (!isLoggedIn) return undefined;
@@ -857,76 +930,31 @@ const handleDeleteUser = async (userId) => {
     [messageConversations]
   );
 
+  const handleConversationRead = useCallback((convId) => {
+    setDirectConversations((prev) =>
+      prev.map((c) => {
+        const key = c.conversationId || c.id;
+        return key === convId ? { ...c, unreadCount: 0 } : c;
+      })
+    );
+  }, []);
+
   const handleMessageUser = (userRecord) => {
     const numericId = userRecord?.id != null ? Number(userRecord.id) : NaN;
     if (!Number.isFinite(numericId)) return;
 
-    const displayName =
-      userRecord?.name ||
-      (userRecord?.firstName && userRecord?.lastName
-        ? `${userRecord.firstName} ${userRecord.lastName}`
-        : userRecord?.firstName || userRecord?.lastName || 'User');
-
-    setSelectedSupportId(null);
-    setSelectedDirectUser(null);
-
-    const existing = directConversations.find(
-      (c) => Number(c.otherUserId ?? c.userId) === numericId
-    );
-    if (existing) {
-      setSelectedMessageId(existing.id);
-      navigate('/admin/messages');
-      return;
-    }
-
-    const adminId = adminUser?.id;
-    const convId = adminId ? buildConversationId(adminId, numericId) : `direct-user-${numericId}`;
-    const directTarget = {
-      id: convId,
-      conversationId: convId,
-      otherUserId: numericId,
-      userId: numericId,
-      name: displayName,
-      email: userRecord?.email || '',
-      subject: 'Direct message from admin',
-      message: 'Start a conversation',
-      lastMessage: 'Start a conversation',
-      forRole: getRole(userRecord),
-      replied: false,
-      createdAt: new Date().toISOString(),
-      isDirectUser: true,
+    const openMessageUser = {
+      id: numericId,
+      name: userRecord?.name,
+      firstName: userRecord?.firstName,
+      lastName: userRecord?.lastName,
+      email: userRecord?.email,
+      userType: userRecord?.userType,
     };
 
-    setSelectedMessageId(convId);
-    setDirectConversations((prev) => {
-      if (prev.some((c) => Number(c.otherUserId ?? c.userId) === numericId)) return prev;
-      return [directTarget, ...prev];
-    });
-    navigate('/admin/messages');
-  };
-
-  const handleDeleteSupportMessage = async (targetId) => {
-    const target = supportMessages.find((item) => item.id === targetId);
-    const adminId = adminUser?.id;
-    try {
-      if (target?.isLocalSupport) {
-        const raw = JSON.parse(localStorage.getItem(SUPPORT_MESSAGES_KEY) || '[]');
-        const nextLocal = (Array.isArray(raw) ? raw : []).filter((item) => item.id !== targetId);
-        localStorage.setItem(SUPPORT_MESSAGES_KEY, JSON.stringify(nextLocal));
-      } else if (adminId && target?.conversationId) {
-        await fetch(
-          `http://localhost:8080/api/messages/conversation/${target.conversationId}?userId=${adminId}`,
-          { method: 'DELETE' }
-        );
-      }
-    } catch (err) {
-      console.error('Failed to delete conversation:', err);
-    }
-    const nextMessages = supportMessages.filter((item) => item.id !== targetId);
-    setSupportMessages(nextMessages);
-    if (targetId === selectedSupportId) {
-      setSelectedSupportId(nextMessages[0]?.id || null);
-    }
+    pendingOpenMessageUserRef.current = openMessageUser;
+    applyOpenMessageUser(userRecord);
+    navigate('/admin/messages', { state: { openMessageUser } });
   };
 
   const handleResolveReport = async (reportId) => {
@@ -1534,30 +1562,18 @@ const handleDeleteUser = async (userId) => {
                 <h2 className="admin-section-title">Messages</h2>
               </div>
 
-              <p style={{ marginTop: 0, opacity: 0.8 }}>Direct conversations and broadcasts. Support tickets are in Support Inbox.</p>
+              <p style={{ marginTop: 0, opacity: 0.8 }}>Direct messages, support requests, and broadcasts with users.</p>
               <AdminMessaging
                 darkMode={darkMode}
                 adminUser={adminUser}
                 users={users}
                 conversations={messageConversations}
                 selectedConversationId={selectedMessageId}
-                onSelectConversation={setSelectedMessageId}
-                onNotice={showInlineNotice}
-              />
-            </section>
-          ) : null}
-
-          {activeSection === 'support' ? (
-            <section>
-              <h2 className="admin-section-title">Support Inbox</h2>
-              <p style={{ marginTop: 0, opacity: 0.8 }}>Support form submissions — separate from general messages.</p>
-              <AdminSupportInbox
-                darkMode={darkMode}
-                adminUser={adminUser}
-                supportMessages={supportMessages}
-                selectedSupportId={selectedSupportId}
-                onSelectSupport={setSelectedSupportId}
-                onDeleteSupport={handleDeleteSupportMessage}
+                onSelectConversation={(id) => {
+                  selectedMessageIdRef.current = id;
+                  setSelectedMessageId(id);
+                }}
+                onConversationRead={handleConversationRead}
                 onNotice={showInlineNotice}
               />
             </section>
