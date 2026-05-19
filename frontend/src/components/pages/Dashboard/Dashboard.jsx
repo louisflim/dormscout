@@ -1130,6 +1130,14 @@ export default function Dashboard({ darkMode = false, setDarkMode }) {
   const activeNav = getActiveSectionFromPath();
 
   useEffect(() => {
+    if (!isLandlord && activeNav === 'listing') {
+      navigate('/overview', { replace: true });
+    } else if (isLandlord && (activeNav === 'booking' || activeNav === 'bookmarks')) {
+      navigate('/overview', { replace: true });
+    }
+  }, [isLandlord, activeNav, navigate]);
+
+  useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target))
         setShowDropdown(false);
