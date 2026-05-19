@@ -56,22 +56,22 @@ const COLORS = {
 const FAQ_ITEMS = [
   {
     icon: BookOpen,
-    question: 'How do I book a dorm?',
+    question: 'How do I book a dorm? (for tenants only)',
     answer: "Navigate to the Map View, search for available dorms, and click on the one you're interested in. Follow the booking process to complete your reservation.",
   },
   {
     icon: Clock,
-    question: 'Can I cancel my booking?',
+    question: 'Can I cancel my booking? (for tenants only)',
     answer: 'Yes, you can cancel your booking. Visit your bookings and select the cancellation option.',
   },
   {
     icon: MessageSquare,
-    question: 'How do I contact landlords?',
+    question: 'How do I contact landlords? (for tenants only)',
     answer: 'Use the Messages section in your dashboard to communicate with landlords. You can send inquiries and receive responses directly through the platform.',
   },
   {
     icon: MapPin,
-    question: 'How do I list my dorm?',
+    question: 'How do I list my dorm? (for landlords only)',
     answer: 'Go to the Listing section in your landlord dashboard and click "Create New Listing". Fill in your dorm details, photos, and pricing.',
   },
 ];
