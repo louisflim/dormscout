@@ -9,32 +9,46 @@ import {
   Sun,
   HelpCircle,
   Info,
+  Map,
+  Search,
+  MessageSquare,
+  Star,
+  Target,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react';
+
+const PRIMARY = '#E8622E';
+const TEAL    = '#5BADA8';
 
 const FEATURES = [
   {
-    icon: '🗺️',
+    icon: Map,
+    color: PRIMARY,
     title: 'Interactive Maps',
     description: 'Discover dorms near your university with our advanced map interface.',
   },
   {
-    icon: '🔍',
+    icon: Search,
+    color: TEAL,
     title: 'Smart Search',
-    description: 'Filter by location to find your perfect dorm.',
+    description: 'Filter by location, price, and room type to find your perfect dorm.',
   },
   {
-    icon: '💬',
+    icon: MessageSquare,
+    color: PRIMARY,
     title: 'Direct Communication',
-    description: 'Connect with landlords and other students instantly through our platform.',
+    description: 'Connect with landlords instantly through our built-in messaging platform.',
   },
   {
-    icon: '⭐',
+    icon: Star,
+    color: TEAL,
     title: 'Reviews & Ratings',
-    description: 'Make informed decisions with genuine reviews from other students.',
+    description: 'Make informed decisions with genuine reviews from fellow students.',
   },
 ];
 
-export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScreen }) {
+export default function AboutUs({ darkMode = false, setDarkMode }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [localDarkMode, setLocalDarkMode] = useState(Boolean(darkMode));
@@ -42,18 +56,13 @@ export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScre
   const theme = isDark ? 'dark' : 'light';
   const dropdownRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || user?.name || user?.email || 'Account';
-  const userInitials = displayName
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2) || 'A';
 
-  useEffect(() => {
-    setLocalDarkMode(Boolean(darkMode));
-  }, [darkMode]);
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+    || user?.name || user?.email || 'Account';
+  const userInitials = displayName
+    .split(' ').filter(Boolean).map((p) => p[0]).join('').toUpperCase().slice(0, 2) || 'A';
+
+  useEffect(() => { setLocalDarkMode(Boolean(darkMode)); }, [darkMode]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -75,68 +84,46 @@ export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScre
       setDarkMode(nextMode);
     } else {
       setLocalDarkMode(nextMode);
-      try {
-        localStorage.setItem('darkMode', nextMode ? 'true' : 'false');
-      } catch (_) {}
+      try { localStorage.setItem('darkMode', nextMode ? 'true' : 'false'); } catch (_) {}
     }
     setShowDropdown(false);
   };
 
   return (
     <div className={`about-wrapper ${theme}`}>
-      <nav className="dashboard-nav" style={{ background: isDark ? '#16213e' : '#fff' }}>
-        <button
-          className="dashboard-nav-title-btn"
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            margin: 0,
-            cursor: 'pointer',
-            fontSize: 24,
-            fontWeight: 700,
-            color: theme === 'dark' ? '#eaeaea' : '#333',
-            fontFamily: 'inherit',
-          }}
-          aria-label="Go to Overview"
-          onClick={() => navigate('/overview')}
-        >
-          DormScout
+
+      {/* ── Navbar ── */}
+      <nav className="dashboard-nav">
+        <button className="dashboard-nav-title-btn" aria-label="Go to Overview" onClick={() => navigate('/overview')}>
+          <span style={{ color: PRIMARY }}>Dorm</span>
+          <span style={{ color: TEAL }}>Scout</span>
         </button>
+
         <div ref={dropdownRef} className="dashboard-dropdown-wrap">
           <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
-            {user?.profileImage ? (
-              <img src={user.profileImage} alt="Profile" />
-            ) : (
-              <span>{userInitials}</span>
-            )}
+            {user?.profileImage ? <img src={user.profileImage} alt="Profile" /> : <span>{userInitials}</span>}
           </div>
           {showDropdown && (
             <div className="dashboard-dropdown">
               <div className="dropdown-item dropdown-item-profile"
                 onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
-                <User size={15} /> {displayName}
+                <User size={14} /> {displayName}
               </div>
               <div className="dropdown-item dropdown-item-default"
                 onClick={() => { navigate('/support'); setShowDropdown(false); }}>
-                <HelpCircle size={15} /> Help and Support
+                <HelpCircle size={14} /> Help and Support
               </div>
               <div className="dropdown-item dropdown-item-default"
                 onClick={() => { navigate('/about'); setShowDropdown(false); }}>
-                <Info size={15} /> About Us
+                <Info size={14} /> About Us
               </div>
-              <div
-                className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
-                onClick={toggleTheme}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', cursor: 'pointer', padding: '10px 12px', }}
-              >
-                {isDark ? <Sun size={15} /> : <Moon size={15} />}
-                <span style={{ marginLeft: 8 }}>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+              <div className="dropdown-item dropdown-item-default dropdown-item-dark-toggle" onClick={toggleTheme}>
+                {isDark ? <Sun size={14} /> : <Moon size={14} />}
+                <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
               </div>
-
               <div className="dropdown-item dropdown-item-logout"
                 onClick={() => { setShowDropdown(false); handleLogout(); }}>
-                <LogOut size={15} /> Logout
+                <LogOut size={14} /> Logout
               </div>
             </div>
           )}
@@ -144,63 +131,83 @@ export default function AboutUs({ darkMode = false, setDarkMode, onBack, setScre
       </nav>
 
       <div className="about-content">
-        {/* Hero */}
+
+        {/* ── Hero ── */}
         <div className="about-hero">
-          <h2>
+          <div className="about-hero__badge">
+            <Info size={13} strokeWidth={2.5} />
+            About Us
+          </div>
+          <h1 className="about-hero__title">
             About <span className="brand-dorm">Dorm</span><span className="brand-scout">Scout</span>
-          </h2>
-          <p>
-            Making it easy for students to find their perfect dorm and landlords to find reliable tenants
+          </h1>
+          <p className="about-hero__subtitle">
+            Making it easy for students to find their perfect dorm — and for landlords to find reliable tenants.
           </p>
         </div>
 
-        {/* Mission */}
+        {/* ── Mission ── */}
         <div className="about-card">
-          <h3 className="mission-title">🎯 Our Mission</h3>
-          <p>
+          <div className="about-card__header">
+            <div className="about-card__icon-wrap" style={{ background: `${PRIMARY}15` }}>
+              <Target size={18} color={PRIMARY} strokeWidth={2} />
+            </div>
+            <h2 className="about-card__title mission-title">Our Mission</h2>
+          </div>
+          <p className="about-card__body">
             At DormScout, we believe that finding a dorm shouldn't be stressful. Our mission is to create a seamless,
             transparent, and trustworthy platform that connects students with quality accommodations. We're committed to
             making the dorm-hunting experience simple, safe, and enjoyable for both students and landlords.
           </p>
         </div>
 
-        {/* Vision */}
+        {/* ── Vision ── */}
         <div className="about-card">
-          <h3 className="vision-title">✨ Our Vision</h3>
-          <p>
+          <div className="about-card__header">
+            <div className="about-card__icon-wrap" style={{ background: `${TEAL}15` }}>
+              <Sparkles size={18} color={TEAL} strokeWidth={2} />
+            </div>
+            <h2 className="about-card__title vision-title">Our Vision</h2>
+          </div>
+          <p className="about-card__body">
             We envision a future where every student in Cebu has access to safe, affordable, and quality housing options.
             Through technology and community building, we aim to transform the student accommodation industry across the
             Philippines and beyond.
           </p>
         </div>
 
-        {/* Features */}
-        <div className="about-features">
-          <h3 className="about-features-title">Why Choose DormScout?</h3>
+        {/* ── Features ── */}
+        <section className="about-features">
+          <h2 className="about-features-title">Why Choose DormScout?</h2>
           <div className="features-grid">
-            {FEATURES.map((feature, idx) => (
-              <div key={idx} className="feature-card">
-                <div className="feature-icon">{feature.icon}</div>
-                <h4>{feature.title}</h4>
-                <p>{feature.description}</p>
-              </div>
-            ))}
+            {FEATURES.map((feature, idx) => {
+              const Icon = feature.icon;
+              return (
+                <div key={idx} className="feature-card">
+                  <div className="feature-icon-wrap" style={{ background: `${feature.color}12` }}>
+                    <Icon size={22} color={feature.color} strokeWidth={2} />
+                  </div>
+                  <h3 className="feature-card__title">{feature.title}</h3>
+                  <p className="feature-card__desc">{feature.description}</p>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        </section>
 
-        {/* CTA */}
+        {/* ── CTA ── */}
         <div className="about-card about-cta">
-          <h4>Questions? We're Here to Help</h4>
-          <p>Have any questions about DormScout? Feel free to reach out to our support team.</p>
-          <button
-            className="about-contact-btn"
-            onClick={() => navigate('/support')}
-          >
-            Contact Us
+          <h2 className="about-cta__title">Questions? We're Here to Help</h2>
+          <p className="about-cta__body">
+            Have questions about DormScout? Our support team is ready to assist you.
+          </p>
+          <button className="about-contact-btn" onClick={() => navigate('/support')}>
+            Contact Support
+            <ArrowRight size={15} strokeWidth={2.5} />
           </button>
         </div>
+
       </div>
     </div>
   );
 }
-
