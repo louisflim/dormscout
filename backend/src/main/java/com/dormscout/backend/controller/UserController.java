@@ -4,9 +4,12 @@ import com.dormscout.backend.entity.User;
 import com.dormscout.backend.service.UserService;
 import com.dormscout.backend.service.ActivityService;
 import com.dormscout.backend.service.AdminTokenService;
+import com.dormscout.backend.dto.AdminDeleteRequest;
 import com.dormscout.backend.dto.LoginRequest;
 import com.dormscout.backend.dto.RegisterRequest;
 import com.dormscout.backend.dto.UserDTO;
+import com.dormscout.backend.service.BookingService;
+import com.dormscout.backend.service.ListingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +35,12 @@ public class UserController {
 
     @Autowired
     private AdminTokenService adminTokenService;
+
+    @Autowired
+    private ListingService listingService;
+
+    @Autowired
+    private BookingService bookingService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
@@ -423,6 +432,50 @@ public class UserController {
                 "success", true,
                 "data", dtos
         ));
+    }
+
+    @PostMapping("/admin/listings/{id}/delete")
+    public ResponseEntity<?> adminDeleteListing(
+            @PathVariable Long id,
+            @RequestBody AdminDeleteRequest body) {
+        try {
+            String reason = body != null ? body.getReason() : null;
+            listingService.deleteListingByAdmin(id, reason);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Listing deleted and parties notified"
+            ));
+        } catch (RuntimeException e) {
+            HttpStatus status = "Listing not found".equalsIgnoreCase(e.getMessage())
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    @PostMapping("/admin/bookings/{id}/delete")
+    public ResponseEntity<?> adminDeleteBooking(
+            @PathVariable Long id,
+            @RequestBody AdminDeleteRequest body) {
+        try {
+            String reason = body != null ? body.getReason() : null;
+            bookingService.deleteBookingByAdmin(id, reason);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Booking deleted and tenant notified"
+            ));
+        } catch (RuntimeException e) {
+            HttpStatus status = "Booking not found".equalsIgnoreCase(e.getMessage())
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status).body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
     }
 }
 

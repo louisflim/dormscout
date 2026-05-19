@@ -126,6 +126,29 @@ const displayOrDash = (value) => {
   return text || '—';
 };
 
+/** Admin inbox: activities are written in second person for the recipient — relabel for the admin table. */
+const formatNotificationMessageForAdmin = (message, recipientName) => {
+  const text = String(message || '').trim();
+  const name = String(recipientName || '').trim();
+  if (!text) return 'N/A';
+  if (!name) return text;
+  return text
+    .replace(/^You created\b/i, `${name} created`)
+    .replace(/^You were\b/i, `${name} was`)
+    .replace(/^You have\b/i, `${name} has`)
+    .replace(/^You\b/i, name)
+    .replace(/\bYour\b/g, `${name}'s`);
+};
+
+const recipientLabel = (notification, usersList) => {
+  const uid = notification?.recipientId ?? notification?.userId;
+  const fromUsers = usersList?.find((u) => String(u.id) === String(uid));
+  const name = notification?.recipientName || toFullName(fromUsers);
+  const role = notification?.recipientRole || getRole(fromUsers);
+  if (!name || name === 'N/A') return 'Unknown user';
+  return role ? `${name} (${role})` : name;
+};
+
 const renderLandlordBusinessCell = (u, field, businessUpdatePending, verificationPending) => {
   const isLandlord = getRole(u) === 'landlord';
   if (!isLandlord) return '—';
@@ -206,6 +229,12 @@ export default function AdminPage() {
   const [rejectionModalError, setRejectionModalError] = useState('');
   const [evidencePreview, setEvidencePreview] = useState(null);
 
+  // Admin delete modal (listing or booking — reason required)
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteModalError, setDeleteModalError] = useState('');
+
   const loadAdminDerivedData = useCallback(async (usersData, adminAccount) => {
     // Load bookmarks from all tenants
     const tenants = (usersData || users).filter(u => getRole(u) === 'tenant');
@@ -225,10 +254,17 @@ export default function AdminPage() {
     try {
       const allUsers = usersData || users;
       const actResults = await Promise.all(
-        allUsers.map(u =>
+        allUsers.map((u) =>
           fetch(`http://localhost:8080/api/activities/user/${u.id}`)
-            .then(r => r.ok ? r.json() : [])
-            .then(j => parseApiData(j, []))
+            .then((r) => (r.ok ? r.json() : []))
+            .then((j) =>
+              parseApiData(j, []).map((item) => ({
+                ...item,
+                recipientId: item?.userId ?? u.id,
+                recipientName: toFullName(u),
+                recipientRole: getRole(u),
+              }))
+            )
             .catch(() => [])
         )
       );
@@ -241,6 +277,7 @@ export default function AdminPage() {
             message: item?.message || item?.text || '',
             read: Boolean(item?.read ?? item?.isRead),
           }))
+          .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
       );
     } catch { setNotifications([]); }
 
@@ -559,21 +596,57 @@ const handleDeleteUser = async (userId) => {
     }
   };
 
-  const handleDeleteListing = async (listingId) => {
+  const openDeleteModal = (type, item) => {
+    setDeleteTarget({ type, item });
+    setDeleteReason('');
+    setDeleteModalError('');
+    setShowDeleteModal(true);
+  };
+
+  const handleSubmitAdminDelete = async () => {
+    const reason = deleteReason.trim();
+    if (!reason) {
+      setDeleteModalError('A reason is required before this can be deleted.');
+      return;
+    }
+    if (!deleteTarget?.item?.id) return;
+
+    setDeleteModalError('');
+    const { type, item } = deleteTarget;
+    const url = type === 'booking'
+      ? `http://localhost:8080/api/users/admin/bookings/${item.id}/delete`
+      : `http://localhost:8080/api/users/admin/listings/${item.id}/delete`;
+
     try {
-      const response = await fetch(`http://localhost:8080/api/listings/${listingId}`, {
-        method: 'DELETE'
+      const response = await adminFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
       });
       const data = await response.json();
-      if (data.success) {
-        setListings(prev => prev.filter(l => l.id !== listingId));
-        showInlineNotice('Listing deleted.', 'is-good');
-      } else {
-        showInlineNotice('Failed to delete listing.', 'is-bad');
+      if (!response.ok || data.success === false) {
+        setDeleteModalError(data.message || 'Failed to delete. Please try again.');
+        return;
       }
+
+      if (type === 'booking') {
+        setBookings((prev) => prev.filter((b) => String(b.id) !== String(item.id)));
+        showInlineNotice('Booking deleted and tenant notified.', 'is-good');
+      } else {
+        setListings((prev) => prev.filter((l) => String(l.id) !== String(item.id)));
+        setBookings((prev) => prev.filter((b) => String(b.listingId || b.listing?.id) !== String(item.id)));
+        setBookmarks((prev) => prev.filter((bm) => String(bm.listingId) !== String(item.id)));
+        showInlineNotice('Listing deleted. Landlord and affected tenants were notified.', 'is-good');
+      }
+
+      setShowDeleteModal(false);
+      setDeleteTarget(null);
+      setDeleteReason('');
+      window.dispatchEvent(new Event('dormscout:notificationsUpdated'));
+      window.dispatchEvent(new Event('dormscout:listingUpdated'));
     } catch (err) {
-      console.error('Failed to delete listing:', err);
-      showInlineNotice('Failed to delete listing.', 'is-bad');
+      console.error('Failed to delete:', err);
+      setDeleteModalError('Failed to delete. Please try again.');
     }
   };
 
@@ -921,61 +994,6 @@ const handleDeleteUser = async (userId) => {
     }
   };
 
-  const clearAllBookings = async () => {
-    try {
-      await Promise.all(bookings.map(b =>
-        fetch(`http://localhost:8080/api/bookings/${b.id}`, { method: 'DELETE' }).catch(() => {})
-      ));
-      setBookings([]);
-      showInlineNotice('All bookings cleared.', 'is-good');
-    } catch (err) {
-      console.error('Failed to clear bookings:', err);
-      showInlineNotice('Failed to clear bookings.', 'is-bad');
-    }
-  };
-
-  const deleteBookmark = async (target) => {
-    if (!target?.tenantId || !target?.listingId) {
-      setBookmarks(prev => prev.filter(b => b !== target));
-      return;
-    }
-    try {
-      await fetch(`http://localhost:8080/api/bookmarks?tenantId=${target.tenantId}&listingId=${target.listingId}`, { method: 'DELETE' });
-      setBookmarks(prev => prev.filter(b => !(String(b.tenantId) === String(target.tenantId) && String(b.listingId) === String(target.listingId))));
-      showInlineNotice('Bookmark deleted.', 'is-good');
-    } catch (err) {
-      console.error('Failed to delete bookmark:', err);
-      showInlineNotice('Failed to delete bookmark.', 'is-bad');
-    }
-  };
-
-  const clearAllBookmarks = async () => {
-    try {
-      await Promise.all(bookmarks.map(bm =>
-        bm.tenantId && bm.listingId
-          ? fetch(`http://localhost:8080/api/bookmarks?tenantId=${bm.tenantId}&listingId=${bm.listingId}`, { method: 'DELETE' }).catch(() => {})
-          : Promise.resolve()
-      ));
-      setBookmarks([]);
-      showInlineNotice('All bookmarks cleared.', 'is-good');
-    } catch (err) {
-      console.error('Failed to clear bookmarks:', err);
-      showInlineNotice('Failed to clear bookmarks.', 'is-bad');
-    }
-  };
-
-  const clearAllListings = async () => {
-    try {
-      await Promise.all(listings.map(l =>
-        fetch(`http://localhost:8080/api/listings/${l.id}`, { method: 'DELETE' }).catch(() => {})
-      ));
-      setListings([]);
-      showInlineNotice('All listings cleared.', 'is-good');
-    } catch (err) {
-      console.error('Failed to clear listings:', err);
-      showInlineNotice('Failed to clear listings.', 'is-bad');
-    }
-  };
 
   if (!isLoggedIn) {
     return (
@@ -1264,7 +1282,7 @@ const handleDeleteUser = async (userId) => {
                         {l.status || 'active'}
                       </span>
                     </p>
-                    <button className="admin-icon-btn danger" onClick={() => handleDeleteListing(l.id)}>
+                    <button className="admin-icon-btn danger" onClick={() => openDeleteModal('listing', l)}>
                       <Trash2 size={15} /> Delete listing
                     </button>
                   </article>
@@ -1296,11 +1314,12 @@ const handleDeleteUser = async (userId) => {
                       <th>Move-in Date</th>
                       <th>Status</th>
                       <th>Booked On</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredBookings.length === 0 ? (
-                      <tr><td colSpan={5} className="admin-empty">No bookings found.</td></tr>
+                      <tr><td colSpan={6} className="admin-empty">No bookings found.</td></tr>
                     ) : filteredBookings.map((b) => (
                       <tr key={b.id || `${b.tenantName}-${b.listingTitle}-${b.createdAt}`}>
                         <td>{b.tenantName || toFullName(b.tenant)}</td>
@@ -1312,6 +1331,11 @@ const handleDeleteUser = async (userId) => {
                           </span>
                         </td>
                         <td>{toDisplayDate(b.bookedOn || b.createdAt)}</td>
+                        <td>
+                          <button className="admin-icon-btn danger" onClick={() => openDeleteModal('booking', b)}>
+                            <Trash2 size={15} /> Delete
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1324,7 +1348,7 @@ const handleDeleteUser = async (userId) => {
             <section>
               <div className="admin-section-head">
                 <h2 className="admin-section-title">Bookmarks</h2>
-                <button className="admin-icon-btn" onClick={clearAllBookmarks}>Clear All</button>
+                <p className="admin-section-hint">View only — bookmarks cannot be deleted by admins.</p>
               </div>
 
               <div className="admin-table-wrap">
@@ -1336,12 +1360,11 @@ const handleDeleteUser = async (userId) => {
                       <th>Listing Address</th>
                       <th>Price</th>
                       <th>Saved At</th>
-                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {bookmarks.length === 0 ? (
-                      <tr><td colSpan={6} className="admin-empty">No bookmarks found.</td></tr>
+                      <tr><td colSpan={5} className="admin-empty">No bookmarks found.</td></tr>
                     ) : bookmarks.map((bm, idx) => (
                       <tr key={bm.id || `bm-${idx}`}>
                         <td>{bm.tenantId || 'N/A'}</td>
@@ -1349,11 +1372,6 @@ const handleDeleteUser = async (userId) => {
                         <td>{bm.listingAddress || 'N/A'}</td>
                         <td>{formatPesoPrice(bm.listingPrice)}</td>
                         <td>{toDisplayDate(bm.savedAt)}</td>
-                        <td>
-                          <button className="admin-icon-btn danger" onClick={() => deleteBookmark(bm)}>
-                            <Trash2 size={15} /> Delete
-                          </button>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1481,9 +1499,9 @@ const handleDeleteUser = async (userId) => {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>Title</th>
-                      <th>Message</th>
+                      <th>Recipient</th>
                       <th>Type</th>
+                      <th>Message</th>
                       <th>Created At</th>
                       <th>Action</th>
                     </tr>
@@ -1493,9 +1511,9 @@ const handleDeleteUser = async (userId) => {
                       <tr><td colSpan={5} className="admin-empty">No notifications available.</td></tr>
                     ) : notifications.map((n, idx) => (
                       <tr key={n.id || `${n.title}-${n.createdAt}-${idx}`}>
-                        <td>{n.title || n.type || 'N/A'}</td>
-                        <td>{n.message || n.text || 'N/A'}</td>
+                        <td>{recipientLabel(n, users)}</td>
                         <td>{n.type || n.nav || 'general'}</td>
+                        <td>{formatNotificationMessageForAdmin(n.message || n.text, n.recipientName || recipientLabel(n, users))}</td>
                         <td>{toDisplayDate(n.createdAt)}</td>
                         <td>
                           <button className="admin-icon-btn danger" onClick={() => deleteNotification(n)}>
@@ -1572,9 +1590,8 @@ const handleDeleteUser = async (userId) => {
                   <p>These actions are irreversible.</p>
                   <div className="admin-danger-actions">
                     <button className="admin-icon-btn danger" onClick={clearAllReports}>Clear all reports</button>
-                    <button className="admin-icon-btn danger" onClick={clearAllBookings}>Clear all bookings</button>
-                    <button className="admin-icon-btn danger" onClick={clearAllListings}>Clear all listings</button>
                   </div>
+                  <p className="admin-section-hint">Listings and bookings must be deleted individually with a required reason so users are notified.</p>
                 </article>
               </div>
             </section>
@@ -1608,6 +1625,67 @@ const handleDeleteUser = async (userId) => {
         </div>
       ) : null}
 
+      {showDeleteModal && deleteTarget ? (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>{deleteTarget.type === 'booking' ? 'Delete Booking' : 'Delete Listing'}</h2>
+              <button type="button" className="modal-close" onClick={() => setShowDeleteModal(false)} aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              {deleteTarget.type === 'booking' ? (
+                <p>
+                  Tenant: <strong>{deleteTarget.item.tenantName || toFullName(deleteTarget.item.tenant)}</strong>
+                  <br />
+                  Listing: <strong>{deleteTarget.item.listingTitle || deleteTarget.item.listing?.title || 'N/A'}</strong>
+                </p>
+              ) : (
+                <p>Listing: <strong>{deleteTarget.item.title || 'N/A'}</strong></p>
+              )}
+              <label htmlFor="delete-reason">
+                Reason for deletion <span className="admin-required">(required)</span>
+              </label>
+              <textarea
+                id="delete-reason"
+                className={`rejection-textarea ${deleteModalError ? 'has-error' : ''}`}
+                placeholder="Explain why this is being removed (required). The affected user(s) will be notified."
+                value={deleteReason}
+                onChange={(e) => {
+                  setDeleteReason(e.target.value);
+                  if (deleteModalError && e.target.value.trim()) {
+                    setDeleteModalError('');
+                  }
+                }}
+                rows={6}
+                required
+                aria-invalid={deleteModalError ? 'true' : 'false'}
+                aria-describedby={deleteModalError ? 'delete-reason-error' : undefined}
+              />
+              {deleteModalError ? (
+                <p id="delete-reason-error" className="rejection-error" role="alert">
+                  {deleteModalError}
+                </p>
+              ) : null}
+              {deleteTarget.type === 'listing' ? (
+                <p className="admin-section-hint">Tenants with bookings on this listing and the landlord will receive this reason. Saved bookmarks for this listing are removed automatically.</p>
+              ) : null}
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="admin-btn" onClick={() => setShowDeleteModal(false)}>Cancel</button>
+              <button
+                type="button"
+                className="admin-btn danger"
+                onClick={handleSubmitAdminDelete}
+                disabled={!deleteReason.trim()}
+              >
+                Delete & Notify
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showRejectionModal && (
         <div className="modal-overlay">

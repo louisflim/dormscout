@@ -5,11 +5,13 @@ import com.dormscout.backend.entity.User;
 import com.dormscout.backend.entity.Listing;
 import com.dormscout.backend.repository.BookingRepository;
 import com.dormscout.backend.repository.ListingRepository;
+import com.dormscout.backend.service.ActivityService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.List;
 
@@ -21,6 +23,9 @@ public class BookingService {
 
     @Autowired
     private ListingRepository listingRepository;
+
+    @Autowired
+    private ActivityService activityService;
 
     private boolean isAcceptedStatus(String status) {
         if (status == null) {
@@ -240,5 +245,54 @@ public class BookingService {
             applyListingRoomTransition(booking.getListing(), true, false);
         }
         bookingRepository.delete(booking);
+    }
+
+    /**
+     * Admin removal with a required reason; skips move-out validation and notifies the tenant.
+     */
+    public void deleteBookingByAdmin(Long id, String reason) {
+        String trimmed = reason == null ? "" : reason.trim();
+        if (trimmed.isEmpty()) {
+            throw new RuntimeException("A reason is required to delete this booking");
+        }
+
+        Booking booking = bookingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        User tenant = booking.getTenant();
+        Listing listing = booking.getListing();
+        String listingTitle = listing != null && listing.getTitle() != null
+                ? listing.getTitle()
+                : "this listing";
+
+        if (tenant != null) {
+            activityService.createActivity(
+                    tenant.getId(),
+                    "booking",
+                    "Your booking for \"" + listingTitle + "\" was removed by an administrator. Reason: " + trimmed,
+                    "just now",
+                    "booking"
+            );
+        }
+
+        removeBookingRecord(booking);
+    }
+
+    /** Removes a booking row and restores listing availability when needed (no notifications). */
+    public void removeBookingRecord(Booking booking) {
+        if (booking == null) {
+            return;
+        }
+        if (isAcceptedStatus(booking.getStatus())) {
+            applyListingRoomTransition(booking.getListing(), true, false);
+        }
+        bookingRepository.delete(booking);
+    }
+
+    public List<Booking> getBookingsForListing(Listing listing) {
+        if (listing == null) {
+            return List.of();
+        }
+        return new ArrayList<>(bookingRepository.findByListing(listing));
     }
 }

@@ -1,5 +1,6 @@
 package com.dormscout.backend.service;
 
+import com.dormscout.backend.entity.Booking;
 import com.dormscout.backend.entity.Listing;
 import com.dormscout.backend.entity.User;
 import com.dormscout.backend.repository.BookmarkRepository;
@@ -9,8 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class ListingService {
@@ -22,6 +25,12 @@ public class ListingService {
 
     @Autowired
     private ReviewRepository reviewRepository;
+
+    @Autowired
+    private BookingService bookingService;
+
+    @Autowired
+    private ActivityService activityService;
 
     public Listing createListing(Listing listing, User landlord) {
         listing.setLandlord(landlord);
@@ -108,6 +117,57 @@ public class ListingService {
     public void deleteListing(Long id) {
         Listing listing = listingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Listing not found"));
+
+        for (Booking booking : bookingService.getBookingsForListing(listing)) {
+            bookingService.removeBookingRecord(booking);
+        }
+
+        bookmarkRepository.deleteAllByListing(listing);
+        reviewRepository.deleteAllByListing(listing);
+        listingRepository.delete(listing);
+    }
+
+    /**
+     * Admin removal with a required reason; notifies the landlord and tenants with bookings.
+     * Associated bookmarks are removed automatically.
+     */
+    @Transactional
+    public void deleteListingByAdmin(Long id, String reason) {
+        String trimmed = reason == null ? "" : reason.trim();
+        if (trimmed.isEmpty()) {
+            throw new RuntimeException("A reason is required to delete this listing");
+        }
+
+        Listing listing = listingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Listing not found"));
+
+        String title = listing.getTitle() != null ? listing.getTitle() : "Listing";
+        Set<Long> notifiedTenants = new HashSet<>();
+
+        for (Booking booking : bookingService.getBookingsForListing(listing)) {
+            User tenant = booking.getTenant();
+            if (tenant != null && notifiedTenants.add(tenant.getId())) {
+                activityService.createActivity(
+                        tenant.getId(),
+                        "booking",
+                        "The listing \"" + title + "\" was removed by an administrator, so your booking was cancelled. Reason: " + trimmed,
+                        "just now",
+                        "booking"
+                );
+            }
+            bookingService.removeBookingRecord(booking);
+        }
+
+        User landlord = listing.getLandlord();
+        if (landlord != null) {
+            activityService.createActivity(
+                    landlord.getId(),
+                    "listing",
+                    "Your listing \"" + title + "\" was removed by an administrator. Reason: " + trimmed,
+                    "just now",
+                    "listing"
+            );
+        }
 
         bookmarkRepository.deleteAllByListing(listing);
         reviewRepository.deleteAllByListing(listing);

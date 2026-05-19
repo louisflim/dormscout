@@ -480,6 +480,13 @@
   background: rgba(20, 61, 95, 0.55);
 }
 
+.admin-section-hint {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.75;
+  max-width: 520px;
+}
+
 .admin-empty {
   text-align: center;
   padding: 18px;
