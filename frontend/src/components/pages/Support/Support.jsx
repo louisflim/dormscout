@@ -62,7 +62,7 @@ const FAQ_ITEMS = [
   {
     icon: Clock,
     question: 'Can I cancel my booking?',
-    answer: 'Yes, you can cancel your booking up to 7 days before your check-in date. Visit your bookings and select the cancellation option.',
+    answer: 'Yes, you can cancel your booking. Visit your bookings and select the cancellation option.',
   },
   {
     icon: MessageSquare,
