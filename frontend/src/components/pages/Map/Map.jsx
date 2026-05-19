@@ -64,10 +64,17 @@ function makeBlueLabel(abbr) {
   });
 }
 
-const matchesSearch = (l, s) =>
-  (l.title && l.title.toLowerCase().includes(s)) ||
-  (l.address && l.address.toLowerCase().includes(s)) ||
-  (l.university && l.university.toLowerCase().includes(s));
+const matchesSearch = (l, s) => {
+  const searchTerm = s.toLowerCase();
+  return (
+    (l.title?.toLowerCase().includes(searchTerm)) ||
+    (l.address?.toLowerCase().includes(searchTerm)) ||
+    (l.university?.toLowerCase().includes(searchTerm)) ||
+    (l.description?.toLowerCase().includes(searchTerm)) || 
+    (l.rooms?.toLowerCase().includes(searchTerm)) ||       
+    (l.tags?.some(tag => tag.toLowerCase().includes(searchTerm))) 
+  );
+};
 
 const matchesUni = (u, s) =>
   (u.name && u.name.toLowerCase().includes(s)) ||
