@@ -610,7 +610,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         return (
           <div className="map-overlay">
             <div className="map-modal map-modal--rich">
-              {/* CHANGED: Replaced &times; string with Lucide X icon for the close button */}
               <button className="map-modal-close" onClick={closeModal} aria-label="Close">
                 <X size={18} strokeWidth={2.5} />
               </button>
@@ -621,7 +620,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                 <div className="map-modal-header">
                   <div className="map-modal-header-left">
                     <h2 className="map-modal-title">{selectedListing.title}</h2>
-                    {/* CHANGED: Replaced 📍 emoji with Lucide MapPin in modal address */}
                     <p className="map-modal-address">
                       <MapPin size={13} style={{ flexShrink: 0, marginRight: 4, color: '#94a3b8' }} />
                       {selectedListing.address}
@@ -635,7 +633,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
  
                 <div className="map-modal-badges">
                   <GenderBadge policy={selectedListing.genderPolicy} />
-                  {/* CHANGED: Replaced ✓ / ⚠ text chars with Lucide ShieldCheck / ShieldAlert */}
                   {landlord.verified
                     ? <span className="map-verified-badge"><ShieldCheck size={13} strokeWidth={2.5} /> Verified</span>
                     : <span className="map-unverified-badge"><ShieldAlert size={13} strokeWidth={2.5} /> Unverified</span>
@@ -644,7 +641,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
  
                 <AvailabilityBadge availableRooms={available} totalRooms={total} />
  
-                {/* CHANGED: Replaced 📋 / 🗺️ emoji tab labels with Lucide icons inline */}
                 <div className="map-modal-tabs">
                   {[
                     { key: 'details',  Icon: Home,   label: 'Details'  },
@@ -663,7 +659,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
  
                 {activeTab === 'details' && (
                   <div className="map-modal-tab-content">
-                    {/* CHANGED: Replaced 🛏️ 🚪 🏠 📏 emojis with Lucide Home/DoorOpen/Layers/Ruler icons in stat pills */}
                     <div className="map-modal-stats">
                       <div className="map-modal-stat">
                         <Home size={16} color={PRIMARY} strokeWidth={2} />
@@ -705,7 +700,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                   {!isLandlord ? (
                     bookingStep === 'info' ? (
                       <div className="map-modal-secondary-actions">
-                        {/* CHANGED: Replaced 📅 💬 emoji button labels with Lucide CalendarDays / MessageCircle */}
                         <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
                           <CalendarDays size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
                           Book Now
@@ -719,7 +713,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                       <div className="map-booking-box">
                         <input type="date" className="map-date-input" value={moveInDate}
                           onChange={(e) => setMoveInDate(e.target.value)} min={getMinSchedulableDateYmd()} />
-                        {/* CHANGED: Replaced ✔ text with Lucide CheckCircle2 */}
                         <button className="map-btn-confirm" onClick={() => handleConfirmBooking(selectedListing)}>
                           <CheckCircle2 size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
                           Confirm
@@ -728,7 +721,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                       </div>
                     ) : bookingStep === 'success' ? (
                       <div className="map-success">
-                        {/* CHANGED: Replaced ✅ emoji with Lucide CheckCircle2 */}
                         <CheckCircle2 size={36} color="#22c55e" strokeWidth={2} style={{ marginBottom: 8 }} />
                         <h4 style={{ margin: '0 0 12px', color: '#22c55e' }}>Request Sent!</h4>
                         <button className="map-btn-done" onClick={closeModal}>Done</button>
@@ -736,7 +728,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                     ) : <p>Processing...</p>
                   ) : (
                     <div className="map-modal-actions">
-                      {/* CHANGED: Replaced ✏️ emoji with Lucide Pencil */}
                       <button className="map-btn-edit" onClick={() => { if (onEditListing) onEditListing(selectedListing); closeModal(); }}>
                         <Pencil size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
                         Edit Listing
