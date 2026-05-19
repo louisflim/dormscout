@@ -748,10 +748,6 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                   {!isLandlord ? (
                     bookingStep === 'info' ? (
                       <div className="map-modal-secondary-actions">
-                        <button type="button" className="map-btn-book" onClick={() => setBookingStep('booking')}>
-                          <CalendarDays size={15} strokeWidth={2.5} aria-hidden />
-                          Book Now
-                        </button>
                         <button
                           type="button"
                           className="map-btn-contact"
@@ -759,6 +755,10 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                         >
                           <MessageCircle size={15} strokeWidth={2.5} aria-hidden />
                           Message
+                        </button>
+                        <button type="button" className="map-btn-book" onClick={() => setBookingStep('booking')}>
+                          <CalendarDays size={15} strokeWidth={2.5} aria-hidden />
+                          Book Now
                         </button>
                         <button
                           type="button"
