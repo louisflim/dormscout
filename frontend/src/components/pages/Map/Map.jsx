@@ -501,8 +501,15 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
         ))}
         {noResults ? (
           <div className="map-empty-state">
-            No listings found. {isLandlord ? 'Create your first listing!' : 'Try adjusting your filters.'}
-          </div>
+          <h3>No listings found for "{search}"</h3>
+          <p>Try searching for "WiFi", "Single Room", or clear your filters.</p>
+          <button 
+              onClick={() => {setSearch(''); setMaxPrice(50000); setMaxDistance(100);}}
+              style={{marginTop: '10px', padding: '8px 16px', background: PRIMARY, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer'}}
+          >
+          Clear All Filters
+          </button>
+        </div>
         ) : (
           filteredListings.map((listing) => {
             const landlord = getLandlordMeta(listing);
