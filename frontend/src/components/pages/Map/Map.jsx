@@ -30,7 +30,9 @@ import {
   Mars,
   CircleDot,
   Loader2,
-  University,X } from 'lucide-react';
+  University,
+  Bookmark,
+  X } from 'lucide-react';
 
 const PRIMARY = '#E8622E';
 const BLUE = '#2563EB';
@@ -177,7 +179,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   useEffect(() => {
     if (user?.id && !isLandlordUser) {
       bookmarksAPI.getBookmarks(user.id).then(bms => {
-        setBookmarkedIds(new Set(bms.map(b => b.listingId)));
+        setBookmarkedIds(new Set(bms.map(b => String(b.listingId))));
       });
     }
   }, [user?.id, isLandlordUser]);
@@ -300,10 +302,10 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       : listings.filter(l => !search.trim() || matchesSearch(l, s));
     const finalFiltered = baseFiltered.filter(l => {
       if (Number(l.price) > maxPrice) return false;
+      if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
       if (isLandlord) {
         const ownerId = l.landlord?.id ?? l.landlordId;
         if (ownerId && user?.id && String(ownerId) !== String(user.id)) return false;
-        if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
       } else {
         const coords = getListingCoords(l);
         if (!coords) return false;
@@ -363,10 +365,10 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
   const filteredListings = listings.filter(l => {
     if (search.trim() && !matchesSearch(l, s)) return false;
     if (Number(l.price) > maxPrice) return false;
+    if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
     if (isLandlord) {
       const ownerId = l.landlord?.id ?? l.landlordId;
       if (ownerId && user?.id && String(ownerId) !== String(user.id)) return false;
-      if (genderPolicyFilter !== 'all' && l.genderPolicy !== genderPolicyFilter) return false;
     } else {
       const coords = getListingCoords(l);
       if (!coords) return false;
@@ -394,6 +396,32 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
     else if (listing?.landlordVerified === false) verified = false;
     else if (fromUserList) verified = fromUserList.verified;
     return { name: fromUserList?.name || fallbackName, verified };
+  };
+
+  const handleToggleBookmark = async (listingId) => {
+    if (!user?.id || isLandlordUser || bookmarkLoading) return;
+    const id = String(listingId);
+    setBookmarkLoading(true);
+    try {
+      const isSaved = bookmarkedIds.has(id);
+      if (isSaved) {
+        const ok = await bookmarksAPI.removeBookmark(user.id, listingId);
+        if (ok) {
+          setBookmarkedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }
+      } else {
+        const result = await bookmarksAPI.addBookmark(user.id, listingId);
+        if (result) {
+          setBookmarkedIds((prev) => new Set(prev).add(id));
+        }
+      }
+    } finally {
+      setBookmarkLoading(false);
+    }
   };
 
   return (
@@ -461,6 +489,23 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                       onChange={(e) => setMaxPrice(Number(e.target.value))}
                       className="custom-range-slider"
                     />
+                  </div>
+
+                  <div className="filter-section">
+                    <div className="filter-title" style={{ marginBottom: '8px' }}>
+                      <CircleDot size={16} className="icon-primary" />
+                      <span>Gender Policy</span>
+                    </div>
+                    <select
+                      className="filter-select-refined"
+                      value={genderPolicyFilter}
+                      onChange={(e) => setGenderPolicyFilter(e.target.value)}
+                    >
+                      <option value="all">All</option>
+                      <option value="Girls Only">Girls Only</option>
+                      <option value="Boys Only">Boys Only</option>
+                      <option value="Mixed">Mixed</option>
+                    </select>
                   </div>
 
                   {!isLandlord && (
@@ -563,6 +608,9 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                     <div className="sidebar-card-content">
                       <div className="card-top">
                         <h4 className="card-title">{listing.title}</h4>
+                        {landlord.verified && (
+                          <ShieldCheck size={14} color="#22c55e" strokeWidth={2.5} aria-label="Verified landlord" />
+                        )}
                       </div>
 
                       <p className="card-addr">
@@ -700,13 +748,32 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                   {!isLandlord ? (
                     bookingStep === 'info' ? (
                       <div className="map-modal-secondary-actions">
-                        <button className="map-btn-book" onClick={() => setBookingStep('booking')}>
-                          <CalendarDays size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                        <button type="button" className="map-btn-book" onClick={() => setBookingStep('booking')}>
+                          <CalendarDays size={15} strokeWidth={2.5} aria-hidden />
                           Book Now
                         </button>
-                        <button className="map-btn-contact" onClick={() => navigate('/messages', { state: { contactLandlord: { id: selectedListing.landlordId, name: landlord.name } } })}>
-                          <MessageCircle size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                        <button
+                          type="button"
+                          className="map-btn-contact"
+                          onClick={() => navigate('/messages', { state: { contactLandlord: { id: selectedListing.landlordId, name: landlord.name } } })}
+                        >
+                          <MessageCircle size={15} strokeWidth={2.5} aria-hidden />
                           Message
+                        </button>
+                        <button
+                          type="button"
+                          className={`map-btn-contact${bookmarkedIds.has(String(selectedListing.id)) ? ' map-btn-save--active' : ''}`}
+                          onClick={() => handleToggleBookmark(selectedListing.id)}
+                          disabled={bookmarkLoading}
+                          aria-label={bookmarkedIds.has(String(selectedListing.id)) ? 'Remove bookmark' : 'Save bookmark'}
+                        >
+                          <Bookmark
+                            size={15}
+                            strokeWidth={2.5}
+                            aria-hidden
+                            fill={bookmarkedIds.has(String(selectedListing.id)) ? '#fff' : 'none'}
+                          />
+                          {bookmarkedIds.has(String(selectedListing.id)) ? 'Saved' : 'Save'}
                         </button>
                       </div>
                     ) : bookingStep === 'booking' ? (
