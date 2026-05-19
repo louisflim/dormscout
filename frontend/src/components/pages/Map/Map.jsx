@@ -604,12 +604,12 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
                       openModal(listing);
                     }}
                   >
+                    <div className="sidebar-price-tag">₱{Number(listing.price).toLocaleString()}</div>
                     <div className="sidebar-card-img">
                       {images.length > 0
                         ? <img src={images[0]} alt="" />
                         : <div className="img-placeholder"><Home size={22} color="#ccc" /></div>
                       }
-                      <div className="sidebar-price-tag">₱{Number(listing.price).toLocaleString()}</div>
                     </div>
                     <div className="sidebar-card-content">
                       <div className="card-top">
