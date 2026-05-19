@@ -4,6 +4,8 @@
   flex-direction: column;
   gap: 24px;
   position: relative;
+  flex: 1;
+  min-height: 0;
 }
 
 /* ===== Search Bar ===== */
@@ -75,6 +77,14 @@
   align-items: start;
 }
 
+.map-cards-grid--empty {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 240px;
+}
+
 /* University card */
 .map-card-btn {
   padding: 18px;
@@ -97,9 +107,11 @@
 
 /* Empty state */
 .map-empty-state {
-  padding: 24px;
+  padding: 24px 32px;
   border-radius: 20px;
   border: 1px solid #5BADA8;
+  text-align: center;
+  max-width: 480px;
 }
 .map-wrapper.light .map-empty-state { background: #fff;    color: #333; }
 .map-wrapper.dark  .map-empty-state { background: #16213e; color: #eaeaea; }

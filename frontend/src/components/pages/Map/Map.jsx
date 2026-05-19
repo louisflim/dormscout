@@ -485,7 +485,7 @@ export default function Map({ darkMode = false, userType = 'tenant', onEditListi
       </div>
 
       {/* Listing Cards Grid */}
-      <div className="map-cards-grid">
+      <div className={`map-cards-grid${noResults ? ' map-cards-grid--empty' : ''}`}>
         {filteredUnis.map((uni) => (
           <button key={`uni-${uni.abbr}`} type="button" className="map-card-btn map-uni-card" onClick={() => handleUniversityClick(uni)}>
             <div className="map-uni-card-name">📍 {uni.name}</div>

@@ -6,6 +6,9 @@ import { User, HelpCircle, Info, Moon, Sun, LogOut, BadgeCheck } from 'lucide-re
 import { userAPI, listingsAPI, bookingsAPI, reviewsAPI } from '../../../utils/api';
 import { isLandlordVerified } from '../../../utils/landlordVerification';
 
+const PRIMARY = '#E8622E';
+const TEAL = '#5BADA8';
+
 const COLORS = {
   light: {
     bg:            'linear-gradient(120deg, #d7ebe9 0%, #e8d8c8 55%, #f6dfc9 100%)',
@@ -75,6 +78,11 @@ export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
   const profileImage = profileData?.profileImage || null;
 
   const displayName = displayNameFromUser(profileData);
+
+  const navDisplayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+    || user?.name || user?.email || 'Account';
+  const userInitials = navDisplayName
+    .split(' ').filter(Boolean).map((p) => p[0]).join('').toUpperCase().slice(0, 2) || 'A';
 
   const currentBookings = useMemo(
     () => (Array.isArray(tenantBookings) ? tenantBookings : []).filter(isCurrentBooking),
@@ -205,10 +213,11 @@ export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
   };
 
   const vCap = verificationCaption();
+  const themeClass = isDark ? 'dark' : 'light';
 
   if (!isOwnProfile && remoteLoadState === 'loading') {
     return (
-      <div className="profile-page" style={{ background: colors.bg, minHeight: '100vh', paddingTop: 80, textAlign: 'center', color: colors.text }}>
+      <div className={`profile-page ${themeClass}`} style={{ background: colors.bg, minHeight: '100vh', paddingTop: 80, textAlign: 'center', color: colors.text }}>
         <p>Loading profile…</p>
       </div>
     );
@@ -216,7 +225,7 @@ export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
 
   if (!isOwnProfile && (remoteLoadState === 'error' || !profileData)) {
     return (
-      <div className="profile-page" style={{ background: colors.bg, minHeight: '100vh', paddingTop: 80, textAlign: 'center', color: colors.text }}>
+      <div className={`profile-page ${themeClass}`} style={{ background: colors.bg, minHeight: '100vh', paddingTop: 80, textAlign: 'center', color: colors.text }}>
         <p style={{ marginBottom: 16 }}>User not found.</p>
         <button type="button" className="btn btn--primary" style={{ background: '#E8622E', color: '#fff' }} onClick={() => navigate('/messages')}>
           Back to Messages
@@ -230,57 +239,24 @@ export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
   }
 
   return (
-    <div className="profile-page" style={{ background: colors.bg }}>
+    <div className={`profile-page ${themeClass}`} style={{ background: colors.bg }}>
 
-      <nav
-        className="dashboard-nav"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          width: '100%',
-          background: colors.navBg,
-        }}
-      >
+      <nav className="dashboard-nav">
         <button
           className="dashboard-nav-title-btn"
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            margin: 0,
-            cursor: 'pointer',
-            fontSize: 24,
-            fontWeight: 700,
-            color: colors.text,
-            fontFamily: 'inherit',
-          }}
           aria-label="Go to Overview"
           onClick={() => navigate('/overview')}
         >
-          DormScout
+          <span style={{ color: PRIMARY }}>Dorm</span>
+          <span style={{ color: TEAL }}>Scout</span>
         </button>
 
         <div ref={dropdownRef} className="dashboard-dropdown-wrap">
-          <div
-            className="dashboard-avatar"
-            onClick={() => setShowDropdown(!showDropdown)}
-            style={{ cursor: 'pointer' }}
-          >
-            {profileImage ? (
-              <img
-                src={profileImage}
-                alt="Profile"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                }}
-              />
-            ) : (
-              <User size={20} color="#fff" />
-            )}
+          <div className="dashboard-avatar" onClick={() => setShowDropdown(!showDropdown)}>
+            {user?.profileImage
+              ? <img src={user.profileImage} alt="Profile" />
+              : <span>{userInitials}</span>
+            }
           </div>
 
           {showDropdown && (
@@ -289,36 +265,36 @@ export default function ProfilePage({ role, userType, darkMode, setDarkMode }) {
                 className="dropdown-item dropdown-item-profile"
                 onClick={() => { navigate('/profile'); setShowDropdown(false); }}
               >
-                <User size={15} /> My Profile
+                <User size={14} /> {navDisplayName}
               </div>
 
               <div
                 className="dropdown-item dropdown-item-default"
                 onClick={() => { navigate('/support'); setShowDropdown(false); }}
               >
-                <HelpCircle size={15} /> Help and Support
+                <HelpCircle size={14} /> Help and Support
               </div>
 
               <div
                 className="dropdown-item dropdown-item-default"
                 onClick={() => { navigate('/about'); setShowDropdown(false); }}
               >
-                <Info size={15} /> About Us
+                <Info size={14} /> About Us
               </div>
 
               <div
                 className="dropdown-item dropdown-item-default dropdown-item-dark-toggle"
                 onClick={toggleTheme}
               >
-                {isDark ? <Sun size={15} /> : <Moon size={15} />}
-                <span style={{ marginLeft: 8 }}>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+                {isDark ? <Sun size={14} /> : <Moon size={14} />}
+                <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
               </div>
 
               <div
                 className="dropdown-item dropdown-item-logout"
                 onClick={() => { setShowDropdown(false); handleLogout(); }}
               >
-                <LogOut size={15} /> Logout
+                <LogOut size={14} /> Logout
               </div>
             </div>
           )}

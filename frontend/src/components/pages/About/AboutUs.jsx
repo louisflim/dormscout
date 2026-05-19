@@ -135,7 +135,7 @@ export default function AboutUs({ darkMode = false, setDarkMode }) {
         {/* ── Hero ── */}
         <div className="about-hero">
           <div className="about-hero__badge">
-            <Info size={13} strokeWidth={2.5} />
+            <Info size={14} strokeWidth={2.5} />
             About Us
           </div>
           <h1 className="about-hero__title">
