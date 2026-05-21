@@ -20,6 +20,8 @@ export default function Register({ setUserType, darkMode = false, setDarkMode })
         password: '',
     });
     const [school, setSchool] = useState('');
+    const [businessName, setBusinessName] = useState('');
+    const [businessPermit, setBusinessPermit] = useState('');
     const [gender, setGender] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -64,6 +66,12 @@ export default function Register({ setUserType, darkMode = false, setDarkMode })
             setError('Please enter a valid phone number');
             return;
         }
+        if (userType === 'landlord') {
+            if (!businessName.trim() || !businessPermit.trim()) {
+                setError('Please fill in both Business Name and Business Permit Number');
+                return;
+            }
+        }
 
         setLoading(true);
 
@@ -76,6 +84,10 @@ export default function Register({ setUserType, darkMode = false, setDarkMode })
             userType: userType.toUpperCase(),
             gender,
             school: userType === 'tenant' ? school : null,
+            ...(userType === 'landlord' && {
+                businessName: businessName.trim(),
+                businessPermit: businessPermit.trim(),
+            }),
         };
 
         try {
@@ -179,6 +191,32 @@ export default function Register({ setUserType, darkMode = false, setDarkMode })
                     </select>
                 )}
 
+                {isLandlord && (
+                    <>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <input
+                                type="text"
+                                placeholder="Business Name"
+                                value={businessName}
+                                onChange={(e) => setBusinessName(e.target.value)}
+                                required
+                                className="auth-input"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Business Permit Number"
+                                value={businessPermit}
+                                onChange={(e) => setBusinessPermit(e.target.value)}
+                                required
+                                className="auth-input"
+                            />
+                        </div>
+                        <p className="auth-card-subtitle" style={{ margin: '-4px 0 0', textAlign: 'left' }}>
+                            Your business details will be reviewed by an admin after registration.
+                        </p>
+                    </>
+                )}
+
                 <div>
                     <label className="auth-gender-label">Gender</label>
                     <div className="auth-toggle">
@@ -201,7 +239,10 @@ export default function Register({ setUserType, darkMode = false, setDarkMode })
 
                 <button
                     type="submit"
-                    disabled={loading}
+                    disabled={
+                        loading
+                        || (isLandlord && (!businessName.trim() || !businessPermit.trim()))
+                    }
                     className="auth-submit-btn"
                     style={{ backgroundColor: buttonColor }}
                 >

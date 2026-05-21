@@ -80,8 +80,22 @@ public class UserService {
         user.setCourse(request.getCourse());
         user.setYearLevel(request.getYearLevel());
         user.setStudentId(request.getStudentId());
-        user.setBusinessName(request.getBusinessName());
-        user.setBusinessPermit(request.getBusinessPermit());
+
+        boolean isLandlord = "landlord".equalsIgnoreCase(request.getUserType());
+        if (isLandlord) {
+            String businessName = request.getBusinessName() != null ? request.getBusinessName().trim() : "";
+            String businessPermit = request.getBusinessPermit() != null ? request.getBusinessPermit().trim() : "";
+            if (businessName.isEmpty() || businessPermit.isEmpty()) {
+                throw new RuntimeException("Business name and permit number are required for landlord registration");
+            }
+            user.setBusinessName(businessName);
+            user.setBusinessPermit(businessPermit);
+            user.setVerified(false);
+            user.setVerificationStatus("pending");
+        } else {
+            user.setBusinessName(request.getBusinessName());
+            user.setBusinessPermit(request.getBusinessPermit());
+        }
 
         return userRepository.save(user);
     }
